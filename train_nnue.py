@@ -5,6 +5,12 @@ PyTorch NNUE Trainer (CPU-Optimized)
 Pre-computes all tensors at startup for maximum throughput.
 No DataLoader overhead — pure tensor operations.
 
+CHANGES from previous version:
+  1. SCReLU activation (squared clipped ReLU) replaces ClippedReLU
+  2. Cosine annealing with warm restarts replaces exponential LR decay
+  3. L2/L3 sizes increased from 32 -> 64
+  4. Gradient clipping added for stability
+
 Usage:
     python train_nnue.py [options]
     py -3.10 train_nnue.py --epochs 500 --batch-size 8192
@@ -40,8 +46,8 @@ except ImportError:
 # =============================================================================
 NUM_FEATURES = 768
 L1_SIZE = 256
-L2_SIZE = 32
-L3_SIZE = 32
+L2_SIZE = 64   # CHANGED: 32 -> 64
+L3_SIZE = 64   # CHANGED: 32 -> 64
 
 # =============================================================================
 # Feature mirror — must match C++ mirrorFeature() exactly
@@ -171,6 +177,7 @@ def build_phase_balanced_indices(phases, count):
 
 # =============================================================================
 # Weight I/O — matches C++ binary format exactly
+# CHANGED: Updated for L2_SIZE=64, L3_SIZE=64
 # =============================================================================
 def save_weights_cpp(net, filename):
     with open(filename, 'wb') as f:
@@ -178,15 +185,15 @@ def save_weights_cpp(net, filename):
         f.write(net.l1_weight.detach().cpu().numpy().astype(np.float32).tobytes())
         # L1 biases: [256]
         f.write(net.l1_bias.detach().cpu().numpy().astype(np.float32).tobytes())
-        # L2 weights: C++ [512][32], PyTorch (32, 512) — transpose
+        # L2 weights: C++ [512][64], PyTorch (64, 512) — transpose
         f.write(net.l2.weight.detach().cpu().numpy().T.astype(np.float32).tobytes())
-        # L2 biases: [32]
+        # L2 biases: [64]
         f.write(net.l2.bias.detach().cpu().numpy().astype(np.float32).tobytes())
-        # L3 weights: C++ [32][32], PyTorch (32, 32) — transpose
+        # L3 weights: C++ [64][64], PyTorch (64, 64) — transpose
         f.write(net.l3.weight.detach().cpu().numpy().T.astype(np.float32).tobytes())
-        # L3 biases: [32]
+        # L3 biases: [64]
         f.write(net.l3.bias.detach().cpu().numpy().astype(np.float32).tobytes())
-        # Output weights: [32]
+        # Output weights: [64]
         f.write(net.output.weight.detach().cpu().numpy().flatten().astype(np.float32).tobytes())
         # Output bias: [1]
         f.write(net.output.bias.detach().cpu().numpy().astype(np.float32).tobytes())
@@ -200,19 +207,21 @@ def load_weights_cpp(net, filename):
         l1b = np.frombuffer(f.read(256 * 4), dtype=np.float32).copy()
         net.l1_bias.data = torch.from_numpy(l1b)
         
-        l2w = np.frombuffer(f.read(512 * 32 * 4), dtype=np.float32).reshape(512, 32)
+        # CHANGED: 512 * 64 instead of 512 * 32
+        l2w = np.frombuffer(f.read(512 * L2_SIZE * 4), dtype=np.float32).reshape(512, L2_SIZE)
         net.l2.weight.data = torch.from_numpy(l2w.T.copy())
         
-        l2b = np.frombuffer(f.read(32 * 4), dtype=np.float32).copy()
+        l2b = np.frombuffer(f.read(L2_SIZE * 4), dtype=np.float32).copy()
         net.l2.bias.data = torch.from_numpy(l2b)
         
-        l3w = np.frombuffer(f.read(32 * 32 * 4), dtype=np.float32).reshape(32, 32)
+        # CHANGED: L2_SIZE * L3_SIZE instead of 32 * 32
+        l3w = np.frombuffer(f.read(L2_SIZE * L3_SIZE * 4), dtype=np.float32).reshape(L2_SIZE, L3_SIZE)
         net.l3.weight.data = torch.from_numpy(l3w.T.copy())
         
-        l3b = np.frombuffer(f.read(32 * 4), dtype=np.float32).copy()
+        l3b = np.frombuffer(f.read(L3_SIZE * 4), dtype=np.float32).copy()
         net.l3.bias.data = torch.from_numpy(l3b)
         
-        ow = np.frombuffer(f.read(32 * 4), dtype=np.float32).reshape(1, 32)
+        ow = np.frombuffer(f.read(L3_SIZE * 4), dtype=np.float32).reshape(1, L3_SIZE)
         net.output.weight.data = torch.from_numpy(ow.copy())
         
         ob = np.frombuffer(f.read(4), dtype=np.float32).copy()
@@ -221,20 +230,28 @@ def load_weights_cpp(net, filename):
 
 # =============================================================================
 # NNUE Network — exact replica of C++ architecture
+# CHANGED: SCReLU activation, L2/L3 = 64
 # =============================================================================
-class ClippedReLU(nn.Module):
+class SCReLU(nn.Module):
+    """Squared Clipped ReLU: clamp(x, 0, 1)^2
+    
+    Used by modern NNUE implementations (Stockfish).
+    Better gradient flow than ClippedReLU — the squaring creates a smooth
+    curve that provides non-zero gradients throughout the active region,
+    rather than the flat gradient of ClippedReLU.
+    """
     def forward(self, x):
-        return torch.clamp(x, 0.0, 1.0)
+        return torch.clamp(x, 0.0, 1.0) ** 2
 
 class NNUENetwork(nn.Module):
     def __init__(self):
         super().__init__()
         self.l1_weight = nn.Parameter(torch.zeros(NUM_FEATURES, L1_SIZE))
         self.l1_bias = nn.Parameter(torch.zeros(L1_SIZE))
-        self.l2 = nn.Linear(L1_SIZE * 2, L2_SIZE)
-        self.l3 = nn.Linear(L2_SIZE, L3_SIZE)
-        self.output = nn.Linear(L3_SIZE, 1)
-        self.crelu = ClippedReLU()
+        self.l2 = nn.Linear(L1_SIZE * 2, L2_SIZE)   # 512 -> 64
+        self.l3 = nn.Linear(L2_SIZE, L3_SIZE)         # 64 -> 64
+        self.output = nn.Linear(L3_SIZE, 1)            # 64 -> 1
+        self.screlu = SCReLU()                         # CHANGED: SCReLU instead of ClippedReLU
         self._init_weights()
     
     def _init_weights(self):
@@ -255,16 +272,16 @@ class NNUENetwork(nn.Module):
     def forward(self, white_features, black_features, stm):
         white_acc = torch.mm(white_features, self.l1_weight) + self.l1_bias
         black_acc = torch.mm(black_features, self.l1_weight) + self.l1_bias
-        white_acc = self.crelu(white_acc)
-        black_acc = self.crelu(black_acc)
+        white_acc = self.screlu(white_acc)   # CHANGED: SCReLU
+        black_acc = self.screlu(black_acc)   # CHANGED: SCReLU
         
         stm_mask = stm.unsqueeze(1)
         stm_acc = white_acc * (1 - stm_mask) + black_acc * stm_mask
         opp_acc = black_acc * (1 - stm_mask) + white_acc * stm_mask
         l1_out = torch.cat([stm_acc, opp_acc], dim=1)
         
-        l2_out = self.crelu(self.l2(l1_out))
-        l3_out = self.crelu(self.l3(l2_out))
+        l2_out = self.screlu(self.l2(l1_out))   # CHANGED: SCReLU
+        l3_out = self.screlu(self.l3(l2_out))   # CHANGED: SCReLU
         return self.output(l3_out)
 
 # =============================================================================
@@ -390,6 +407,7 @@ def generate_plot(log_data=None, show=False):
 
 # =============================================================================
 # Training Loop — optimized: no DataLoader, pure tensor slicing
+# CHANGED: Cosine annealing with warm restarts, gradient clipping
 # =============================================================================
 def train(args):
     device = torch.device('cpu')
@@ -423,12 +441,25 @@ def train(args):
     resumed = False
     
     if os.path.exists(weights_path):
-        load_weights_cpp(net, weights_path)
-        print(f"Loaded existing weights from {weights_path}")
+        try:
+            load_weights_cpp(net, weights_path)
+            print(f"Loaded existing weights from {weights_path}")
+        except Exception as e:
+            print(f"Could not load weights (architecture changed?): {e}")
+            print(f"Starting with fresh random weights.")
     
     # Optimizer: Adam converges faster than SGD for this network
     optimizer = optim.Adam(net.parameters(), lr=args.lr, betas=(0.9, 0.999), eps=1e-8)
-    scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=args.lr_decay)
+    
+    # CHANGED: Cosine annealing with warm restarts instead of exponential decay
+    # T_0 = restart period (epochs), T_mult = multiply period after each restart
+    # eta_min = minimum learning rate at the bottom of each cosine cycle
+    scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
+        optimizer,
+        T_0=args.cosine_t0,          # first cycle length (default 50 epochs)
+        T_mult=args.cosine_t_mult,    # multiply cycle length after each restart (default 2)
+        eta_min=args.lr_min           # minimum LR (default 1e-6)
+    )
     
     # Restore optimizer/scheduler state if checkpoint exists (seamless continuation)
     if os.path.exists(checkpoint_path) and not args.fresh:
@@ -447,15 +478,19 @@ def train(args):
     
     print(f"\n{'='*60}")
     print(f"Training Configuration:")
-    print(f"  Positions:      {data['count']}")
-    print(f"  Batch size:     {batch_size}")
-    print(f"  Epochs:         {args.epochs}")
-    print(f"  Learning rate:  {args.lr}")
-    print(f"  LR decay:       {args.lr_decay}")
-    print(f"  Lambda:         {lam}")
-    print(f"  Eval scale:     {eval_scale}")
-    print(f"  Phase balanced: {args.phase_balanced}")
-    print(f"  Early stop:     {args.early_stop} epochs")
+    print(f"  Positions:        {data['count']}")
+    print(f"  Batch size:       {batch_size}")
+    print(f"  Epochs:           {args.epochs}")
+    print(f"  Learning rate:    {args.lr}")
+    print(f"  LR schedule:      Cosine Annealing (T0={args.cosine_t0}, Tmult={args.cosine_t_mult})")
+    print(f"  LR min:           {args.lr_min}")
+    print(f"  Lambda:           {lam}")
+    print(f"  Eval scale:       {eval_scale}")
+    print(f"  Phase balanced:   {args.phase_balanced}")
+    print(f"  Early stop:       {args.early_stop} epochs")
+    print(f"  Activation:       SCReLU (squared clipped ReLU)")
+    print(f"  Architecture:     768→256→{L2_SIZE}→{L3_SIZE}→1")
+    print(f"  Grad clip norm:   {args.grad_clip}")
     print(f"{'='*60}\n")
     
     best_loss = float('inf')
@@ -510,6 +545,11 @@ def train(args):
                 
                 optimizer.zero_grad()
                 loss.backward()
+                
+                # NEW: Gradient clipping for training stability
+                if args.grad_clip > 0:
+                    torch.nn.utils.clip_grad_norm_(net.parameters(), args.grad_clip)
+                
                 optimizer.step()
                 
                 total_loss += loss.item()
@@ -603,7 +643,7 @@ def format_time(seconds):
 # Main
 # =============================================================================
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='PyTorch NNUE Trainer (CPU-Optimized)')
+    parser = argparse.ArgumentParser(description='PyTorch NNUE Trainer (CPU-Optimized, SCReLU + Cosine Annealing)')
     
     parser.add_argument('--data', type=str, default='assets/training_data.bin',
                         help='Path to training_data.bin')
@@ -620,12 +660,25 @@ if __name__ == '__main__':
                         help='Batch size')
     parser.add_argument('--lr', type=float, default=0.001,
                         help='Initial learning rate')
-    parser.add_argument('--lr-decay', type=float, default=0.995,
-                        help='LR decay per epoch')
     parser.add_argument('--lam', type=float, default=0.5,
                         help='Lambda: weight between eval loss and result loss')
     parser.add_argument('--eval-scale', type=float, default=400.0,
                         help='Sigmoid scaling factor for eval')
+    
+    # CHANGED: Cosine annealing parameters (replaces --lr-decay)
+    parser.add_argument('--cosine-t0', type=int, default=50,
+                        help='Cosine annealing: first cycle length in epochs (default: 50)')
+    parser.add_argument('--cosine-t-mult', type=int, default=2,
+                        help='Cosine annealing: multiply cycle length after each restart (default: 2)')
+    parser.add_argument('--lr-min', type=float, default=1e-6,
+                        help='Minimum learning rate at bottom of cosine cycle (default: 1e-6)')
+    # Keep --lr-decay for backward compat but it's unused
+    parser.add_argument('--lr-decay', type=float, default=0.995,
+                        help='(DEPRECATED — cosine annealing is now used instead)')
+    
+    # NEW: Gradient clipping
+    parser.add_argument('--grad-clip', type=float, default=1.0,
+                        help='Gradient clipping norm (0 = disabled, default: 1.0)')
     
     parser.add_argument('--phase-balanced', action='store_true', default=True,
                         help='Use phase-balanced training (default: on)')

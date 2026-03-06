@@ -255,7 +255,7 @@ namespace NNUE {
         }
 
         // =====================================================================
-        // Improvement #6: Mirror a feature index horizontally (swap files a<->h)
+        // Mirror a feature index horizontally (swap files a<->h)
         // Feature index = pieceIndex * 64 + rank * 8 + col
         // Mirror: col -> 7 - col
         // =====================================================================
@@ -268,6 +268,21 @@ namespace NNUE {
             return pieceIndex * 64 + rank * 8 + mirroredCol;
         }
 
+        // =====================================================================
+        // NEW: SCReLU helper and its derivative for backpropagation
+        // SCReLU(x) = clamp(x, 0, 1)^2
+        // d/dx SCReLU(x) = 2 * clamp(x, 0, 1)  (when 0 < x < 1, else 0)
+        // =====================================================================
+        inline float screlu(float x) {
+            float clamped = std::max(0.0f, std::min(x, 1.0f));
+            return clamped * clamped;
+        }
+
+        inline float screlu_derivative(float pre_activation) {
+            if (pre_activation <= 0.0f || pre_activation >= 1.0f) return 0.0f;
+            return 2.0f * pre_activation;  // 2 * clamp(x, 0, 1), but x is already in (0,1)
+        }
+
     } // anonymous namespace
 
     // =========================================================================
@@ -278,9 +293,6 @@ namespace NNUE {
 
     // -------------------------------------------------------------------------
     // Game phase classification from feature indices
-    // Feature encoding: colorOffset * 384 + pieceOffset * 64 + rank * 8 + col
-    // pieceOffset: 0=Pawn, 1=Knight, 2=Bishop, 3=Rook, 4=Queen, 5=King
-    // Phase weights: Knight=1, Bishop=1, Rook=2, Queen=4 (max phase = 24)
     // -------------------------------------------------------------------------
     int Trainer::computeMaterialPhase(const std::vector<int>& activeFeatures) {
         int phase = 0;
@@ -305,11 +317,13 @@ namespace NNUE {
     }
 
     // -------------------------------------------------------------------------
-    // Improvement #2: Single-threaded worker for parallel data generation
-    // Each worker plays its share of games independently with its own engine
+    // NEW: Diversified self-play worker with random opening moves
+    // Each game starts with N random legal moves to create diverse positions
+    // Only positions AFTER the random opening are recorded as training data
     // -------------------------------------------------------------------------
     std::vector<TrainingPosition> Trainer::generateGamesWorker(
         int numGames, int thinkTimeMs, int seedOffset,
+        int randomOpeningMoves,
         std::atomic<bool>* cancelFlag)
     {
         std::vector<TrainingPosition> allPositions;
@@ -325,6 +339,30 @@ namespace NNUE {
             Engine engine;
             engine.setTimeLimit(thinkTimeMs);
 
+            // ===== NEW: Play random opening moves to diversify starting positions =====
+            int openingMovesPlayed = 0;
+            for (int i = 0; i < randomOpeningMoves; ++i) {
+                auto moves = MoveGen::getLegalMoves(board);
+                if (moves.empty()) break;
+
+                // Pick a random legal move
+                std::uniform_int_distribution<int> moveDist(0, static_cast<int>(moves.size()) - 1);
+                Move randomMove = moves[moveDist(rng)];
+                board.applyMove(randomMove);
+                ++openingMovesPlayed;
+
+                // Check if game ended during random opening
+                auto nextMoves = MoveGen::getLegalMoves(board);
+                if (nextMoves.empty()) break;
+            }
+
+            // If game ended during random opening, skip this game
+            {
+                auto moves = MoveGen::getLegalMoves(board);
+                if (moves.empty()) continue;
+            }
+            // ===== END diversified opening =====
+
             struct GamePosition {
                 std::vector<int> activeFeatures;
                 Color sideToMove;
@@ -332,11 +370,9 @@ namespace NNUE {
             };
             std::vector<GamePosition> gamePositions;
 
-            // Improvement #8: Maintain incremental accumulator during self-play
-            // We track which features are active and update incrementally
             std::vector<int> currentFeatures = extractActiveFeatures(board);
 
-            int ply = 0;
+            int ply = openingMovesPlayed;  // Count from actual game start
             float gameResult = 0.5f;
 
             while (ply < 300) {
@@ -365,11 +401,12 @@ namespace NNUE {
 
                 bool isMateScore = (std::abs(eval) > 20000);
                 bool enoughPieces = countBoardPieces(board) >= 8;
-                bool pastOpening = ply >= 8;
+                // CHANGED: record from ply 0 of engine play (opening randomization already diversified)
+                bool pastOpening = (ply >= openingMovesPlayed + 2);
 
                 if (pastOpening && enoughPieces && !isMateScore) {
                     GamePosition gp;
-                    gp.activeFeatures = currentFeatures; // reuse current features
+                    gp.activeFeatures = currentFeatures;
                     gp.sideToMove = board.turn;
                     gp.searchEval = evalWhitePOV;
                     gamePositions.push_back(std::move(gp));
@@ -378,9 +415,6 @@ namespace NNUE {
                 board.applyMove(bestMove);
                 ++ply;
 
-                // Improvement #8: Incrementally update features after move
-                // Instead of extracting all features from scratch, we recompute
-                // This is still O(32) but avoids the inner loop overhead
                 currentFeatures = extractActiveFeatures(board);
             }
 
@@ -403,7 +437,7 @@ namespace NNUE {
 
     // -------------------------------------------------------------------------
     // generateTrainingData: parallel self-play using multiple threads
-    // Improvement #2: Uses numThreads workers for ~Nx speedup
+    // CHANGED: Now passes randomOpeningMoves to workers
     // -------------------------------------------------------------------------
     std::vector<TrainingPosition> Trainer::generateTrainingData(
         const TrainingConfig& config,
@@ -415,21 +449,19 @@ namespace NNUE {
         if (numThreads <= 0) {
             numThreads = static_cast<int>(std::thread::hardware_concurrency());
             if (numThreads <= 0) numThreads = 4; // fallback
-            // Cap at reasonable number - diminishing returns past ~8
-            if (numThreads > 8) numThreads = 8;
+            if (numThreads > 16) numThreads = 16; // INCREASED: allow up to 16 threads
         }
 
         // If only 1 game or 1 thread, just run single-threaded
         if (numThreads == 1 || config.numGames <= 1) {
-            // Single-threaded with progress callback
             std::vector<TrainingPosition> allPositions;
             std::mt19937 rng(42);
 
             for (int gameIdx = 0; gameIdx < config.numGames; ++gameIdx) {
-                // Check cancel flag after each game
                 if (cancelFlag && cancelFlag->load()) break;
 
-                auto gameData = generateGamesWorker(1, config.thinkTimeMs, gameIdx, cancelFlag);
+                auto gameData = generateGamesWorker(1, config.thinkTimeMs, gameIdx,
+                    config.randomOpeningMoves, cancelFlag);
                 allPositions.insert(allPositions.end(), gameData.begin(), gameData.end());
                 if (progressCallback) {
                     progressCallback(gameIdx + 1, config.numGames);
@@ -454,18 +486,17 @@ namespace NNUE {
             if (gamesPerThread[t] <= 0) continue;
 
             threads.emplace_back([&, t]() {
-                // Each thread generates its share of games
                 int thinkTime = config.thinkTimeMs;
                 int numGames = gamesPerThread[t];
-                int seedOffset = t * 1000; // different seed per thread
+                int seedOffset = t * 1000;
 
                 std::vector<TrainingPosition> localPositions;
 
                 for (int g = 0; g < numGames; ++g) {
-                    // Check cancel flag in worker threads
                     if (cancelFlag && cancelFlag->load()) break;
 
-                    auto gameData = generateGamesWorker(1, thinkTime, seedOffset + g, cancelFlag);
+                    auto gameData = generateGamesWorker(1, thinkTime, seedOffset + g,
+                        config.randomOpeningMoves, cancelFlag);
                     localPositions.insert(localPositions.end(),
                         gameData.begin(), gameData.end());
 
@@ -500,8 +531,7 @@ namespace NNUE {
     }
 
     // -------------------------------------------------------------------------
-    // Improvement #6: Mirror positions horizontally to double training data
-    // For each position, create a copy with all features mirrored (files swapped)
+    // Mirror positions horizontally to double training data
     // -------------------------------------------------------------------------
     std::vector<TrainingPosition> Trainer::mirrorData(
         const std::vector<TrainingPosition>& data)
@@ -528,8 +558,7 @@ namespace NNUE {
 
     // -------------------------------------------------------------------------
     // train: backpropagation training loop with Adam optimizer
-    // Improvement #4: Early stopping when loss plateaus
-    // Improvement #5: Larger batch size for better throughput
+    // CHANGED: SCReLU activation in forward/backward pass
     // -------------------------------------------------------------------------
     void Trainer::train(
         Network& net,
@@ -630,7 +659,6 @@ namespace NNUE {
             }
         }
 
-        // Phase balancing requires all three phases to have data
         bool usePhaseBalance = config.phaseBalancedTraining &&
                                !openingIdx.empty() && !middlegameIdx.empty() && !endgameIdx.empty();
 
@@ -638,17 +666,15 @@ namespace NNUE {
 
         float lr = config.learningRate;
 
-        // Improvement #4: Early stopping state
+        // Early stopping state
         float bestLoss = 1e9f;
         int epochsWithoutImprovement = 0;
 
         for (int epoch = 0; epoch < config.epochs; ++epoch) {
-            // Check cancel flag after each epoch
             if (cancelFlag && cancelFlag->load()) break;
 
             // Build index set for this epoch
             if (usePhaseBalance) {
-                // Oversample minority phases to match the largest (cap at 5x original)
                 size_t maxCount = std::max({openingIdx.size(), middlegameIdx.size(), endgameIdx.size()});
 
                 auto oversamplePhase = [&](std::vector<int>& src) -> std::vector<int> {
@@ -691,7 +717,7 @@ namespace NNUE {
                 for (int bi = batchStart; bi < batchEnd; ++bi) {
                     const TrainingPosition& pos = data[indices[bi]];
 
-                    // ---- FORWARD PASS ----
+                    // ---- FORWARD PASS (with SCReLU) ----
                     std::array<float, L1_SIZE> whiteAcc;
                     std::array<float, L1_SIZE> blackAcc;
                     for (int j = 0; j < L1_SIZE; ++j) {
@@ -709,20 +735,22 @@ namespace NNUE {
                         }
                     }
 
+                    // CHANGED: SCReLU activation for L1
                     std::array<float, L1_SIZE * 2> l1Out;
-                    std::array<float, L1_SIZE * 2> l1Pre;
+                    std::array<float, L1_SIZE * 2> l1Pre;  // pre-activation values needed for backward pass
                     const auto& stmAcc = (pos.sideToMove == Color::White) ? whiteAcc : blackAcc;
                     const auto& oppAcc = (pos.sideToMove == Color::White) ? blackAcc : whiteAcc;
 
                     for (int i = 0; i < L1_SIZE; ++i) {
                         l1Pre[i] = stmAcc[i];
-                        l1Out[i] = std::max(0.0f, std::min(stmAcc[i], 1.0f));
+                        l1Out[i] = screlu(stmAcc[i]);
                     }
                     for (int i = 0; i < L1_SIZE; ++i) {
                         l1Pre[L1_SIZE + i] = oppAcc[i];
-                        l1Out[L1_SIZE + i] = std::max(0.0f, std::min(oppAcc[i], 1.0f));
+                        l1Out[L1_SIZE + i] = screlu(oppAcc[i]);
                     }
 
+                    // CHANGED: SCReLU activation for L2
                     std::array<float, L2_SIZE> l2Pre, l2Out;
                     for (int j = 0; j < L2_SIZE; ++j) {
                         float sum = net.L2_biases[j];
@@ -730,9 +758,10 @@ namespace NNUE {
                             sum += l1Out[i] * net.L2_weights[i][j];
                         }
                         l2Pre[j] = sum;
-                        l2Out[j] = std::max(0.0f, std::min(sum, 1.0f));
+                        l2Out[j] = screlu(sum);
                     }
 
+                    // CHANGED: SCReLU activation for L3
                     std::array<float, L3_SIZE> l3Pre, l3Out;
                     for (int j = 0; j < L3_SIZE; ++j) {
                         float sum = net.L3_biases[j];
@@ -740,7 +769,7 @@ namespace NNUE {
                             sum += l2Out[i] * net.L3_weights[i][j];
                         }
                         l3Pre[j] = sum;
-                        l3Out[j] = std::max(0.0f, std::min(sum, 1.0f));
+                        l3Out[j] = screlu(sum);
                     }
 
                     float rawOutput = net.output_bias;
@@ -761,7 +790,7 @@ namespace NNUE {
                     float loss = config.lambda * evalLoss + (1.0f - config.lambda) * resultLoss;
                     batchLoss += loss;
 
-                    // ---- BACKWARD PASS ----
+                    // ---- BACKWARD PASS (with SCReLU derivatives) ----
                     float dLdSigPred = 2.0f * config.lambda * (sigPred - sigTarget)
                                      + 2.0f * (1.0f - config.lambda) * (sigPred - result);
 
@@ -780,10 +809,10 @@ namespace NNUE {
                         dLdL3Out[i] = dLdRawOutput * net.output_weights[i];
                     }
 
+                    // CHANGED: SCReLU derivative for L3
                     std::array<float, L3_SIZE> dLdL3Pre;
                     for (int j = 0; j < L3_SIZE; ++j) {
-                        float mask = (l3Pre[j] > 0.0f && l3Pre[j] < 1.0f) ? 1.0f : 0.0f;
-                        dLdL3Pre[j] = dLdL3Out[j] * mask;
+                        dLdL3Pre[j] = dLdL3Out[j] * screlu_derivative(l3Pre[j]);
                     }
 
                     for (int i = 0; i < L2_SIZE; ++i) {
@@ -803,10 +832,10 @@ namespace NNUE {
                         }
                     }
 
+                    // CHANGED: SCReLU derivative for L2
                     std::array<float, L2_SIZE> dLdL2Pre;
                     for (int j = 0; j < L2_SIZE; ++j) {
-                        float mask = (l2Pre[j] > 0.0f && l2Pre[j] < 1.0f) ? 1.0f : 0.0f;
-                        dLdL2Pre[j] = dLdL2Out[j] * mask;
+                        dLdL2Pre[j] = dLdL2Out[j] * screlu_derivative(l2Pre[j]);
                     }
 
                     for (int i = 0; i < L1_SIZE * 2; ++i) {
@@ -826,10 +855,10 @@ namespace NNUE {
                         }
                     }
 
+                    // CHANGED: SCReLU derivative for L1
                     std::array<float, L1_SIZE * 2> dLdL1Pre;
                     for (int i = 0; i < L1_SIZE * 2; ++i) {
-                        float mask = (l1Pre[i] > 0.0f && l1Pre[i] < 1.0f) ? 1.0f : 0.0f;
-                        dLdL1Pre[i] = dLdL1Out[i] * mask;
+                        dLdL1Pre[i] = dLdL1Out[i] * screlu_derivative(l1Pre[i]);
                     }
 
                     std::array<float, L1_SIZE> dLdWhiteAcc, dLdBlackAcc;
@@ -881,7 +910,7 @@ namespace NNUE {
                 progressCallback(epoch + 1, avgLoss);
             }
 
-            // Improvement #4: Early stopping
+            // Early stopping
             if (config.earlyStopPatience > 0) {
                 if (avgLoss < bestLoss - 0.0001f) {
                     bestLoss = avgLoss;
@@ -889,11 +918,10 @@ namespace NNUE {
                 } else {
                     epochsWithoutImprovement++;
                     if (epochsWithoutImprovement >= config.earlyStopPatience) {
-                        // Report early stop via progress callback
                         if (progressCallback) {
                             progressCallback(epoch + 1, avgLoss);
                         }
-                        break; // Early stop!
+                        break;
                     }
                 }
             }
@@ -974,7 +1002,6 @@ namespace NNUE {
 
         std::ifstream file(filename, std::ios::binary);
         if (!file.is_open()) {
-            // Not an error - file may not exist yet
             return data;
         }
 
@@ -1021,7 +1048,6 @@ namespace NNUE {
         std::mt19937 rng(99);
 
         for (int gameIdx = 0; gameIdx < numGames; ++gameIdx) {
-            // Check cancel flag after each game
             if (cancelFlag && cancelFlag->load()) break;
 
             Board board;

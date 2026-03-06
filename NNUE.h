@@ -9,8 +9,8 @@
 namespace NNUE {
     constexpr int NUM_FEATURES = 768;
     constexpr int L1_SIZE = 256;
-    constexpr int L2_SIZE = 32;
-    constexpr int L3_SIZE = 32;
+    constexpr int L2_SIZE = 64;   // CHANGED: 32 -> 64 for more capacity
+    constexpr int L3_SIZE = 64;   // CHANGED: 32 -> 64 for more capacity
 
     // Feature index helpers
     int featureIndex(PieceType pt, Color pc, int rank, int col);
@@ -46,15 +46,15 @@ namespace NNUE {
         alignas(16) std::array<std::array<float, L1_SIZE>, NUM_FEATURES> L1_weights{};
         alignas(16) std::array<float, L1_SIZE> L1_biases{};
 
-        // L2: 512 -> 32
+        // L2: 512 -> 64 (CHANGED from 32)
         alignas(16) std::array<std::array<float, L2_SIZE>, L1_SIZE * 2> L2_weights{};
         alignas(16) std::array<float, L2_SIZE> L2_biases{};
 
-        // L3: 32 -> 32
+        // L3: 64 -> 64 (CHANGED from 32)
         alignas(16) std::array<std::array<float, L3_SIZE>, L2_SIZE> L3_weights{};
         alignas(16) std::array<float, L3_SIZE> L3_biases{};
 
-        // Output: 32 -> 1
+        // Output: 64 -> 1 (CHANGED from 32)
         alignas(16) std::array<float, L3_SIZE> output_weights{};
         float output_bias = 0.0f;
     };

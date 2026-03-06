@@ -20,8 +20,8 @@ namespace NNUE {
     };
 
     struct TrainingConfig {
-        int numGames = 200;           // games for data generation
-        int thinkTimeMs = 100;        // engine think time per move during data gen (lowered from 200)
+        int numGames = 2000;          // games for data generation (INCREASED: 200 -> 2000)
+        int thinkTimeMs = 50;         // engine think time per move during data gen (LOWERED: 100 -> 50 for 2x speed)
         int epochs = 100;             // training epochs
         int batchSize = 512;          // mini-batch size (increased from 256)
         float learningRate = 0.001f;  // initial LR
@@ -30,13 +30,19 @@ namespace NNUE {
         float evalScale = 400.0f;     // sigmoid scaling factor
         std::string outputPath = "assets/nnue_weights.bin";  // where to save trained weights
 
-        // === NEW: Speed improvements ===
+        // === Speed improvements ===
         int numThreads = 0;            // 0 = auto-detect (hardware_concurrency)
         int earlyStopPatience = 15;    // stop if no improvement for this many epochs (0 = disabled)
         bool mirrorPositions = true;   // double data via horizontal mirroring
         bool appendExistingData = true; // load and append to existing training_data.bin
         std::string dataPath = "assets/training_data.bin"; // path for saved training data
         bool phaseBalancedTraining = true;  // balance training across game phases
+
+        // === NEW: Diversified openings ===
+        int randomOpeningMoves = 8;    // number of random legal moves to play at game start
+                                       // diversifies starting positions to avoid repetitive games
+                                       // positions from these random moves are NOT recorded as training data
+        bool useOpeningBook = false;   // future: use an opening book instead of random moves
     };
 
     struct EloResult {
@@ -101,6 +107,7 @@ namespace NNUE {
         // Single-threaded data generation worker (used by parallel version)
         std::vector<TrainingPosition> generateGamesWorker(
             int numGames, int thinkTimeMs, int seedOffset,
+            int randomOpeningMoves,  // NEW: pass through config
             std::atomic<bool>* cancelFlag = nullptr);
     };
 }

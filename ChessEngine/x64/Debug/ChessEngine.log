@@ -1,0 +1,11 @@
+﻿  Board.cpp
+  Engine.cpp
+  Main.cpp
+  MoveGen.cpp
+  NNUE.cpp
+  NNUETrainer.cpp
+  VisualGame.cpp
+  Generating Code...
+  ChessEngine.vcxproj -> C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Debug\ChessEngine.exe
+  'pwsh.exe' is not recognized as an internal or external command,
+  operable program or batch file.

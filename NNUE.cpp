@@ -16,12 +16,15 @@
 namespace NNUE {
 
     // =========================================================================
-    // SSE helper: ClippedReLU on 4 floats: max(0, min(x, 1))
+    // SSE helper: SCReLU (Squared Clipped ReLU) on 4 floats: max(0, min(x, 1))^2
+    // CHANGED: From ClippedReLU to SCReLU — modern NNUE standard (Stockfish uses this)
+    // SCReLU preserves more gradient information and improves training convergence
     // =========================================================================
-    static inline __m128 clippedReLU_sse(__m128 x) {
+    static inline __m128 screlu_sse(__m128 x) {
         __m128 zero = _mm_setzero_ps();
         __m128 one = _mm_set1_ps(1.0f);
-        return _mm_max_ps(zero, _mm_min_ps(x, one));
+        __m128 clamped = _mm_max_ps(zero, _mm_min_ps(x, one));
+        return _mm_mul_ps(clamped, clamped);  // square it
     }
 
     // =========================================================================
@@ -66,11 +69,8 @@ namespace NNUE {
 
     // =========================================================================
     // refreshAccumulator: SIMD-accelerated accumulator computation
-    // Improvement #7 + #8: Uses SSE for the inner add loop
     // =========================================================================
     void Network::refreshAccumulator(const Board& board, Accumulator& acc) {
-        // Start with biases — use SSE to copy
-        // L1_SIZE = 256, so 64 SSE iterations
         for (int j = 0; j < L1_SIZE; j += 4) {
             __m128 bias = _mm_load_ps(&L1_biases[j]);
             _mm_store_ps(&acc.white[j], bias);
@@ -85,7 +85,6 @@ namespace NNUE {
                 int wFeature = featureIndex(piece.type, piece.color, rank, col);
                 int bFeature = mirrorFeature(wFeature);
 
-                // SIMD add to white accumulator
                 const float* wWeights = L1_weights[wFeature].data();
                 float* wAcc = acc.white.data();
                 for (int j = 0; j < L1_SIZE; j += 4) {
@@ -94,7 +93,6 @@ namespace NNUE {
                     _mm_store_ps(&wAcc[j], _mm_add_ps(a, w));
                 }
 
-                // SIMD add to black accumulator
                 const float* bWeights = L1_weights[bFeature].data();
                 float* bAcc = acc.black.data();
                 for (int j = 0; j < L1_SIZE; j += 4) {
@@ -110,7 +108,6 @@ namespace NNUE {
 
     // =========================================================================
     // Incremental feature add/remove — SIMD accelerated
-    // Improvement #8: Used during search for efficient accumulator updates
     // =========================================================================
     void Network::addFeature(int feature, Accumulator& acc) {
         int mirrored = mirrorFeature(feature);
@@ -153,36 +150,33 @@ namespace NNUE {
     }
 
     // =========================================================================
-    // forward: SIMD-optimized forward pass through L2, L3, and output
-    // Improvement #7: Key bottleneck — 512→32 and 32→32 matrix multiplies
+    // forward: SIMD-optimized forward pass with SCReLU activation
+    // CHANGED: All activations now use SCReLU instead of ClippedReLU
     // =========================================================================
     int Network::forward(const Accumulator& acc, Color sideToMove) {
-        // Build 512-element input with ClippedReLU — SIMD accelerated
+        // Build 512-element input with SCReLU — SIMD accelerated
         alignas(16) float input[L1_SIZE * 2];
 
         const auto& stmAcc = (sideToMove == Color::White) ? acc.white : acc.black;
         const auto& oppAcc = (sideToMove == Color::White) ? acc.black : acc.white;
 
-        // ClippedReLU on STM accumulator
+        // SCReLU on STM accumulator
         for (int i = 0; i < L1_SIZE; i += 4) {
             __m128 val = _mm_load_ps(&stmAcc[i]);
-            _mm_store_ps(&input[i], clippedReLU_sse(val));
+            _mm_store_ps(&input[i], screlu_sse(val));
         }
-        // ClippedReLU on opponent accumulator
+        // SCReLU on opponent accumulator
         for (int i = 0; i < L1_SIZE; i += 4) {
             __m128 val = _mm_load_ps(&oppAcc[i]);
-            _mm_store_ps(&input[L1_SIZE + i], clippedReLU_sse(val));
+            _mm_store_ps(&input[L1_SIZE + i], screlu_sse(val));
         }
 
-        // L2: 512 -> 32 (SIMD dot products)
+        // L2: 512 -> 64 (SIMD dot products)
         alignas(16) float l2Out[L2_SIZE];
         for (int j = 0; j < L2_SIZE; ++j) {
-            // Accumulate dot product of input[512] * L2_weights[*][j]
-            // We process 4 input elements at a time
             __m128 sum = _mm_setzero_ps();
             for (int i = 0; i < L1_SIZE * 2; i += 4) {
                 __m128 inp = _mm_load_ps(&input[i]);
-                // Gather 4 weights for output neuron j from 4 consecutive input neurons
                 __m128 w = _mm_set_ps(
                     L2_weights[i + 3][j],
                     L2_weights[i + 2][j],
@@ -191,19 +185,19 @@ namespace NNUE {
                 );
                 sum = _mm_add_ps(sum, _mm_mul_ps(inp, w));
             }
-            // Horizontal sum of the 4 floats in sum
-            // sum = [a, b, c, d]
-            __m128 shuf = _mm_movehdup_ps(sum);  // [b, b, d, d]
-            __m128 sums = _mm_add_ps(sum, shuf);  // [a+b, ?, c+d, ?]
-            shuf = _mm_movehl_ps(shuf, sums);     // [c+d, ?, ?, ?]
-            sums = _mm_add_ss(sums, shuf);         // [a+b+c+d, ?, ?, ?]
+            __m128 shuf = _mm_movehdup_ps(sum);
+            __m128 sums = _mm_add_ps(sum, shuf);
+            shuf = _mm_movehl_ps(shuf, sums);
+            sums = _mm_add_ss(sums, shuf);
             float dotProduct = _mm_cvtss_f32(sums);
 
             float val = dotProduct + L2_biases[j];
-            l2Out[j] = std::max(0.0f, std::min(val, 1.0f)); // ClippedReLU
+            // CHANGED: SCReLU activation
+            float clamped = std::max(0.0f, std::min(val, 1.0f));
+            l2Out[j] = clamped * clamped;
         }
 
-        // L3: 32 -> 32 (SIMD dot products)
+        // L3: 64 -> 64 (SIMD dot products)
         alignas(16) float l3Out[L3_SIZE];
         for (int j = 0; j < L3_SIZE; ++j) {
             __m128 sum = _mm_setzero_ps();
@@ -224,10 +218,12 @@ namespace NNUE {
             float dotProduct = _mm_cvtss_f32(sums);
 
             float val = dotProduct + L3_biases[j];
-            l3Out[j] = std::max(0.0f, std::min(val, 1.0f)); // ClippedReLU
+            // CHANGED: SCReLU activation
+            float clamped = std::max(0.0f, std::min(val, 1.0f));
+            l3Out[j] = clamped * clamped;
         }
 
-        // Output: 32 -> 1 (SIMD dot product)
+        // Output: 64 -> 1 (SIMD dot product)
         __m128 outputSum = _mm_setzero_ps();
         for (int i = 0; i < L3_SIZE; i += 4) {
             __m128 inp = _mm_load_ps(&l3Out[i]);
