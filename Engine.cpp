@@ -5,6 +5,19 @@
 #include <cmath>
 
 // =============================================================
+//  Dynamic Draw Score
+//  Returns a small bias so the engine actively seeks or avoids
+//  draws depending on whether it's winning or losing.
+//  Clamped to [-50, +50] centipawns to avoid distorting search.
+// =============================================================
+int Engine::drawScore() const {
+    // Negative rootEval means we're losing → positive draw score (seek draws)
+    // Positive rootEval means we're winning → negative draw score (avoid draws)
+    int bias = -rootEval_ / 4;
+    return std::max(-50, std::min(50, bias));
+}
+
+// =============================================================
 //  ZOBRIST HASHING  (static members)
 // =============================================================
 bool     Engine::zobristReady_ = false;
@@ -784,21 +797,21 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
     uint64_t hash = computeHash(board);
 
     // ---- Repetition Detection ----
-    // Treat any 2-fold repetition as a draw to avoid loops
+    // Treat any 2-fold repetition as a draw, biased by position strength
     if (ply > 0) {
         // Check game history (positions from actual game)
         for (const auto& h : gameHistory_) {
-            if (h == hash) return 0;
+            if (h == hash) return drawScore();
         }
         // Check positions along the current search path
         for (int i = 0; i < ply; i++) {
-            if (searchStack_[i] == hash) return 0;
+            if (searchStack_[i] == hash) return drawScore();
         }
     }
     searchStack_[ply] = hash;
 
     // ---- 50-move rule ----
-    if (board.halfMoveClock >= 100) return 0;
+    if (board.halfMoveClock >= 100) return drawScore();
 
     // ---- Transposition Table Probe ----
     size_t ttIdx = hash % TT_SIZE;
@@ -859,7 +872,7 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
 
     if (moves.empty()) {
         if (inCheck) return -(MATE_SCORE - ply);
-        return 0; // stalemate
+        return drawScore(); // stalemate — biased like other draws
     }
 
     // ---- Internal Iterative Deepening ----
@@ -1298,6 +1311,9 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
     std::memset(pvTable_, 0, sizeof(pvTable_));
     std::memset(searchStack_, 0, sizeof(searchStack_));
 
+    // Compute initial root evaluation for dynamic draw scoring
+    rootEval_ = evaluate(board);
+
     // Clear live PV and reset live stats
     {
         std::lock_guard<std::mutex> lock(livePVMutex_);
@@ -1404,6 +1420,7 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
         if (!stop_.load(std::memory_order_relaxed)) {
             bestMove  = bestMoveIter;
             prevScore = bestScoreIter;
+            rootEval_ = bestScoreIter;  // Update draw bias with latest eval
             lastDepth_ = depth;
 
             // Save PV from this iteration

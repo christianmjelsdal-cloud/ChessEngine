@@ -135,6 +135,13 @@ private:
     std::vector<uint64_t> gameHistory_;   // position hashes from the game
     uint64_t searchStack_[MAX_PLY]{};     // hashes along the search path
 
+    /* ---------- dynamic draw scoring ---------- */
+    // Instead of treating draws as 0, bias based on root evaluation:
+    // - Winning side avoids draws (negative draw score)
+    // - Losing side seeks draws (positive draw score)
+    int rootEval_ = 0;   // evaluation at root, from side-to-move's perspective
+    int drawScore() const;
+
     /* ---------- search control ---------- */
     std::atomic<bool> stop_{false};
     int nodes_ = 0;
