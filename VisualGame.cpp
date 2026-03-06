@@ -328,14 +328,14 @@ void VisualGame::startTraining() {
         NNUE::Trainer trainer;
         NNUE::TrainingConfig config;
         config.numGames = nnueConfigGames_;
-        config.thinkTimeMs = 100;
+        config.thinkTimeMs = 50;          // CHANGED: 100 -> 50 for 2x faster generation
         config.epochs = nnueConfigEpochs_;
         config.batchSize = 512;
         config.learningRate = 0.001f;
         config.outputPath = "assets/nnue_weights.bin";
         config.dataPath = "assets/training_data.bin";
         config.numThreads = 0;
-        config.earlyStopPatience = 15;
+        config.earlyStopPatience = 15;    // In-app training uses lower patience (Python script uses 100)
         config.mirrorPositions = true;
         config.appendExistingData = true;
         config.phaseBalancedTraining = true;

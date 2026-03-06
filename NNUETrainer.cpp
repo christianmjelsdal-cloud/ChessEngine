@@ -900,6 +900,9 @@ namespace NNUE {
 
                 adamUpdate(params, grads, adamState, lr);
 
+                // Check cancel flag every 50 batches for responsive cancellation
+                if (cancelFlag && (numBatches % 50 == 0) && cancelFlag->load()) break;
+
             } // end batch loop
 
             lr *= config.lrDecay;

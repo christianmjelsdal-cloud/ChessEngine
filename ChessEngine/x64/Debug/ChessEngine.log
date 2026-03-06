@@ -1,7 +1,5 @@
-﻿  Board.cpp
-  Engine.cpp
+﻿  Engine.cpp
   Main.cpp
-  MoveGen.cpp
   NNUE.cpp
   NNUETrainer.cpp
   VisualGame.cpp
