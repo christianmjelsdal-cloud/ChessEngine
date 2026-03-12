@@ -49,3 +49,10 @@ stockfish/stockfish.exe
 x64/Release/assets/training_data.bin.offidx
 
 x64/Release/stockfish/stockfish.exe
+
+# Large binary training/weight files
+*.bin
+
+Lichess Elite Database/pgn_training_data.bin.offidx
+
+Lichess Elite Database/pgn_training_data_draws.bin.offidx
