@@ -7,6 +7,7 @@
 #include <atomic>
 #include <chrono>
 #include <mutex>
+#include <functional>
 
 class Engine {
 public:
@@ -19,14 +20,22 @@ public:
     /// Signal the engine to abort the current search (call from another thread).
     void stop() { stop_.store(true, std::memory_order_relaxed); }
 
-    /// Set time limit in milliseconds (default 3000 = 3 seconds)
-    void setTimeLimit(int ms) { timeLimitMs_ = ms; }
+    /// Set time limit in milliseconds (legacy — sets both soft and hard to same value)
+    void setTimeLimit(int ms) { softLimitMs_ = ms; hardLimitMs_ = ms; }
+
+    /// Set soft and hard time limits separately.
+    /// Soft limit: don't start a new iteration after this.
+    /// Hard limit: abort the search immediately at this point.
+    void setTimeLimits(int softMs, int hardMs) { softLimitMs_ = softMs; hardLimitMs_ = hardMs; }
 
     /// Get the principal variation from the last completed search.
     const std::vector<Move>& getPV() const { return lastPV_; }
 
     /// Get the depth reached in the last completed search.
     int getLastDepth() const { return lastDepth_; }
+
+    /// Get node count from last search.
+    uint64_t getNodes() const { return nodes_; }
 
     /// Set position history for repetition detection (call before getBestMove).
     void setPositionHistory(const std::vector<uint64_t>& hashes) { gameHistory_ = hashes; }
@@ -41,6 +50,10 @@ public:
     /// Set/clear NNUE network for evaluation (nullptr = use handcrafted eval).
     void setNNUE(NNUE::Network* net) { nnue_ = net; }
     NNUE::Network* getNNUE() const { return nnue_; }
+
+    /// Callback for UCI info output (set by UCI layer).
+    /// Signature: depth, score_cp, nodes, nps, elapsed_ms, pv_string
+    std::function<void(int, int, uint64_t, uint64_t, int64_t, const std::string&)> onInfoCallback;
 
     /// Compute Zobrist hash for a position (public so VisualGame can track history).
     static uint64_t computeHash(const Board& board);
@@ -136,17 +149,21 @@ private:
     uint64_t searchStack_[MAX_PLY]{};     // hashes along the search path
 
     /* ---------- dynamic draw scoring ---------- */
-    // Instead of treating draws as 0, bias based on root evaluation:
-    // - Winning side avoids draws (negative draw score)
-    // - Losing side seeks draws (positive draw score)
-    int rootEval_ = 0;   // evaluation at root, from side-to-move's perspective
+    int rootEval_ = 0;
     int drawScore() const;
 
     /* ---------- search control ---------- */
     std::atomic<bool> stop_{false};
-    int nodes_ = 0;
-    int timeLimitMs_ = 3000;
+    uint64_t nodes_ = 0;                  // FIXED: was int, now uint64_t
+    int softLimitMs_ = 3000;              // NEW: target time (don't start new iteration after this)
+    int hardLimitMs_ = 3000;              // NEW: absolute max (abort search here)
     std::chrono::steady_clock::time_point searchStart_;
 
-    bool shouldStop();   // checks time + stop flag (called periodically)
+    bool shouldStop();   // checks hard time limit + stop flag
+
+    /* ---------- helper: convert PV to UCI string ---------- */
+    std::string pvToUCI(const std::vector<Move>& pv) const;
+
+    /* ---------- helper: elapsed milliseconds since search start ---------- */
+    int64_t elapsedMs() const;
 };

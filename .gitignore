@@ -22,3 +22,30 @@ __pycache__/
 *.ilk
 *.exp
 *.lib
+
+# Large binary training/weight files
+*.bin
+
+assets/training_data.bin.offidx
+
+Lichess Elite Database/lichess_elite_2019-10.pgn
+
+Lichess Elite Database/lichess_elite_2019-11.pgn
+
+Lichess Elite Database/lichess_elite_2019-12.pgn
+
+Lichess Elite Database/lichess_elite_2020-01.pgn
+
+Lichess Elite Database/lichess_elite_2020-02.pgn
+
+Lichess Elite Database/lichess_elite_2020-03.pgn
+
+Lichess Elite Database/lichess_elite_2020-04.pgn
+
+Lichess Elite Database/lichess_elite_2020-05.pgn
+
+stockfish/stockfish.exe
+
+x64/Release/assets/training_data.bin.offidx
+
+x64/Release/stockfish/stockfish.exe

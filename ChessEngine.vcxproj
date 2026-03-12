@@ -133,6 +133,7 @@
     <ClCompile Include="MoveGen.cpp" />
     <ClCompile Include="NNUE.cpp" />
     <ClCompile Include="NNUETrainer.cpp" />
+    <ClCompile Include="UCI.cpp" />
     <ClCompile Include="VisualGame.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -143,6 +144,7 @@
     <ClInclude Include="NNUE.h" />
     <ClInclude Include="NNUETrainer.h" />
     <ClInclude Include="Types.h" />
+    <ClInclude Include="UCI.h" />
     <ClInclude Include="VisualGame.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -3,16 +3,12 @@
 #include <cstring>
 #include <random>
 #include <cmath>
+#include <sstream>
 
 // =============================================================
 //  Dynamic Draw Score
-//  Returns a small bias so the engine actively seeks or avoids
-//  draws depending on whether it's winning or losing.
-//  Clamped to [-50, +50] centipawns to avoid distorting search.
 // =============================================================
 int Engine::drawScore() const {
-    // Negative rootEval means we're losing → positive draw score (seek draws)
-    // Positive rootEval means we're winning → negative draw score (avoid draws)
     int bias = -rootEval_ / 4;
     return std::max(-50, std::min(50, bias));
 }
@@ -71,13 +67,9 @@ static const int eg_value[] = { 0, 94, 281, 297, 512, 936, 0 };
 static const int phase_weight[] = { 0, 0, 1, 1, 2, 4, 0 };
 static const int TOTAL_PHASE = 24;
 
-// SEE piece values (simpler scale)
 static const int SEE_VAL[] = { 0, 100, 320, 330, 500, 900, 20000 };
 
-// Futility margins by depth
 static const int FUTILITY_MARGIN[] = { 0, 200, 300, 500 };
-
-// Late move pruning thresholds by depth
 static const int LMP_THRESHOLD[] = { 0, 5, 8, 13 };
 
 static const int mg_pawn[8][8] = {
@@ -217,6 +209,43 @@ std::vector<Move> Engine::getLivePV() {
 }
 
 // =============================================================
+//  HELPER: elapsed milliseconds
+// =============================================================
+int64_t Engine::elapsedMs() const {
+    auto now = std::chrono::steady_clock::now();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+        now - searchStart_).count();
+}
+
+// =============================================================
+//  HELPER: PV to UCI string
+// =============================================================
+std::string Engine::pvToUCI(const std::vector<Move>& pv) const {
+    // Forward-declared helper — UCI layer provides moveToUCI, but we need
+    // a simple inline version for info output from inside Engine.
+    std::string result;
+    for (const auto& m : pv) {
+        if (!result.empty()) result += " ";
+        std::string s;
+        s += static_cast<char>('a' + m.from.col);
+        s += static_cast<char>('1' + m.from.rank);
+        s += static_cast<char>('a' + m.to.col);
+        s += static_cast<char>('1' + m.to.rank);
+        if (m.promotion != PieceType::None) {
+            switch (m.promotion) {
+                case PieceType::Queen:  s += 'q'; break;
+                case PieceType::Rook:   s += 'r'; break;
+                case PieceType::Bishop: s += 'b'; break;
+                case PieceType::Knight: s += 'n'; break;
+                default: break;
+            }
+        }
+        result += s;
+    }
+    return result;
+}
+
+// =============================================================
 //  CONSTRUCTOR
 // =============================================================
 Engine::Engine() : tt_(TT_SIZE), nodes_(0) {
@@ -227,18 +256,14 @@ Engine::Engine() : tt_(TT_SIZE), nodes_(0) {
 }
 
 // =============================================================
-//  TIME MANAGEMENT
+//  TIME MANAGEMENT — uses HARD limit for abort
 // =============================================================
 bool Engine::shouldStop() {
-    // Check external stop signal
     if (stop_.load(std::memory_order_relaxed)) return true;
 
     // Check time every 4096 nodes to avoid expensive clock calls
     if ((nodes_ & 4095) == 0) {
-        auto now = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-            now - searchStart_).count();
-        if (elapsed >= timeLimitMs_) {
+        if (elapsedMs() >= hardLimitMs_) {
             stop_.store(true, std::memory_order_relaxed);
             return true;
         }
@@ -248,12 +273,7 @@ bool Engine::shouldStop() {
 
 // =============================================================
 //  STATIC EXCHANGE EVALUATION (SEE)
-//  Determines if a capture sequence is winning, losing, or equal.
-//  Returns estimated material gain in centipawns.
 // =============================================================
-
-// Find the Least Valuable Attacker of `target` for `side`,
-// skipping squares marked as removed. Handles X-ray through removed pieces.
 PieceType Engine::findLVA(const Board& board, Square target, Color side,
                           const bool removed[8][8], Square& outSq) {
     // 1. Pawns
@@ -305,10 +325,9 @@ PieceType Engine::findLVA(const Board& board, Square target, Color side,
                             foundQueenDiag = true;
                         }
                     }
-                    break; // blocked by any non-removed piece
+                    break;
                 }
             }
-            // removed piece — continue through (x-ray)
             nr += d[0]; nc += d[1];
         }
     }
@@ -372,10 +391,9 @@ int Engine::see(const Board& board, const Move& m) {
     Piece attacker = board.getPiece(m.from);
     Piece victim   = board.getPiece(m.to);
 
-    // Not a capture (except en passant)
     if (victim.isNone()) {
         if (attacker.type == PieceType::Pawn && m.from.col != m.to.col)
-            return SEE_VAL[(int)PieceType::Pawn]; // en passant
+            return SEE_VAL[(int)PieceType::Pawn];
         return 0;
     }
 
@@ -393,7 +411,6 @@ int Engine::see(const Board& board, const Move& m) {
         d++;
         gain[d] = SEE_VAL[(int)lastType] - gain[d - 1];
 
-        // Pruning: if even the best case can't improve, stop
         if (std::max(-gain[d - 1], gain[d]) < 0) break;
 
         Square from;
@@ -405,7 +422,6 @@ int Engine::see(const Board& board, const Move& m) {
         side = (side == Color::White) ? Color::Black : Color::White;
     }
 
-    // Negamax the gain array
     while (--d > 0)
         gain[d - 1] = -std::max(-gain[d - 1], gain[d]);
 
@@ -413,11 +429,8 @@ int Engine::see(const Board& board, const Move& m) {
 }
 
 // =============================================================
-//  EVALUATION — PeSTO + pawn structure + bishop pair +
-//               mobility + king safety + rook on open files
+//  EVALUATION
 // =============================================================
-
-// Helper: count squares a sliding piece can reach
 static int countSliderMobility(const Board& board, Square sq, Color color,
                                 const int dirs[][2], int numDirs) {
     int count = 0;
@@ -428,9 +441,9 @@ static int countSliderMobility(const Board& board, Square sq, Color color,
             if (p.isNone()) {
                 count++;
             } else if (p.isDuck()) {
-                break; // duck blocks sliding pieces
+                break;
             } else {
-                if (p.color != color) count++; // can capture
+                if (p.color != color) count++;
                 break;
             }
             nr += dirs[i][0]; nc += dirs[i][1];
@@ -453,7 +466,6 @@ static int countKnightMobility(const Board& board, Square sq, Color color) {
 }
 
 int Engine::evaluate(const Board& board) {
-    // If NNUE is available, use neural network evaluation
     if (nnue_) {
         return nnue_->evaluate(board);
     }
@@ -461,7 +473,6 @@ int Engine::evaluate(const Board& board) {
     int mgScore = 0, egScore = 0;
     int phase = 0;
 
-    // Tracking arrays
     int whitePawnCnt[8] = {}, blackPawnCnt[8] = {};
     int whiteBishops = 0, blackBishops = 0;
     Square whiteKingSq = {0,0}, blackKingSq = {7,0};
@@ -475,13 +486,12 @@ int Engine::evaluate(const Board& board) {
         for (int c = 0; c < 8; c++) {
             Piece p = board.squares[r][c];
             if (p.isNone()) continue;
-            if (p.isDuck()) continue; // skip duck in evaluation
+            if (p.isDuck()) continue;
 
             int pt = (int)p.type;
-            if (pt < 0 || pt > 6) continue; // safety guard
+            if (pt < 0 || pt > 6) continue;
             phase += phase_weight[pt];
 
-            // PST lookup
             int mgPST = (p.color == Color::White) ? mg_tables[pt][7 - r][c]
                                                    : mg_tables[pt][r][c];
             int egPST = (p.color == Color::White) ? eg_tables[pt][7 - r][c]
@@ -490,7 +500,6 @@ int Engine::evaluate(const Board& board) {
             int mgVal = mg_value[pt] + mgPST;
             int egVal = eg_value[pt] + egPST;
 
-            // Mobility for knights, bishops, rooks, queens
             int mob = 0;
             switch (p.type) {
             case PieceType::Knight:
@@ -519,7 +528,6 @@ int Engine::evaluate(const Board& board) {
             if (p.color == Color::White) { mgScore += mgVal; egScore += egVal; }
             else                         { mgScore -= mgVal; egScore -= egVal; }
 
-            // Track pieces
             if (p.type == PieceType::Pawn) {
                 if (p.color == Color::White) whitePawnCnt[c]++;
                 else blackPawnCnt[c]++;
@@ -535,17 +543,14 @@ int Engine::evaluate(const Board& board) {
         }
     }
 
-    // Bishop pair bonus
     if (whiteBishops >= 2) { mgScore += 30; egScore += 50; }
     if (blackBishops >= 2) { mgScore -= 30; egScore -= 50; }
 
-    // Doubled pawn penalty
     for (int f = 0; f < 8; f++) {
         if (whitePawnCnt[f] > 1) { int e = whitePawnCnt[f]-1; mgScore -= 10*e; egScore -= 20*e; }
         if (blackPawnCnt[f] > 1) { int e = blackPawnCnt[f]-1; mgScore += 10*e; egScore += 20*e; }
     }
 
-    // Isolated pawn penalty
     for (int f = 0; f < 8; f++) {
         bool wAdj = (f > 0 && whitePawnCnt[f-1]) || (f < 7 && whitePawnCnt[f+1]);
         bool bAdj = (f > 0 && blackPawnCnt[f-1]) || (f < 7 && blackPawnCnt[f+1]);
@@ -553,7 +558,6 @@ int Engine::evaluate(const Board& board) {
         if (blackPawnCnt[f] && !bAdj) { mgScore += 15; egScore += 20; }
     }
 
-    // Passed pawn bonus
     for (int r = 0; r < 8; r++) {
         for (int c = 0; c < 8; c++) {
             Piece p = board.squares[r][c];
@@ -592,8 +596,6 @@ int Engine::evaluate(const Board& board) {
         }
     }
 
-    // ---- King Safety (pawn shield) ----
-    // Bonus for pawns on the 2-3 squares in front of the king
     auto pawnShield = [&](Square kSq, Color col, const int pawnCnt[8]) -> int {
         int shield = 0;
         int dir = (col == Color::White) ? 1 : -1;
@@ -605,14 +607,13 @@ int Engine::evaluate(const Board& board) {
             if (r1 >= 0 && r1 < 8) {
                 Piece p = board.squares[r1][fc];
                 if (p.type == PieceType::Pawn && p.color == col)
-                    shield += 30;  // immediate pawn shield
+                    shield += 30;
             }
             if (r2 >= 0 && r2 < 8) {
                 Piece p = board.squares[r2][fc];
                 if (p.type == PieceType::Pawn && p.color == col)
-                    shield += 15;  // secondary pawn shield
+                    shield += 15;
             }
-            // Penalty for open file near king
             if (pawnCnt[fc] == 0)
                 shield -= 20;
         }
@@ -622,9 +623,7 @@ int Engine::evaluate(const Board& board) {
     int whiteKingSafety = pawnShield(whiteKingSq, Color::White, whitePawnCnt);
     int blackKingSafety = pawnShield(blackKingSq, Color::Black, blackPawnCnt);
     mgScore += whiteKingSafety - blackKingSafety;
-    // King safety matters less in endgame (don't add to egScore)
 
-    // ---- Rook on open / semi-open files ----
     for (int r = 0; r < 8; r++) {
         for (int c = 0; c < 8; c++) {
             Piece p = board.squares[r][c];
@@ -636,18 +635,16 @@ int Engine::evaluate(const Board& board) {
                                                           : whitePawnCnt[c] > 0;
             int sign = (p.color == Color::White) ? 1 : -1;
             if (!friendlyPawn && !enemyPawn) {
-                mgScore += sign * 25; egScore += sign * 15; // open file
+                mgScore += sign * 25; egScore += sign * 15;
             } else if (!friendlyPawn) {
-                mgScore += sign * 12; egScore += sign * 8;  // semi-open
+                mgScore += sign * 12; egScore += sign * 8;
             }
         }
     }
 
-    // Add mobility
     mgScore += mgMobility;
     egScore += egMobility;
 
-    // Tapered score
     int ph = std::min(phase, TOTAL_PHASE);
     int score = (mgScore * ph + egScore * (TOTAL_PHASE - ph)) / TOTAL_PHASE;
 
@@ -675,39 +672,33 @@ int Engine::mvvLva(const Board& board, const Move& m) {
 
 int Engine::scoreMove(const Move& m, const Board& board,
                       int ply, const Move& hashMove) const {
-    // 1. Hash move
     if (m == hashMove)
         return 10000000;
 
-    // 2. Captures — use SEE for ordering; good captures first, bad captures last
     if (isCapture(board, m)) {
         int seeVal = see(board, m);
         if (seeVal >= 0)
-            return 5000000 + seeVal; // winning/equal captures
+            return 5000000 + seeVal;
         else
-            return -1000000 + seeVal; // losing captures (below killers/history)
+            return -1000000 + seeVal;
     }
 
-    // 3. Promotions
     if (m.promotion != PieceType::None)
         return 4000000 + mg_value[(int)m.promotion];
 
-    // 4. Killer moves
     if (ply < MAX_PLY) {
         if (m == killers_[ply][0]) return 3000000;
         if (m == killers_[ply][1]) return 2900000;
     }
 
-    // 5. Countermove bonus
     if (previousMove_.from.isValid()) {
-        int ci = (board.turn == Color::White) ? 1 : 0; // previous move's color
+        int ci = (board.turn == Color::White) ? 1 : 0;
         int fSq = previousMove_.from.rank * 8 + previousMove_.from.col;
         int tSq = previousMove_.to.rank * 8 + previousMove_.to.col;
         if (m == countermoves_[ci][fSq][tSq])
             return 2800000;
     }
 
-    // 6. History heuristic
     int ci = (board.turn == Color::White) ? 0 : 1;
     int fromSq = m.from.rank * 8 + m.from.col;
     int toSq   = m.to.rank * 8 + m.to.col;
@@ -730,13 +721,12 @@ void Engine::orderMoves(std::vector<Move>& moves, const Board& board,
 }
 
 // =============================================================
-//  QUIESCENCE SEARCH — with SEE pruning and delta pruning
+//  QUIESCENCE SEARCH
 // =============================================================
 int Engine::qsearch(Board& board, int alpha, int beta, int ply) {
     nodes_++;
     if (shouldStop()) return 0;
 
-    // Hard ply cap — qsearch can't recurse forever
     if (ply >= MAX_PLY + 32) return evaluate(board);
 
     int standPat = evaluate(board);
@@ -756,10 +746,8 @@ int Engine::qsearch(Board& board, int alpha, int beta, int ply) {
     for (auto& m : captures) {
         if (shouldStop()) return 0;
 
-        // SEE pruning: skip captures with clearly negative SEE
         if (see(board, m) < -50) continue;
 
-        // Delta pruning
         Piece victim = board.getPiece(m.to);
         int delta = victim.isNone() ? SEE_VAL[(int)PieceType::Pawn]
                                     : SEE_VAL[(int)victim.type];
@@ -786,34 +774,26 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
     if (shouldStop()) return 0;
     nodes_++;
 
-    // PV length init
     pvLength_[ply] = ply;
 
-    // Hard ply cap — prevents stack overflow in long check sequences
     if (ply >= MAX_PLY) return evaluate(board);
 
     if (depth <= 0) return qsearch(board, alpha, beta, ply);
 
     uint64_t hash = computeHash(board);
 
-    // ---- Repetition Detection ----
-    // Treat any 2-fold repetition as a draw, biased by position strength
     if (ply > 0) {
-        // Check game history (positions from actual game)
         for (const auto& h : gameHistory_) {
             if (h == hash) return drawScore();
         }
-        // Check positions along the current search path
         for (int i = 0; i < ply; i++) {
             if (searchStack_[i] == hash) return drawScore();
         }
     }
     searchStack_[ply] = hash;
 
-    // ---- 50-move rule ----
     if (board.halfMoveClock >= 100) return drawScore();
 
-    // ---- Transposition Table Probe ----
     size_t ttIdx = hash % TT_SIZE;
     TTEntry& tte = tt_[ttIdx];
     Move hashMove{};
@@ -829,21 +809,16 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
 
     bool inCheck = MoveGen::isInCheck(board, board.turn);
 
-    // Check extension — only extend if not near the ply cap
     if (inCheck && ply < MAX_PLY - 2) depth++;
 
     int staticEval = evaluate(board);
 
-    // ---- Reverse Futility Pruning (Static Null Move Pruning) ----
-    // If our position is already so good that even with a margin we're above beta,
-    // we can prune this node.
     if (!isPV && !inCheck && depth <= 3 && std::abs(beta) < MATE_SCORE - 100) {
         int rfpMargin = 120 * depth;
         if (staticEval - rfpMargin >= beta)
             return staticEval - rfpMargin;
     }
 
-    // ---- Null Move Pruning ----
     if (doNull && !isPV && !inCheck && depth >= 3) {
         bool hasNonPawn = false;
         for (int r = 0; r < 8 && !hasNonPawn; r++)
@@ -855,7 +830,7 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
             }
 
         if (hasNonPawn) {
-            int R = 3 + depth / 6; // adaptive reduction
+            int R = 3 + depth / 6;
             Board nullBoard = board;
             nullBoard.turn = (board.turn == Color::White) ? Color::Black : Color::White;
             nullBoard.enPassantTarget = {-1, -1};
@@ -867,38 +842,30 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
         }
     }
 
-    // ---- Generate & order moves ----
     auto moves = MoveGen::getLegalMoves(board);
 
     if (moves.empty()) {
         if (inCheck) return -(MATE_SCORE - ply);
-        return drawScore(); // stalemate — biased like other draws
+        return drawScore();
     }
 
-    // ---- Internal Iterative Deepening ----
-    // If this is a PV node with no hash move and enough depth, do a shallow search first
     if (isPV && !(hashMove.from.isValid() && hashMove.to.isValid()) && depth >= 4) {
         search(board, depth - 2, alpha, beta, ply, false, true);
-        // Re-probe TT for the hash move
         if (tt_[ttIdx].key == hash)
             hashMove = tt_[ttIdx].best;
     }
 
     orderMoves(moves, board, ply, hashMove);
 
-    // ---- Futility pruning flag ----
-    // At low depths, if static eval + margin < alpha, we can skip quiet moves
     bool canFutility = !isPV && !inCheck && depth <= 3 &&
                        std::abs(alpha) < MATE_SCORE - 100 &&
                        staticEval + FUTILITY_MARGIN[depth] <= alpha;
 
-    // ---- Search moves ----
     Move bestMove = moves[0];
     TTFlag ttFlag = TT_UPPER;
     int bestScore = -INF;
     int quietsSearched = 0;
 
-    // Track quiet moves searched for history gravity
     Move quietsTriedArr[64];
     int quietsTriedCnt = 0;
 
@@ -912,25 +879,18 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
 
         if (isQuiet) quietsSearched++;
 
-        // ---- Futility Pruning ----
-        // Skip quiet moves when position is hopeless at this depth
         if (canFutility && isQuiet && i > 0 && bestScore > -MATE_SCORE + 100) {
-            // Don't prune killers
             bool isKiller = ply < MAX_PLY &&
                 (m == killers_[ply][0] || m == killers_[ply][1]);
             if (!isKiller) continue;
         }
 
-        // ---- Late Move Pruning ----
-        // At shallow depths, skip late quiet moves entirely
         if (!isPV && !inCheck && depth <= 3 && isQuiet &&
             quietsSearched > LMP_THRESHOLD[depth] &&
             bestScore > -MATE_SCORE + 100) {
             continue;
         }
 
-        // ---- SEE pruning for captures in main search ----
-        // Skip captures with clearly bad SEE at low depths
         if (!isPV && depth <= 2 && isCap && see(board, m) < -100 * depth) {
             continue;
         }
@@ -943,39 +903,31 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
         if (i == 0) {
             score = -search(temp, depth - 1, -beta, -alpha, ply + 1, true, isPV);
         } else {
-            // ---- Late Move Reduction ----
             int reduction = 0;
             if (depth >= 3 && i >= 3 && isQuiet && !inCheck) {
-                // LMR formula: base reduction + scaling with move index and depth
                 reduction = 1 + (int)(std::log(depth) * std::log(i + 1) / 2.5);
 
-                // Reduce less for killer moves
                 if (ply < MAX_PLY &&
                     (m == killers_[ply][0] || m == killers_[ply][1]))
                     reduction = std::max(0, reduction - 1);
 
-                // Reduce less for moves with good history
                 int ci2 = (board.turn == Color::White) ? 0 : 1;
                 int fSq = m.from.rank * 8 + m.from.col;
                 int tSq = m.to.rank * 8 + m.to.col;
                 if (history_[ci2][fSq][tSq] > 5000)
                     reduction = std::max(0, reduction - 1);
 
-                // Don't reduce into qsearch
                 reduction = std::min(reduction, depth - 2);
                 reduction = std::max(reduction, 0);
             }
 
-            // Zero-window search with possible reduction
             score = -search(temp, depth - 1 - reduction, -alpha - 1, -alpha,
                             ply + 1, true, false);
 
-            // Re-search at full depth if reduced and score improved
             if (reduction > 0 && score > alpha)
                 score = -search(temp, depth - 1, -alpha - 1, -alpha,
                                 ply + 1, true, false);
 
-            // PVS: re-search with full window if score improved
             if (score > alpha && score < beta)
                 score = -search(temp, depth - 1, -beta, -alpha,
                                 ply + 1, true, true);
@@ -989,7 +941,6 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
                 alpha  = score;
                 ttFlag = TT_EXACT;
 
-                // Update PV
                 pvTable_[ply][ply] = m;
                 for (int j = ply + 1; j < pvLength_[ply + 1]; j++)
                     pvTable_[ply][j] = pvTable_[ply + 1][j];
@@ -999,7 +950,6 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
                     ttFlag = TT_LOWER;
 
                     if (isQuiet && ply < MAX_PLY) {
-                        // Update killers
                         killers_[ply][1] = killers_[ply][0];
                         killers_[ply][0] = m;
 
@@ -1007,13 +957,11 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
                         int fSq = m.from.rank * 8 + m.from.col;
                         int tSq = m.to.rank * 8 + m.to.col;
 
-                        // History bonus for the move that caused cutoff
                         int bonus = depth * depth;
                         history_[ci3][fSq][tSq] += bonus;
                         if (history_[ci3][fSq][tSq] > 1000000)
                             history_[ci3][fSq][tSq] = 1000000;
 
-                        // History gravity: penalize all other quiet moves tried
                         for (int q = 0; q < quietsTriedCnt; q++) {
                             int qf = quietsTriedArr[q].from.rank * 8 + quietsTriedArr[q].from.col;
                             int qt = quietsTriedArr[q].to.rank * 8 + quietsTriedArr[q].to.col;
@@ -1022,7 +970,6 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
                                 history_[ci3][qf][qt] = -1000000;
                         }
 
-                        // Countermove heuristic
                         if (previousMove_.from.isValid()) {
                             int prevC = (board.turn == Color::White) ? 1 : 0;
                             int prevF = previousMove_.from.rank * 8 + previousMove_.from.col;
@@ -1030,18 +977,15 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
                             countermoves_[prevC][prevF][prevT] = m;
                         }
                     }
-                    break; // Beta cutoff
+                    break;
                 }
             }
         }
 
-        // Track quiet moves for history gravity
         if (isQuiet && quietsTriedCnt < 64)
             quietsTriedArr[quietsTriedCnt++] = m;
     }
 
-    // ---- Store in Transposition Table ----
-    // Replace if: same position, or older generation, or deeper search
     if (tte.key != hash || tte.gen != ttGen_ || depth >= tte.depth) {
         tte.key   = hash;
         tte.score = bestScore;
@@ -1057,12 +1001,10 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
 // =============================================================
 //  DUCK CHESS — Duck placement heuristics
 // =============================================================
-
 int Engine::scoreDuckPlacement(const Board& board, Square duckSq, Color myColor) const {
     int score = 0;
     Color opponent = (myColor == Color::White) ? Color::Black : Color::White;
 
-    // Find opponent's king
     Square oppKingSq = {-1, -1};
     for (int r = 0; r < 8; r++)
         for (int c = 0; c < 8; c++)
@@ -1070,24 +1012,18 @@ int Engine::scoreDuckPlacement(const Board& board, Square duckSq, Color myColor)
                 oppKingSq = {r, c};
 
     if (oppKingSq.isValid()) {
-        // Distance to opponent king (closer = better for blocking)
         int dr = abs(duckSq.rank - oppKingSq.rank);
         int dc = abs(duckSq.col - oppKingSq.col);
         int dist = dr + dc;
 
-        // Adjacent to opponent king: very valuable (limits escape squares)
         if (dr <= 1 && dc <= 1) score += 100;
-        // Near opponent king
         else if (dist <= 3) score += 50;
         else if (dist <= 5) score += 20;
     }
 
-    // Central squares are generally better
     int centerDist = abs(duckSq.rank - 3) + abs(duckSq.col - 3);
     score += (7 - centerDist) * 5;
 
-    // Bonus for squares that block opponent sliding pieces
-    // (squares on the same rank/file/diagonal as opponent rooks/queens/bishops)
     for (int r = 0; r < 8; r++)
         for (int c = 0; c < 8; c++) {
             Piece p = board.squares[r][c];
@@ -1120,26 +1056,24 @@ void Engine::orderDuckPlacements(std::vector<Square>& placements, const Board& b
 }
 
 // =============================================================
-//  DUCK CHESS SEARCH — Two-phase: chess move + duck placement
+//  DUCK CHESS SEARCH
 // =============================================================
 int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply) {
     if (shouldStop()) return 0;
     nodes_++;
 
     if (ply >= MAX_PLY) return evaluate(board);
-    if (depth <= 0) return evaluate(board); // no qsearch for duck chess (too expensive)
+    if (depth <= 0) return evaluate(board);
 
-    // Check for king capture (game over)
     Color us = board.turn;
     Color them = (us == Color::White) ? Color::Black : Color::White;
     if (MoveGen::isKingCaptured(board, us))
-        return -(MATE_SCORE - ply); // we lost our king
+        return -(MATE_SCORE - ply);
 
     auto chessMoves = MoveGen::getDuckChessMoves(board);
     if (chessMoves.empty())
-        return -(MATE_SCORE - ply); // no moves = loss in duck chess
+        return -(MATE_SCORE - ply);
 
-    // Move ordering for chess moves (reuse existing)
     Move noMove{};
     orderMoves(chessMoves, board, ply, noMove);
 
@@ -1151,15 +1085,12 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply) {
         Board temp = board;
         temp.applyMove(chessMoves[i]);
 
-        // Check if we captured the opponent's king - instant win
         if (MoveGen::isKingCaptured(temp, them))
             return MATE_SCORE - ply;
 
-        // Search duck placements
         auto duckSquares = MoveGen::getDuckPlacements(temp);
         orderDuckPlacements(duckSquares, temp, us);
 
-        // Limit duck placements to top candidates for deeper searches
         int maxDucks = (depth <= 1) ? 12 : (depth <= 2) ? 18 : (int)duckSquares.size();
         maxDucks = std::min(maxDucks, (int)duckSquares.size());
 
@@ -1175,7 +1106,7 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply) {
                 bestScore = score;
                 if (score > alpha) {
                     alpha = score;
-                    if (alpha >= beta) goto nextChessMove; // beta cutoff
+                    if (alpha >= beta) goto nextChessMove;
                 }
             }
         }
@@ -1188,14 +1119,15 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply) {
 
 // =============================================================
 //  getBestMove — Iterative Deepening with Time Management
+//  NOW: uses soft/hard limits, outputs info at each depth,
+//       extends time when best move is unstable
 // =============================================================
 Move Engine::getBestMove(Board& board, int maxDepth) {
     stop_.store(false, std::memory_order_relaxed);
     nodes_ = 0;
     searchStart_ = std::chrono::steady_clock::now();
-    ttGen_++;  // age transposition table entries
+    ttGen_++;
 
-    // Clear killers and age history
     std::memset(killers_, 0, sizeof(killers_));
     for (int c = 0; c < 2; c++)
         for (int f = 0; f < 64; f++)
@@ -1212,7 +1144,6 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
         Move bestMove = chessMoves[0];
         int bestScore = -INF;
 
-        // Clear live PV and reset live stats
         {
             std::lock_guard<std::mutex> lock(livePVMutex_);
             livePV_.clear();
@@ -1223,12 +1154,9 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
         for (int depth = 1; depth <= maxDepth; depth++) {
             if (stop_.load()) break;
 
-            // Time check
+            // Use SOFT limit for "should I start a new iteration?"
             if (depth > 1) {
-                auto now = std::chrono::steady_clock::now();
-                auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-                    now - searchStart_).count();
-                if (elapsed > timeLimitMs_ / 2) break;
+                if (elapsedMs() > softLimitMs_) break;
             }
 
             int alpha = -INF, beta = INF;
@@ -1239,19 +1167,16 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
                 if (stop_.load()) break;
 
                 Board temp = board;
-                temp.applyMove(chessMoves[i]); // chess move only, no duck yet
+                temp.applyMove(chessMoves[i]);
 
-                // Check if we captured opponent's king
                 Color opponent = (board.turn == Color::White) ? Color::Black : Color::White;
                 if (MoveGen::isKingCaptured(temp, opponent)) {
-                    // Instant win - place duck anywhere valid
                     auto ducks = MoveGen::getDuckPlacements(temp);
                     Move winMove = chessMoves[i];
                     winMove.duckTo = ducks.empty() ? Square{0,0} : ducks[0];
-                    return winMove;  // immediate return - can't do better than capturing king
+                    return winMove;
                 }
 
-                // Search all duck placements for this chess move
                 auto duckSquares = MoveGen::getDuckPlacements(temp);
                 orderDuckPlacements(duckSquares, temp, board.turn);
 
@@ -1279,16 +1204,22 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
                 bestScore = bestScoreIter;
                 lastDepth_ = depth;
 
-                // Update live stats
                 liveDepth_.store(depth, std::memory_order_relaxed);
                 int whiteEval = (board.turn == Color::White) ? bestScore : -bestScore;
                 liveEval_.store(whiteEval, std::memory_order_relaxed);
 
-                // Update live PV (just the best move for now)
                 {
                     std::lock_guard<std::mutex> lock(livePVMutex_);
                     livePV_.clear();
                     livePV_.push_back(bestMove);
+                }
+
+                // Info output for duck chess
+                if (onInfoCallback) {
+                    int64_t elapsed = elapsedMs();
+                    uint64_t nps = elapsed > 0 ? (nodes_ * 1000 / elapsed) : 0;
+                    std::string pvStr = pvToUCI({bestMove});
+                    onInfoCallback(depth, whiteEval, nodes_, nps, elapsed, pvStr);
                 }
             }
         }
@@ -1297,13 +1228,15 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
     }
 
     // =========================================================
-    //  STANDARD CHESS — original iterative deepening search
+    //  STANDARD CHESS — iterative deepening with soft/hard time
     // =========================================================
     auto legalMoves = MoveGen::getLegalMoves(board);
     if (legalMoves.empty()) return Move{};
     if (legalMoves.size() == 1) return legalMoves[0];
 
     Move bestMove = legalMoves[0];
+    Move prevBestMove{};              // NEW: track best move stability
+    int  bestMoveStableCount = 0;     // NEW: how many iterations the best move hasn't changed
     int  prevScore = 0;
     lastPV_.clear();
     lastDepth_ = 0;
@@ -1311,10 +1244,8 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
     std::memset(pvTable_, 0, sizeof(pvTable_));
     std::memset(searchStack_, 0, sizeof(searchStack_));
 
-    // Compute initial root evaluation for dynamic draw scoring
     rootEval_ = evaluate(board);
 
-    // Clear live PV and reset live stats
     {
         std::lock_guard<std::mutex> lock(livePVMutex_);
         livePV_.clear();
@@ -1325,18 +1256,29 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
     for (int depth = 1; depth <= maxDepth; depth++) {
         if (stop_.load(std::memory_order_relaxed)) break;
 
-        // Check if we have enough time for the next depth
-        // Heuristic: if we've used more than 50% of time, don't start a new depth
+        // === SOFT TIME CHECK ===
+        // Don't start a new iteration if we've used more than the soft limit.
+        // Exception: extend time if best move is unstable (changed recently).
         if (depth > 1) {
-            auto now = std::chrono::steady_clock::now();
-            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-                now - searchStart_).count();
-            if (elapsed > timeLimitMs_ / 2) break;
+            int64_t elapsed = elapsedMs();
+            int effectiveSoft = softLimitMs_;
+
+            // If best move changed in last 2 iterations, extend soft limit by 50%
+            if (bestMoveStableCount < 2)
+                effectiveSoft = softLimitMs_ * 3 / 2;
+
+            // If best move has been stable for 4+ iterations, reduce soft limit
+            if (bestMoveStableCount >= 4)
+                effectiveSoft = softLimitMs_ * 2 / 3;
+
+            // Never exceed hard limit
+            effectiveSoft = std::min(effectiveSoft, hardLimitMs_);
+
+            if (elapsed > effectiveSoft) break;
         }
 
         int alpha, beta;
 
-        // Aspiration window
         if (depth >= 4) {
             alpha = prevScore - 25;
             beta  = prevScore + 25;
@@ -1345,7 +1287,6 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
             beta  = INF;
         }
 
-        // Root search
         auto moves = MoveGen::getLegalMoves(board);
         uint64_t hash = computeHash(board);
         size_t ttIdx = hash % TT_SIZE;
@@ -1361,7 +1302,6 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
             Board temp = board;
             temp.applyMove(moves[i]);
 
-            // Track previous move for countermove heuristic
             previousMove_ = moves[i];
 
             int score;
@@ -1418,30 +1358,41 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
         }
 
         if (!stop_.load(std::memory_order_relaxed)) {
+            // === TRACK BEST MOVE STABILITY ===
+            if (bestMoveIter == prevBestMove) {
+                bestMoveStableCount++;
+            } else {
+                bestMoveStableCount = 0;
+            }
+            prevBestMove = bestMoveIter;
+
             bestMove  = bestMoveIter;
             prevScore = bestScoreIter;
-            rootEval_ = bestScoreIter;  // Update draw bias with latest eval
+            rootEval_ = bestScoreIter;
             lastDepth_ = depth;
 
-            // Save PV from this iteration
             lastPV_.clear();
             for (int j = 0; j < pvLength_[0]; j++)
                 lastPV_.push_back(pvTable_[0][j]);
-            // If PV is empty, at least store the best move
             if (lastPV_.empty())
                 lastPV_.push_back(bestMove);
 
-            // Update live PV for real-time arrow display
             {
                 std::lock_guard<std::mutex> lock(livePVMutex_);
                 livePV_ = lastPV_;
             }
 
-            // Update live depth and eval for UI
             liveDepth_.store(depth, std::memory_order_relaxed);
-            // Convert eval to White's perspective for display
             int whiteEval = (board.turn == Color::White) ? prevScore : -prevScore;
             liveEval_.store(whiteEval, std::memory_order_relaxed);
+
+            // === OUTPUT INFO LINE AT EACH DEPTH ===
+            if (onInfoCallback) {
+                int64_t elapsed = elapsedMs();
+                uint64_t nps = elapsed > 0 ? (nodes_ * 1000 / elapsed) : 0;
+                std::string pvStr = pvToUCI(lastPV_);
+                onInfoCallback(depth, whiteEval, nodes_, nps, elapsed, pvStr);
+            }
         }
     }
 

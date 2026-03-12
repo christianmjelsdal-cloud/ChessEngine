@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+  <identifier>Syzygy345</identifier>
+  <collection>opensource_media</collection>
+  <description>&lt;div&gt;Syzygy endgame tablebases for 3, 4, and 5 pieces.&lt;/div&gt;&lt;div&gt;&lt;br /&gt;&lt;/div&gt;&lt;div&gt;Can be used to find win-draw-loss (WDL) and distance-to-zero (DTZ) information for chess positions containing 5 or fewer pieces remaining (including kings) or in conjunction with a chess engine (e.g., Stockfish) to enhance its analysis/playing strength.&lt;/div&gt;&lt;div&gt;&lt;br /&gt;&lt;/div&gt;&lt;div&gt;See &lt;a href="https://en.wikipedia.org/wiki/Endgame_tablebase" rel="nofollow"&gt;Wikipedia&lt;/a&gt; for more information.&lt;br /&gt;&lt;/div&gt;</description>
+  <mediatype>data</mediatype>
+  <scanner>Internet Archive Python library 1.8.1</scanner>
+  <title>Syzygy 3-4-5 Piece Tablebases</title>
+  <publicdate>2018-10-08 22:48:35</publicdate>
+  <uploader>the_professor737@protonmail.com</uploader>
+  <addeddate>2018-10-08 22:48:35</addeddate>
+  <curation>[curator]validator@archive.org[/curator][date]20181008224924[/date][comment]checked for malware[/comment]</curation>
+  <source>http://oics.olympuschess.com/tracker/index.php</source>
+  <source>torrent:urn:sha1:b2e48abbc6497f4a066e454ae4fac73356d83313</source>
+  <subject>5-man;5-men;5man;5men;chess;database;databases;egtb;egtbs;syzygy;tablebase;tablebases</subject>
+  <licenseurl>http://creativecommons.org/publicdomain/mark/1.0/</licenseurl>
+  <backup_location>ia906802_32</backup_location>
+  <collection>community</collection>
+</metadata>
