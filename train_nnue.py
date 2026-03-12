@@ -36,7 +36,7 @@ Usage:
         --extra-data assets/endgame_draws.bin 0.10
 
     # Manual rebalancing knobs:
-    py -3.10 train_nnue.py --eval-soft-cap 8.0 --draw-weight 3.0 ...
+    py -3.10 train_nnue.py --eval-soft-cap 8.0 --draw-weight 3.0 --mate-boost 3.0 ...
 
 Requirements:
     pip install torch numpy matplotlib
@@ -78,7 +78,7 @@ L3_SIZE = 128
 MAX_PRELOAD_POSITIONS = 8_000_000
 
 # Chunk size for streaming mode
-STREAM_CHUNK_SIZE = 500_000
+STREAM_CHUNK_SIZE = 200_000
 
 # =============================================================================
 # Feature mirror - must match C++ mirrorFeature() exactly
@@ -120,16 +120,19 @@ def classify_phase(features):
 # =============================================================================
 # Sample Rebalancing Weights (NEW in v3)
 # =============================================================================
-def compute_sample_weights(search_eval, game_result, eval_soft_cap, draw_weight):
+def compute_sample_weights(search_eval, game_result, eval_soft_cap, draw_weight,
+                           mate_boost=0.0):
     """
     Per-sample loss weights to fix dataset imbalances:
       - eval_soft_cap: positions with |eval| > cap get weight = cap / |eval|
         (reduces dominance of trivially won/lost positions)
-      - draw_weight: multiplier for drawn positions (result ≈ 0.5)
+      - draw_weight: multiplier for drawn positions (result ~ 0.5)
         (compensates for draw underrepresentation)
-    Returns None if no rebalancing is needed (both disabled).
+      - mate_boost: multiplier for high-eval (|eval|>2000cp) decisive positions.
+        Counteracts soft-cap to teach mate patterns. 0 = disabled.
+    Returns None if no rebalancing is needed (all disabled).
     """
-    if eval_soft_cap <= 0 and draw_weight <= 1.0:
+    if eval_soft_cap <= 0 and draw_weight <= 1.0 and mate_boost <= 0:
         return None
 
     weights = torch.ones_like(search_eval)
@@ -139,6 +142,15 @@ def compute_sample_weights(search_eval, game_result, eval_soft_cap, draw_weight)
         abs_eval = torch.abs(search_eval)
         eval_w = torch.clamp(eval_soft_cap / torch.clamp(abs_eval, min=0.01), max=1.0)
         weights = weights * eval_w
+
+    # Mate-boost: upweight high-eval positions in decisive games
+    # This counteracts soft-cap for positions near checkmate
+    if mate_boost > 0:
+        abs_eval = torch.abs(search_eval)
+        is_decisive = (game_result < 0.1) | (game_result > 0.9)
+        is_high_eval = abs_eval > 2000.0
+        mate_mask = is_decisive & is_high_eval
+        weights = torch.where(mate_mask, weights * mate_boost, weights)
 
     # Upweight draws
     if draw_weight > 1.0:
@@ -150,35 +162,98 @@ def compute_sample_weights(search_eval, game_result, eval_soft_cap, draw_weight)
 # =============================================================================
 # Binary format reader - scan offsets and load positions
 # =============================================================================
-def scan_positions(filename):
-    """Fast scan: builds list of byte offsets for random access without loading data."""
-    print(f"Scanning {filename} for position offsets...")
+def _build_offset_index(filename):
+    """Scan every record to build a complete byte-offset array. Slow but only runs once."""
+    import numpy as np
     with open(filename, 'rb') as f:
         raw_header = f.read(4)
         num_positions = struct.unpack_from('<I', raw_header, 0)[0]
         print(f"  Total positions: {num_positions:,}")
-
-        offsets = []
+        offsets = np.empty(num_positions, dtype=np.int64)
         offset = 4
         f.seek(offset)
-
         for i in range(num_positions):
-            offsets.append(offset)
+            offsets[i] = offset
             header = f.read(2)
             if len(header) < 2:
                 print(f"  Warning: truncated at position {i}")
-                num_positions = i
+                offsets = offsets[:i]
                 break
             num_features = struct.unpack_from('<H', header, 0)[0]
             skip = 2 * num_features + 1 + 8
             f.seek(skip, 1)
             offset += 2 + skip
-
             if (i + 1) % 1_000_000 == 0:
-                print(f"  Scanned {i+1:,}/{num_positions:,}...")
+                print(f"\r  Scanning {i+1:,}/{num_positions:,}...\033[K", end='', flush=True)
+        print(f"\r  Scan complete: {len(offsets):,} positions indexed.\033[K")
+    return offsets
 
-    print(f"  Scan complete: {len(offsets):,} positions indexed.")
-    return num_positions, offsets
+def _load_or_build_offset_cache(filename):
+    """Load cached offset index if valid, otherwise build and cache it."""
+    import numpy as np
+    cache_path = filename + ".offidx"
+    data_mtime = os.path.getmtime(filename)
+
+    # Try loading existing cache
+    if os.path.exists(cache_path):
+        try:
+            with open(cache_path, 'rb') as cf:
+                magic = cf.read(8)
+                if magic == b'OFFIDX01':
+                    saved_mtime = struct.unpack('<d', cf.read(8))[0]
+                    saved_count = struct.unpack('<Q', cf.read(8))[0]
+                    if abs(saved_mtime - data_mtime) < 0.01:
+                        offsets = np.frombuffer(cf.read(), dtype=np.int64)
+                        if len(offsets) == saved_count:
+                            print(f"  Loaded cached index: {len(offsets):,} offsets ({cache_path})")
+                            return offsets
+            print(f"  Cache stale or corrupt, rebuilding...")
+        except Exception as e:
+            print(f"  Cache read error ({e}), rebuilding...")
+
+    # Build from scratch
+    print(f"  Building offset index (first time, may take several minutes)...")
+    offsets = _build_offset_index(filename)
+
+    # Save cache
+    try:
+        with open(cache_path, 'wb') as cf:
+            cf.write(b'OFFIDX01')                               # magic
+            cf.write(struct.pack('<d', data_mtime))             # data file mtime
+            cf.write(struct.pack('<Q', len(offsets)))            # count
+            cf.write(offsets.tobytes())                          # offset array
+        cache_mb = os.path.getsize(cache_path) / (1024 * 1024)
+        print(f"  Saved offset cache: {cache_mb:.1f} MB ({cache_path})")
+    except Exception as e:
+        print(f"  Warning: could not save cache ({e}) - will rescan next time")
+
+    return offsets
+
+def scan_positions(filename, max_positions=0):
+    """Fast scan: builds list of byte offsets for random access without loading data.
+    
+    Uses a cached offset index (.offidx file) to avoid rescanning the entire file
+    on every generation. First call builds the cache (~10 min for 66M positions),
+    subsequent calls load it in ~1 second.
+    
+    If max_positions > 0 and max_positions < total, uses reservoir sampling to
+    return exactly max_positions uniformly random offsets.
+    """
+    import numpy as np
+    print(f"Scanning {filename} for position offsets...")
+
+    all_offsets = _load_or_build_offset_cache(filename)
+    num_positions = len(all_offsets)
+
+    if 0 < max_positions < num_positions:
+        # Reservoir sampling from cached offsets (instant in-memory)
+        indices = np.random.choice(num_positions, size=max_positions, replace=False)
+        sampled = all_offsets[indices].tolist()
+        print(f"  Sampled {max_positions:,} from {num_positions:,} positions (reservoir)")
+        return num_positions, sampled
+    else:
+        print(f"  Using all {num_positions:,} positions")
+        return num_positions, all_offsets.tolist()
 
 def load_positions_at_offsets(filename, offsets, filter_eval_max=0.0):
     """
@@ -246,60 +321,69 @@ def load_positions_at_offsets(filename, offsets, filter_eval_max=0.0):
 # Fast preload (small datasets)
 # =============================================================================
 def load_training_data(filename, max_positions=0, filter_eval_max=0.0):
-    """Load entire dataset into RAM. Only used for small datasets."""
+    """Load positions from file using memory-mapped I/O.
+
+    Uses mmap so only the pages actually read are paged in from disk.
+    When max_positions caps the load to a small subset of a huge file,
+    this avoids reading the entire file into Python memory.
+    """
+    import mmap
     print(f"Loading positions from {filename}...")
 
     with open(filename, 'rb') as f:
-        raw = f.read()
+        mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
 
-    num_positions = struct.unpack_from('<I', raw, 0)[0]
-    print(f"  Total positions: {num_positions:,}")
-    if max_positions > 0 and max_positions < num_positions:
-        num_positions = max_positions
-        print(f"  Capped to:       {num_positions:,} (--max-positions)")
+        num_positions = struct.unpack_from('<I', mm, 0)[0]
+        print(f"  Total positions: {num_positions:,}")
+        if max_positions > 0 and max_positions < num_positions:
+            num_positions = max_positions
+            print(f"  Capped to:       {num_positions:,} (--max-positions)")
 
-    all_white  = np.zeros((num_positions, NUM_FEATURES), dtype=np.float32)
-    all_black  = np.zeros((num_positions, NUM_FEATURES), dtype=np.float32)
-    all_stm    = np.zeros(num_positions, dtype=np.float32)
-    all_result = np.zeros(num_positions, dtype=np.float32)
-    all_eval   = np.zeros(num_positions, dtype=np.float32)
-    all_phases = np.zeros(num_positions, dtype=np.int32)
+        all_white  = np.zeros((num_positions, NUM_FEATURES), dtype=np.float32)
+        all_black  = np.zeros((num_positions, NUM_FEATURES), dtype=np.float32)
+        all_stm    = np.zeros(num_positions, dtype=np.float32)
+        all_result = np.zeros(num_positions, dtype=np.float32)
+        all_eval   = np.zeros(num_positions, dtype=np.float32)
+        all_phases = np.zeros(num_positions, dtype=np.int32)
 
-    mirror = MIRROR_TABLE
-    offset = 4
-    kept = 0
+        mirror = MIRROR_TABLE
+        offset = 4
+        kept = 0
 
-    try:
-        for i in range(num_positions):
-            num_features = struct.unpack_from('<H', raw, offset)[0]
-            offset += 2
-            features = struct.unpack_from(f'<{num_features}H', raw, offset)
-            offset += 2 * num_features
-            stm = raw[offset]
-            offset += 1
-            game_result, search_eval = struct.unpack_from('<ff', raw, offset)
-            offset += 8
+        try:
+            for i in range(num_positions):
+                num_features = struct.unpack_from('<H', mm, offset)[0]
+                offset += 2
+                features = struct.unpack_from(f'<{num_features}H', mm, offset)
+                offset += 2 * num_features
+                stm = mm[offset]
+                offset += 1
+                game_result, search_eval = struct.unpack_from('<ff', mm, offset)
+                offset += 8
 
-            # Filter extreme evaluations
-            if filter_eval_max > 0 and abs(search_eval) > filter_eval_max:
-                continue
+                # Filter extreme evaluations
+                if filter_eval_max > 0 and abs(search_eval) > filter_eval_max:
+                    continue
 
-            for feat in features:
-                all_white[kept, feat] = 1.0
-                all_black[kept, mirror[feat]] = 1.0
+                for feat in features:
+                    all_white[kept, feat] = 1.0
+                    all_black[kept, mirror[feat]] = 1.0
 
-            all_stm[kept]    = float(stm)
-            all_result[kept] = game_result
-            all_eval[kept]   = search_eval
-            all_phases[kept] = classify_phase(features)
-            kept += 1
+                all_stm[kept]    = float(stm)
+                all_result[kept] = game_result
+                all_eval[kept]   = search_eval
+                all_phases[kept] = classify_phase(features)
+                kept += 1
 
-            if (i + 1) % 200000 == 0:
-                print(f"  Loaded {i+1:,}/{num_positions:,}...")
-    except KeyboardInterrupt:
-        print("\nInterrupted during data loading - exiting cleanly.")
-        sys.exit(0)
+                if (i + 1) % 200000 == 0:
+                    print(f"\r  Loaded {i+1:,}/{num_positions:,}...   ", end='', flush=True)
+        except KeyboardInterrupt:
+            print("\nInterrupted during data loading - exiting cleanly.")
+            sys.exit(0)
+        finally:
+            mm.close()
 
+    print()  # newline after \r progress
     if kept < num_positions:
         print(f"  Filtered: {num_positions - kept:,} extreme-eval positions removed, {kept:,} kept")
         all_white  = all_white[:kept]
@@ -334,7 +418,11 @@ def load_training_data(filename, max_positions=0, filter_eval_max=0.0):
 # FIXED: Uses architecture constants instead of hardcoded values
 # =============================================================================
 def save_weights_cpp(net, filename):
-    with open(filename, 'wb') as f:
+    """Save weights atomically: write to .tmp first, then rename to final path.
+    If the process crashes mid-write, the original file is untouched."""
+    import shutil
+    tmp_path = filename + '.tmp'
+    with open(tmp_path, 'wb') as f:
         f.write(net.l1_weight.detach().cpu().numpy().astype(np.float32).tobytes())
         f.write(net.l1_bias.detach().cpu().numpy().astype(np.float32).tobytes())
         f.write(net.l2.weight.detach().cpu().numpy().T.astype(np.float32).tobytes())
@@ -343,7 +431,18 @@ def save_weights_cpp(net, filename):
         f.write(net.l3.bias.detach().cpu().numpy().astype(np.float32).tobytes())
         f.write(net.output.weight.detach().cpu().numpy().flatten().astype(np.float32).tobytes())
         f.write(net.output.bias.detach().cpu().numpy().astype(np.float32).tobytes())
+        f.flush()
+        os.fsync(f.fileno())
+    shutil.move(tmp_path, filename)
     print(f"Weights saved to {filename}")
+
+def safe_torch_save(data, path):
+    """Save torch checkpoint atomically."""
+    import shutil
+    tmp_path = path + '.tmp'
+    torch.save(data, tmp_path)
+    shutil.move(tmp_path, path)
+    print(f"Checkpoint saved to {path}")
 
 def load_weights_cpp(net, filename):
     """Load weights from C++ binary format. Uses architecture constants for correct sizing."""
@@ -394,11 +493,12 @@ class NNUENetwork(nn.Module):
         avg_active = 30.0
         nn.init.normal_(self.l1_weight, 0, 1.0 / avg_active)
         nn.init.zeros_(self.l1_bias)
-        nn.init.kaiming_normal_(self.l2.weight, a=0, mode='fan_in', nonlinearity='relu')
+        # SCReLU has different gradient properties than ReLU; use leaky_relu gain as closer approximation
+        nn.init.kaiming_normal_(self.l2.weight, a=0.01, mode='fan_in', nonlinearity='leaky_relu')
         nn.init.zeros_(self.l2.bias)
-        nn.init.kaiming_normal_(self.l3.weight, a=0, mode='fan_in', nonlinearity='relu')
+        nn.init.kaiming_normal_(self.l3.weight, a=0.01, mode='fan_in', nonlinearity='leaky_relu')
         nn.init.zeros_(self.l3.bias)
-        nn.init.kaiming_normal_(self.output.weight, a=0, mode='fan_in', nonlinearity='relu')
+        nn.init.kaiming_normal_(self.output.weight, a=0.01, mode='fan_in', nonlinearity='leaky_relu')
         nn.init.zeros_(self.output.bias)
 
     def forward(self, white_features, black_features, stm):
@@ -450,7 +550,7 @@ class ManualSWA:
 def compute_loss(net, white, black, stm, game_result, search_eval,
                  lam, eval_scale, label_smoothing=0.0):
     raw_output     = net(white, black, stm)
-    predicted      = raw_output.squeeze(1) * 400.0
+    predicted      = raw_output.squeeze(1) * eval_scale
     predicted_white = torch.where(stm < 0.5, predicted, -predicted)
     sig_pred       = torch.sigmoid(predicted_white / eval_scale)
     sig_target     = torch.sigmoid(search_eval / eval_scale)
@@ -467,7 +567,8 @@ def compute_loss(net, white, black, stm, game_result, search_eval,
 # Training Log & Progress Graph
 # =============================================================================
 LOG_FILE  = 'training_log.csv'
-PLOT_FILE = 'training_progress.png'
+PLOT_DIR  = os.path.join('.', 'training progress')
+PLOT_FILE = os.path.join(PLOT_DIR, 'training_progress.png')
 
 def append_log(epoch, train_loss, val_loss, lr, epoch_time, run_id, phase_losses=None):
     file_exists = os.path.exists(LOG_FILE)
@@ -499,6 +600,7 @@ def generate_plot(log_data=None, show=False):
     if not HAS_MATPLOTLIB:
         print("matplotlib not installed - skipping plot.")
         return
+    os.makedirs(PLOT_DIR, exist_ok=True)
     if log_data is None:
         log_data = read_log()
     if not log_data:
@@ -572,11 +674,22 @@ def generate_plot(log_data=None, show=False):
     ax1.legend(fontsize=9, loc='upper right')
 
     best_idx = losses.index(min(losses))
-    ax1.annotate(f'Best: {losses[best_idx]:.6f}\n(epoch {epochs[best_idx]})',
+    ax1.annotate(f'Best train: {losses[best_idx]:.6f}\n(epoch {epochs[best_idx]})',
                  xy=(epochs[best_idx], losses[best_idx]),
                  xytext=(30, 30), textcoords='offset points',
-                 fontsize=9, color='green',
-                 arrowprops=dict(arrowstyle='->', color='green', lw=1.5))
+                 fontsize=9, color='#2196F3',
+                 arrowprops=dict(arrowstyle='->', color='#2196F3', lw=1))
+
+    # Best val loss annotation — this is the actually saved model
+    if has_val:
+        valid_val = [(i, v) for i, v in enumerate(val_losses) if v > 0]
+        if valid_val:
+            best_val_idx = min(valid_val, key=lambda x: x[1])[0]
+            ax1.annotate(f'Best val: {val_losses[best_val_idx]:.6f}\n(epoch {epochs[best_val_idx]}) \u2605saved',
+                         xy=(epochs[best_val_idx], val_losses[best_val_idx]),
+                         xytext=(30, -30), textcoords='offset points',
+                         fontsize=9, color='#E91E63', fontweight='bold',
+                         arrowprops=dict(arrowstyle='->', color='#E91E63', lw=1.5))
 
     stats_lines = [f'Total epochs: {len(epochs)}', f'Best train loss: {min(losses):.6f}']
     if has_val:
@@ -693,13 +806,14 @@ def prepare_datasets(primary_path, extra_data_args, max_positions=0):
     # Primary gets the remainder
     datasets[0]['ratio'] = 1.0 - extra_total_ratio
 
-    # Apply max_positions cap proportionally
+    # Apply max_positions cap to PRIMARY dataset only
+    # Extra datasets are kept intact so their signal isn't drowned out
     total_available = sum(ds['num_positions'] for ds in datasets)
-    if max_positions > 0 and max_positions < total_available:
-        scale = max_positions / total_available
-        for ds in datasets:
-            ds['num_positions'] = int(ds['num_positions'] * scale)
+    if max_positions > 0 and max_positions < datasets[0]['num_positions']:
+        old_primary = datasets[0]['num_positions']
+        datasets[0]['num_positions'] = max_positions
         total_available = sum(ds['num_positions'] for ds in datasets)
+        print(f"  --max-positions: capped PRIMARY from {old_primary:,} to {max_positions:,} (extra datasets unchanged)")
 
     # Print summary
     print(f"\n{'='*60}")
@@ -731,13 +845,13 @@ def format_time(seconds):
 # =============================================================================
 def process_batch(net, optimizer, white, black, stm, result, eval_t,
                   lam, eval_scale, label_smoothing, accum_steps, grad_clip,
-                  eval_soft_cap=0.0, draw_weight=1.0):
+                  eval_soft_cap=0.0, draw_weight=1.0, mate_boost=0.0):
     """Process one mini-batch with gradient accumulation and sample rebalancing."""
     loss_tensor = compute_loss(net, white, black, stm, result, eval_t,
                                lam, eval_scale, label_smoothing)
 
     # Apply per-sample rebalancing weights
-    sample_weights = compute_sample_weights(eval_t, result, eval_soft_cap, draw_weight)
+    sample_weights = compute_sample_weights(eval_t, result, eval_soft_cap, draw_weight, mate_boost)
     if sample_weights is not None:
         loss_tensor = loss_tensor * sample_weights
 
@@ -766,12 +880,21 @@ def train(args):
     )
     multi_dataset = len(datasets) > 1
 
-    # Force streaming if dense arrays would exceed ~4 GB RAM
+    # Force streaming if dense arrays would exceed ~4 GB RAM or file is much larger than cap
     estimated_ram_gb = (num_positions * NUM_FEATURES * 4 * 2) / (1024**3)  # white+black arrays
-    streaming_mode = num_positions > MAX_PRELOAD_POSITIONS or estimated_ram_gb > 4.0
+    # If --max-positions caps us to a small amount that fits in RAM, use preload mode
+    # even if the file is huge (mmap-based preload only touches the first N records).
+    file_much_larger = False
+    if args.max_positions > 0:
+        with open(args.data, 'rb') as f:
+            actual_primary = struct.unpack('<I', f.read(4))[0]
+        if actual_primary > args.max_positions * 3:  # file is 3x+ larger than cap
+            # Only force streaming if the capped amount itself is too large for preload
+            file_much_larger = (args.max_positions > MAX_PRELOAD_POSITIONS)
+    streaming_mode = num_positions > MAX_PRELOAD_POSITIONS or estimated_ram_gb > 4.0 or file_much_larger
     if streaming_mode:
         print(f"  Mode: STREAMING (dataset too large for RAM preload)")
-        print(f"  Chunk size: {STREAM_CHUNK_SIZE:,} positions per chunk")
+        print(f"  Chunk size: {args.chunk_size:,} positions per chunk")
     else:
         print(f"  Mode: PRELOAD (full dataset fits in RAM)")
 
@@ -802,29 +925,36 @@ def train(args):
                             eps=1e-8, weight_decay=args.weight_decay)
 
     # --- LR Scheduler ---
-    if args.cosine_restarts:
-        scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
-            optimizer,
-            T_0=args.cosine_t0,
-            T_mult=args.cosine_t_mult,
-            eta_min=args.lr_min
-        )
-        schedule_name = f"Cosine Warm Restarts (T0={args.cosine_t0}, Tmult={args.cosine_t_mult})"
+    if args.cosine_lr:
+        if args.cosine_restarts:
+            scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
+                optimizer,
+                T_0=args.cosine_t0,
+                T_mult=args.cosine_t_mult,
+                eta_min=args.lr_min
+            )
+            schedule_name = f"Cosine Warm Restarts (T0={args.cosine_t0}, Tmult={args.cosine_t_mult})"
+        else:
+            scheduler = optim.lr_scheduler.CosineAnnealingLR(
+                optimizer,
+                T_max=args.epochs,
+                eta_min=args.lr_min
+            )
+            schedule_name = f"Cosine Decay (T_max={args.epochs})"
     else:
-        scheduler = optim.lr_scheduler.CosineAnnealingLR(
-            optimizer,
-            T_max=args.epochs,
-            eta_min=args.lr_min
-        )
-        schedule_name = f"Cosine Decay (T_max={args.epochs})"
+        scheduler = None
+        schedule_name = "Constant LR"
 
     # --- Load optimizer checkpoint ---
     if not args.fresh and not args.load_weights and os.path.exists(checkpoint_path):
         try:
             ckpt = torch.load(checkpoint_path, map_location='cpu', weights_only=True)
             optimizer.load_state_dict(ckpt['optimizer'])
-            scheduler.load_state_dict(ckpt['scheduler'])
-            print(f"Resumed optimizer state (LR: {scheduler.get_last_lr()[0]:.6f})")
+            if scheduler is not None and 'scheduler' in ckpt:
+                scheduler.load_state_dict(ckpt['scheduler'])
+                print(f"Resumed optimizer state (LR: {scheduler.get_last_lr()[0]:.6f})")
+            else:
+                print(f"Resumed optimizer state (LR: {optimizer.param_groups[0]['lr']:.6f})")
         except Exception as e:
             print(f"Could not load checkpoint (starting fresh optimizer): {e}")
     elif args.load_weights:
@@ -856,6 +986,8 @@ def train(args):
     print(f"  Eval soft-cap:     {soft_cap_str}")
     draw_w_str = f"{args.draw_weight:.1f}x" if args.draw_weight > 1.0 else "OFF"
     print(f"  Draw weight:       {draw_w_str}")
+    mate_b_str = f"{args.mate_boost:.1f}x" if args.mate_boost > 0 else "OFF"
+    print(f"  Mate boost:        {mate_b_str}")
     print(f"  Async prefetch:    {'ON' if streaming_mode else 'N/A (preload mode)'}")
     print(f"  Activation:        SCReLU (squared clipped ReLU)")
     print(f"  Architecture:      768->{L1_SIZE}->{L2_SIZE}->{L3_SIZE}->1")
@@ -876,9 +1008,8 @@ def train(args):
         all_val_offsets   = []  # combined val offsets with file paths
 
         for ds in datasets:
-            ds_count, ds_offsets = scan_positions(ds['path'])
-            # Cap to configured num_positions for this source
-            ds_offsets = ds_offsets[:ds['num_positions']]
+            # Pass max_positions to scan_positions for memory-efficient reservoir sampling
+            ds_count, ds_offsets = scan_positions(ds['path'], max_positions=ds['num_positions'])
 
             # 10% val, capped proportionally
             ds_indices = list(range(len(ds_offsets)))
@@ -915,7 +1046,7 @@ def train(args):
             val_by_file.setdefault(path, []).append(off)
         val_parts = []
         for path, offsets in val_by_file.items():
-            part = load_positions_at_offsets(path, sorted(offsets), filter_eval_max=0.0)
+            part = load_positions_at_offsets(path, sorted(offsets), filter_eval_max=args.filter_eval_max)
             val_parts.append(part)
 
         # Merge val parts
@@ -937,6 +1068,9 @@ def train(args):
 
     else:
         # PRELOAD MODE: load each dataset and combine
+        if len(datasets) > 1:
+            print("  WARNING: Preload mode uses uniform sampling -- dataset ratios are ignored.")
+            print("           Use streaming mode (larger files or --max-positions) for ratio support.")
         all_data_parts = []
         for ds in datasets:
             part = load_training_data(ds['path'], max_positions=ds['num_positions'],
@@ -1021,7 +1155,8 @@ def train(args):
             cached_balanced = train_indices
         print(f"  Phase-balanced samples: {len(cached_balanced):,} (from {len(train_indices):,} train)")
 
-    print(f"  Mode: eager (standard PyTorch)")
+    if not streaming_mode:
+        print(f"  Mode: eager (standard PyTorch)")
 
     # --- Smart ETA state ---
     ema_epoch_time  = None
@@ -1040,7 +1175,7 @@ def train(args):
             window = hist[-TREND_WINDOW:]
             xs = list(range(TREND_WINDOW))
             slope = np.polyfit(xs, window, 1)[0]
-            trend_per_epoch = min(slope, 0.0)
+            trend_per_epoch = slope  # Allow both improving and worsening trends
         next_epoch = max(ema + trend_per_epoch, ema * 0.5)
         total = 0.0
         predicted = next_epoch
@@ -1083,7 +1218,7 @@ def train(args):
 
                 random.shuffle(combined_tagged_offsets)
 
-                chunk_size = STREAM_CHUNK_SIZE
+                chunk_size = args.chunk_size
                 num_chunks = (len(combined_tagged_offsets) + chunk_size - 1) // chunk_size
 
                 # Pre-split all chunks, grouping by file within each chunk for efficient I/O
@@ -1120,6 +1255,11 @@ def train(args):
                                               chunk_slices[0], args.filter_eval_max)
 
                 chunk_times = []
+                epoch_batches_done = 0
+                epoch_batches_total = sum(
+                    (len(cs) + batch_size - 1) // batch_size for cs in chunk_slices
+                )
+
                 for chunk_i in range(num_chunks):
                     chunk_start_time = time.time()
 
@@ -1143,6 +1283,9 @@ def train(args):
                     random.shuffle(chunk_indices)
                     idx_tensor = torch.tensor(chunk_indices, dtype=torch.long)
 
+                    chunk_batches = (chunk_n + batch_size - 1) // batch_size
+                    chunk_batch_i = 0
+
                     for batch_start in range(0, chunk_n, batch_size):
                         batch_idx = idx_tensor[batch_start:batch_start + batch_size]
 
@@ -1155,10 +1298,13 @@ def train(args):
                             accum_steps, args.grad_clip,
                             eval_soft_cap=args.eval_soft_cap,
                             draw_weight=args.draw_weight,
+                            mate_boost=args.mate_boost,
                         )
                         total_loss  += loss_val
                         num_batches += 1
                         accum_count += 1
+                        chunk_batch_i += 1
+                        epoch_batches_done += 1
 
                         if accum_count >= accum_steps:
                             if args.grad_clip > 0:
@@ -1174,26 +1320,27 @@ def train(args):
                                 for pg in optimizer.param_groups:
                                     pg['lr'] = warmup_lr
 
+                        # Batch progress (every 10 batches)
+                        if chunk_batch_i % 10 == 0 or chunk_batch_i == chunk_batches:
+                            batch_elapsed = time.time() - chunk_start_time
+                            batch_rate = chunk_batch_i / max(batch_elapsed, 0.01)
+                            chunk_batch_eta = (chunk_batches - chunk_batch_i) / max(batch_rate, 0.01)
+                            epoch_rate = epoch_batches_done / max(time.time() - epoch_start, 0.01)
+                            epoch_batch_eta = (epoch_batches_total - epoch_batches_done) / max(epoch_rate, 0.01)
+                            running_loss = total_loss / max(num_batches, 1)
+                            print(f"\r  Ep {epoch+1} | Ch {chunk_i+1}/{num_chunks} "
+                                  f"[{chunk_batch_i}/{chunk_batches}] | "
+                                  f"Loss: {running_loss:.6f} | "
+                                  f"ChETA: {format_time(chunk_batch_eta)} | "
+                                  f"EpETA: {format_time(epoch_batch_eta)}\033[K", end='', flush=True)
+
                     # Free chunk memory
                     del chunk_data, white_all, black_all, stm_all, result_all, eval_all
 
                     chunk_elapsed = time.time() - chunk_start_time
                     chunk_times.append(chunk_elapsed)
-                    if len(chunk_times) == 1:
-                        ema_chunk = chunk_elapsed
-                    else:
-                        ema_chunk = chunk_times[0]
-                        for ct in chunk_times[1:]:
-                            ema_chunk = 0.3 * ct + 0.7 * ema_chunk
-                    remaining_chunks = num_chunks - (chunk_i + 1)
-                    chunk_eta = ema_chunk * remaining_chunks
 
-                    if num_chunks > 1:
-                        eta_str = f"{int(chunk_eta//60)}m{int(chunk_eta%60):02d}s" if chunk_eta >= 60 else f"{chunk_eta:.0f}s"
-                        print(f"  Epoch {epoch+1} chunk {chunk_i+1}/{num_chunks} | "
-                              f"{chunk_elapsed:.1f}s (ema {ema_chunk:.1f}s) | "
-                              f"Chunk ETA: {eta_str}    ", end='\r')
-
+                print()  # newline after \r progress
                 executor.shutdown(wait=False)
 
             else:
@@ -1207,6 +1354,7 @@ def train(args):
 
                 idx_tensor  = torch.tensor(indices, dtype=torch.long)
                 num_samples = len(indices)
+                total_batches_epoch = (num_samples + batch_size - 1) // batch_size
 
                 white_all  = data['white']
                 black_all  = data['black']
@@ -1214,6 +1362,7 @@ def train(args):
                 result_all = data['result']
                 eval_all   = data['eval']
 
+                batch_count_epoch = 0
                 for batch_start in range(0, num_samples, batch_size):
                     batch_idx = idx_tensor[batch_start:batch_start + batch_size]
 
@@ -1226,10 +1375,12 @@ def train(args):
                         accum_steps, args.grad_clip,
                         eval_soft_cap=args.eval_soft_cap,
                         draw_weight=args.draw_weight,
+                            mate_boost=args.mate_boost,
                     )
                     total_loss  += loss_val
                     num_batches += 1
                     accum_count += 1
+                    batch_count_epoch += 1
 
                     if accum_count >= accum_steps:
                         if args.grad_clip > 0:
@@ -1245,6 +1396,19 @@ def train(args):
                             for pg in optimizer.param_groups:
                                 pg['lr'] = warmup_lr
 
+                    # Batch progress (every 10 batches)
+                    if batch_count_epoch % 10 == 0 or batch_count_epoch == total_batches_epoch:
+                        batch_elapsed = time.time() - epoch_start
+                        batch_rate = batch_count_epoch / max(batch_elapsed, 0.01)
+                        batch_eta = (total_batches_epoch - batch_count_epoch) / max(batch_rate, 0.01)
+                        running_loss = total_loss / max(num_batches, 1)
+                        pct = 100.0 * batch_count_epoch / total_batches_epoch
+                        print(f"\r  Ep {epoch+1} | Batch {batch_count_epoch}/{total_batches_epoch} "
+                              f"({pct:.0f}%) | Loss: {running_loss:.6f} | "
+                              f"ETA: {format_time(batch_eta)}\033[K", end='', flush=True)
+
+                print()  # newline after \r progress
+
             # Flush remaining accumulated gradients
             if accum_count > 0:
                 if args.grad_clip > 0:
@@ -1254,7 +1418,7 @@ def train(args):
                 accum_count = 0
 
             # Step the LR scheduler (only after warmup is complete)
-            if warmup_steps == 0 or global_step >= warmup_steps:
+            if scheduler is not None and (warmup_steps == 0 or global_step >= warmup_steps):
                 scheduler.step()
 
             avg_loss   = total_loss / max(num_batches, 1)
@@ -1281,6 +1445,22 @@ def train(args):
                         phase_losses[phase_name] = 0.0
             net.train()
 
+            # --- Compute accuracy (prediction vs outcome agreement) ---
+            with torch.no_grad():
+                # Forward pass to get predictions
+                pred_eval = net(val_white, val_black, val_stm)
+                # Sigmoid to get win probability
+                pred_prob = torch.sigmoid(pred_eval / eval_scale).squeeze()
+                # Classify: pred > 0.55 = win, pred < 0.45 = loss, else draw
+                pred_class = torch.where(pred_prob > 0.55, torch.ones_like(pred_prob),
+                             torch.where(pred_prob < 0.45, -torch.ones_like(pred_prob),
+                             torch.zeros_like(pred_prob)))
+                # Actual: result 1.0 = win, 0.0 = loss, 0.5 = draw
+                actual_class = torch.where(val_result > 0.65, torch.ones_like(val_result),
+                               torch.where(val_result < 0.35, -torch.ones_like(val_result),
+                               torch.zeros_like(val_result)))
+                val_accuracy = (pred_class == actual_class).float().mean().item()
+
             # --- SWA update ---
             if swa is not None and (epoch + 1) >= args.swa_start:
                 swa.update(net)
@@ -1301,20 +1481,29 @@ def train(args):
             total_eta_str = format_time(total_eta_s)  if total_eta_s  > 0 else "?"
 
             swa_marker = " [SWA]" if swa is not None and epochs_done >= args.swa_start else ""
-            print(f"Epoch {epochs_done:4d}/{args.epochs} | Train: {avg_loss:.6f} | "
-                  f"Val: {val_loss:.6f} | LR: {current_lr:.6f} | "
-                  f"Time: {epoch_time:.1f}s | Next: ~{next_eta_str} | Total ETA: {total_eta_str}{swa_marker}")
+            pos_per_sec = num_batches * batch_size / max(epoch_time, 0.01)
+            improved_marker = " *" if val_loss < best_loss else ""
+
+            print(f"{'-'*70}")
+            print(f"  Epoch {epochs_done:4d}/{args.epochs} | Train: {avg_loss:.6f} | "
+                  f"Val: {val_loss:.6f}{improved_marker} | LR: {current_lr:.6f} | Acc: {val_accuracy:.4f}")
+            print(f"  Time: {format_time(epoch_time)} | "
+                  f"Elapsed: {format_time(elapsed)} | "
+                  f"{pos_per_sec:,.0f} pos/s | "
+                  f"Next: ~{next_eta_str} | Total ETA: {total_eta_str}{swa_marker}")
             if has_phase_data:
-                print(f"      Phase loss - O: {phase_losses.get('opening',0):.6f}  "
-                      f"M: {phase_losses.get('middlegame',0):.6f}  "
-                      f"E: {phase_losses.get('endgame',0):.6f}")
+                print(f"  Phase loss -> Opening: {phase_losses.get('opening',0):.6f}  "
+                      f"Middlegame: {phase_losses.get('middlegame',0):.6f}  "
+                      f"Endgame: {phase_losses.get('endgame',0):.6f}")
+            if epochs_no_improve > 0 and args.early_stop > 0:
+                print(f"  No improvement for {epochs_no_improve}/{args.early_stop} epochs")
 
             append_log(epochs_done, avg_loss, val_loss, current_lr, epoch_time,
                        run_id, phase_losses)
             all_log_data.append({
                 'timestamp': datetime.now().isoformat(),
                 'run_id': run_id, 'epoch': str(epochs_done),
-                'loss': f'{avg_loss:.8f}', 'val_loss': f'{val_loss:.8f}',
+                'loss': f'{avg_loss:.8f}', 'val_loss': f'{val_loss:.8f}', 'accuracy': f'{val_accuracy:.4f}',
                 'lr': f'{current_lr:.8f}', 'epoch_time_s': f'{epoch_time:.2f}',
                 'opening_loss':    f'{phase_losses.get("opening",    0):.8f}',
                 'middlegame_loss': f'{phase_losses.get("middlegame", 0):.8f}',
@@ -1328,8 +1517,10 @@ def train(args):
                 best_loss         = val_loss
                 epochs_no_improve = 0
                 save_weights_cpp(net, args.output)
-                torch.save({'optimizer': optimizer.state_dict(),
-                            'scheduler': scheduler.state_dict()}, checkpoint_path)
+                ckpt_data = {'optimizer': optimizer.state_dict()}
+                if scheduler is not None:
+                    ckpt_data['scheduler'] = scheduler.state_dict()
+                safe_torch_save(ckpt_data, checkpoint_path)
             else:
                 epochs_no_improve += 1
                 if args.early_stop > 0 and epochs_no_improve >= args.early_stop:
@@ -1337,16 +1528,20 @@ def train(args):
                     break
 
             if epochs_done % args.save_every == 0:
-                save_weights_cpp(net, args.output)
-                torch.save({'optimizer': optimizer.state_dict(),
-                            'scheduler': scheduler.state_dict()}, checkpoint_path)
+                periodic_path = os.path.splitext(args.output)[0] + '_checkpoint.bin'
+                save_weights_cpp(net, periodic_path)
+                ckpt_data = {'optimizer': optimizer.state_dict()}
+                if scheduler is not None:
+                    ckpt_data['scheduler'] = scheduler.state_dict()
+                safe_torch_save(ckpt_data, checkpoint_path)
 
     except KeyboardInterrupt:
         print(f"\n\nStopped by user after epoch {epoch + 1}.")
         save_weights_cpp(net, args.output)
-        torch.save({'optimizer': optimizer.state_dict(),
-                    'scheduler': scheduler.state_dict()}, checkpoint_path)
-        generate_plot(all_log_data)
+        ckpt_data = {'optimizer': optimizer.state_dict()}
+        if scheduler is not None:
+            ckpt_data['scheduler'] = scheduler.state_dict()
+        safe_torch_save(ckpt_data, checkpoint_path)
         print(f"Total time: {format_time(time.time() - start_time)}")
         if swa is not None and swa.count > 0:
             print("Applying SWA averaged weights...")
@@ -1358,16 +1553,13 @@ def train(args):
 
     # --- End of training ---
     if swa is not None and swa.count > 0:
-        swa_backup = os.path.splitext(args.output)[0] + '_pre_swa.bin'
-        save_weights_cpp(net, swa_backup)
-        print(f"  Pre-SWA weights backed up to {swa_backup}")
+        # Best model is already saved at args.output — don't overwrite it
         print(f"Applying SWA averaged weights ({swa.count} snapshots)...")
         swa.apply(net)
-        save_weights_cpp(net, args.output)
-    else:
-        save_weights_cpp(net, args.output)
-
-    generate_plot(all_log_data)
+        swa_path = os.path.splitext(args.output)[0] + '_swa.bin'
+        save_weights_cpp(net, swa_path)
+        print(f"  SWA weights saved to {swa_path}")
+        print(f"  Best validation weights remain at {args.output}")
 
     total_time = time.time() - start_time
     print(f"\n{'='*60}")
@@ -1407,6 +1599,10 @@ if __name__ == '__main__':
     parser.add_argument('--eval-scale', type=float, default=400.0)
 
     # LR schedule
+    parser.add_argument('--cosine-lr', action='store_true', default=True,
+                        help='Use cosine annealing LR schedule (default)')
+    parser.add_argument('--no-cosine-lr', dest='cosine_lr', action='store_false',
+                        help='Use constant LR (no scheduler)')
     parser.add_argument('--cosine-t0',     type=int,   default=50)
     parser.add_argument('--cosine-t-mult', type=int,   default=2)
     parser.add_argument('--lr-min',        type=float, default=1e-6)
@@ -1429,8 +1625,10 @@ if __name__ == '__main__':
     parser.add_argument('--save-every',  type=int, default=10)
 
     # Plotting
-    parser.add_argument('--plot',       action='store_true')
+    parser.add_argument('--plot',       action='store_true', help='Generate final plot after training (intermediate plots saved regardless)')
+    parser.add_argument('--show-plot',  action='store_true', help='Open the plot image after saving (requires --plot)')
     parser.add_argument('--plot-every', type=int, default=10)
+    parser.add_argument('--clear-log', action='store_true', help='Delete training_log.csv before training for a clean plot')
 
     # Streaming
     parser.add_argument('--chunk-size', type=int, default=STREAM_CHUNK_SIZE,
@@ -1460,9 +1658,12 @@ if __name__ == '__main__':
     parser.add_argument('--eval-soft-cap', type=float, default=0.0,
                         help='Soft-cap: downweight positions with |eval| > this in loss '
                              '(0=off, enhanced: 8.0). Weight = min(1, cap/|eval|)')
-    parser.add_argument('--draw-weight', type=float, default=1.0,
+    parser.add_argument('--draw-weight', type=float, default=None,
                         help='Loss multiplier for drawn positions (1.0=off, enhanced: 3.0). '
                              'Compensates for draw underrepresentation in dataset')
+    parser.add_argument('--mate-boost', type=float, default=3.0,
+                        help='Weight multiplier for high-eval (|eval|>2000cp) decisive '
+                             'positions. Teaches mate patterns. 0=disabled. (default: 3.0)')
 
     args = parser.parse_args()
 
@@ -1480,20 +1681,26 @@ if __name__ == '__main__':
             args.filter_eval_max = 10.0
         if args.eval_soft_cap == 0.0:
             args.eval_soft_cap = 8.0
-        if args.draw_weight <= 1.0:
+        if args.draw_weight is None:
             args.draw_weight = 3.0
         # Single cosine decay is better for fine-tuning
         args.cosine_restarts = False
-        print("=== Enhanced mode v3: warmup=1000, grad_accum=4, SWA=ON, "
-              "label_smooth=0.02, filter_eval=10.0, "
-              f"eval_soft_cap=8.0, draw_weight=3.0x, cosine_decay ===\n")
+        dw_display = args.draw_weight if args.draw_weight is not None else 3.0
+        print(f"=== Enhanced mode v3: warmup={args.warmup_steps}, grad_accum={args.grad_accum}, SWA=ON, "
+              f"label_smooth={args.label_smoothing}, filter_eval={args.filter_eval_max}, "
+              f"eval_soft_cap={args.eval_soft_cap}, draw_weight={dw_display}x, cosine_decay ===\n")
 
-    STREAM_CHUNK_SIZE = args.chunk_size
+    # Default draw_weight if neither user nor --enhanced set it
+    if args.draw_weight is None:
+        args.draw_weight = 1.0
 
-    if args.plot:
-        if not HAS_MATPLOTLIB:
-            print("ERROR: matplotlib required. Install with: pip install matplotlib")
-            sys.exit(1)
-        generate_plot(show=True)
-    else:
-        train(args)
+    if args.plot and not HAS_MATPLOTLIB:
+        print("WARNING: matplotlib not found -- plot will be skipped. Install with: pip install matplotlib")
+
+    if args.clear_log and os.path.exists(LOG_FILE):
+        os.remove(LOG_FILE)
+        print(f"Cleared {LOG_FILE} for fresh run.")
+    train(args)
+
+    if args.plot and HAS_MATPLOTLIB:
+        generate_plot(show=args.show_plot)
