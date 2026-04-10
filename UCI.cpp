@@ -3,6 +3,7 @@
 #include <sstream>
 #include <algorithm>
 #include <cctype>
+#include <stdexcept>
 
 // ============================================================
 //  UCI Protocol Implementation
@@ -310,8 +311,20 @@ void UCI::parseFEN(const std::string& fen) {
         board_.enPassantTarget = {-1, -1};
     }
 
-    if (!halfmove.empty()) board_.halfMoveClock = std::stoi(halfmove);
-    if (!fullmove.empty()) board_.fullMoveNumber = std::stoi(fullmove);
+    if (!halfmove.empty()) {
+        try {
+            board_.halfMoveClock = std::stoi(halfmove);
+        } catch (const std::exception&) {
+            board_.halfMoveClock = 0;
+        }
+    }
+    if (!fullmove.empty()) {
+        try {
+            board_.fullMoveNumber = std::stoi(fullmove);
+        } catch (const std::exception&) {
+            board_.fullMoveNumber = 1;
+        }
+    }
 }
 
 // ============================================================

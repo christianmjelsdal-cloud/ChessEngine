@@ -243,13 +243,35 @@ namespace NNUE {
         std::ifstream file(filename, std::ios::binary);
         if (!file.is_open()) return false;
 
+        // Validate file size matches expected weight data size
+        file.seekg(0, std::ios::end);
+        auto fileSize = file.tellg();
+        file.seekg(0, std::ios::beg);
+
+        const std::streamsize expectedSize =
+            sizeof(L1_weights) + sizeof(L1_biases) +
+            sizeof(L2_weights) + sizeof(L2_biases) +
+            sizeof(L3_weights) + sizeof(L3_biases) +
+            sizeof(output_weights) + sizeof(output_bias);
+
+        if (fileSize < static_cast<std::streampos>(expectedSize)) {
+            return false;
+        }
+
         file.read(reinterpret_cast<char*>(L1_weights.data()), sizeof(L1_weights));
+        if (!file.good()) return false;
         file.read(reinterpret_cast<char*>(L1_biases.data()), sizeof(L1_biases));
+        if (!file.good()) return false;
         file.read(reinterpret_cast<char*>(L2_weights.data()), sizeof(L2_weights));
+        if (!file.good()) return false;
         file.read(reinterpret_cast<char*>(L2_biases.data()), sizeof(L2_biases));
+        if (!file.good()) return false;
         file.read(reinterpret_cast<char*>(L3_weights.data()), sizeof(L3_weights));
+        if (!file.good()) return false;
         file.read(reinterpret_cast<char*>(L3_biases.data()), sizeof(L3_biases));
+        if (!file.good()) return false;
         file.read(reinterpret_cast<char*>(output_weights.data()), sizeof(output_weights));
+        if (!file.good()) return false;
         file.read(reinterpret_cast<char*>(&output_bias), sizeof(output_bias));
 
         return file.good();

@@ -742,7 +742,7 @@ def generate_plot(log_data=None, show=False):
     if show:
         import subprocess
         if sys.platform == 'win32':
-            subprocess.Popen(['start', '', PLOT_FILE], shell=True)
+            os.startfile(PLOT_FILE)
         elif sys.platform == 'darwin':
             subprocess.Popen(['open', PLOT_FILE])
         else:

@@ -4,6 +4,7 @@
 #include <sstream>
 #include <random>
 #include <chrono>
+#include <stdexcept>
 
 // -------------------------------------------------------
 // CONSTRUCTOR / DESTRUCTOR
@@ -178,7 +179,14 @@ void VisualGame::handleTextInput(uint32_t unicode) {
 // PROCESS TRAINING INPUT
 // -------------------------------------------------------
 void VisualGame::processTrainingInput() {
-    int value = nnueInputBuffer_.empty() ? 0 : std::stoi(nnueInputBuffer_);
+    int value = 0;
+    if (!nnueInputBuffer_.empty()) {
+        try {
+            value = std::stoi(nnueInputBuffer_);
+        } catch (const std::exception&) {
+            value = 0;
+        }
+    }
     nnueInputBuffer_.clear();
 
     if (nnueInputStep_ == 0) {
@@ -229,7 +237,14 @@ static std::string formatCountdown(int64_t endMs) {
 // PROCESS ELO INPUT
 // -------------------------------------------------------
 void VisualGame::processEloInput() {
-    int value = nnueInputBuffer_.empty() ? 0 : std::stoi(nnueInputBuffer_);
+    int value = 0;
+    if (!nnueInputBuffer_.empty()) {
+        try {
+            value = std::stoi(nnueInputBuffer_);
+        } catch (const std::exception&) {
+            value = 0;
+        }
+    }
     nnueInputBuffer_.clear();
     nnueEloInputMode_ = false;
 
