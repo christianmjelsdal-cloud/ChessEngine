@@ -174,10 +174,29 @@ struct TrainPoint {
     bool   hasLR = false;
 };
 
+// Compute a "signature" for a log line by replacing digit runs with '#'.
+// Two lines with the same signature are considered running updates of each other.
+static std::string logSignature(const std::string& s) {
+    std::string sig;
+    sig.reserve(s.size());
+    bool inNum = false;
+    for (char c : s) {
+        if (std::isdigit((unsigned char)c)) {
+            if (!inNum) { sig += '#'; inNum = true; }
+        } else {
+            sig += c;
+            inNum = false;
+        }
+    }
+    return sig;
+}
+
 struct AppState {
     std::mutex              mtx;
     std::vector<TrainPoint> pts;
     std::deque<std::string> log;
+    std::string             lastLogSig;       // signature of last log line
+    bool                    logLastReplaced = false; // true when last line was overwritten
     std::string             status   = "Ready";
     std::string             phase;
     int    curGen    = 0, totalGens  = 0;
@@ -200,8 +219,17 @@ struct AppState {
 
     void pushLog(const std::string& s) {
         std::lock_guard<std::mutex> lk(mtx);
-        log.push_back(s);
-        if (log.size() > MAX_LOG) log.pop_front();
+        std::string sig = logSignature(s);
+        // If the new line is a running update of the last line (same structure,
+        // only numbers differ), replace it instead of appending.
+        if (!log.empty() && sig == lastLogSig) {
+            log.back() = s;
+            logLastReplaced = true;
+        } else {
+            log.push_back(s);
+            if (log.size() > MAX_LOG) log.pop_front();
+        }
+        lastLogSig = sig;
     }
     void setStatus(const std::string& s) { std::lock_guard<std::mutex> lk(mtx); status = s; }
     void setPhase (const std::string& s) { std::lock_guard<std::mutex> lk(mtx); phase  = s; }
@@ -571,9 +599,13 @@ static bool RunProc(const std::wstring& cmd, const std::string& dir,
         size_t p;
         while ((p = buf.find('\n')) != std::string::npos) {
             std::string ln = buf.substr(0, p);
-            if (!ln.empty() && ln.back()=='\r') ln.pop_back();
-            if (!ln.empty()) cb(ln);
             buf = buf.substr(p+1);
+            // Strip trailing \r (CRLF line ending)
+            if (!ln.empty() && ln.back()=='\r') ln.pop_back();
+            // Handle interior \r (progress overwrite): keep text after last \r
+            auto cr = ln.rfind('\r');
+            if (cr != std::string::npos) ln = ln.substr(cr+1);
+            if (!ln.empty()) cb(ln);
         }
         if (stop.load()) {
             GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pi.dwProcessId);
@@ -582,7 +614,12 @@ static bool RunProc(const std::wstring& cmd, const std::string& dir,
             break;
         }
     }
-    if (!buf.empty()) cb(buf);
+    if (!buf.empty()) {
+        if (buf.back()=='\r') buf.pop_back();
+        auto cr = buf.rfind('\r');
+        if (cr != std::string::npos) buf = buf.substr(cr+1);
+        if (!buf.empty()) cb(buf);
+    }
     WaitForSingleObject(pi.hProcess, INFINITE);
     DWORD ex=1; GetExitCodeProcess(pi.hProcess, &ex);
     if (ex != 0) cb("[ERR] Process exited with code " + std::to_string(ex));
@@ -1847,7 +1884,21 @@ static LRESULT CALLBACK PanelProc(HWND hw, UINT msg, WPARAM wp, LPARAM lp,
 static size_t g_logSent = 0;
 static void FlushLog() {
     std::deque<std::string> snap;
-    { std::lock_guard<std::mutex> lk(g_st.mtx); snap = g_st.log; }
+    bool replaced = false;
+    { std::lock_guard<std::mutex> lk(g_st.mtx);
+      snap = g_st.log;
+      replaced = g_st.logLastReplaced;
+      g_st.logLastReplaced = false;
+    }
+    // If the last line was replaced (running update), remove the old listbox
+    // entry so the updated text gets re-added below.
+    if (replaced && g_logSent > 0 && snap.size() <= g_logSent) {
+        int cnt = (int)SendMessageW(g_hLog, LB_GETCOUNT, 0, 0);
+        if (cnt > 0) {
+            SendMessageW(g_hLog, LB_DELETESTRING, (WPARAM)(cnt - 1), 0);
+            g_logSent--;
+        }
+    }
     if (snap.size() <= g_logSent) return;
     for (size_t i = g_logSent; i < snap.size(); i++) {
         SendMessageW(g_hLog, LB_ADDSTRING, 0, (LPARAM)W(snap[i]).c_str());
