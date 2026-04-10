@@ -538,13 +538,9 @@ namespace NNUE {
             while (ply < 300) {
                 auto moves = MoveGen::getLegalMoves(board);
 
-                if (moves.empty() && MoveGen::isInCheck(board, board.turn)) {
-                    gameResult = (board.turn == Color::White) ? 0.0f : 1.0f;
-                    break;
-                }
-
                 if (moves.empty()) {
-                    gameResult = 0.5f;
+                    // In duck chess, no legal moves = loss (no stalemate)
+                    gameResult = (board.turn == Color::White) ? 0.0f : 1.0f;
                     break;
                 }
 

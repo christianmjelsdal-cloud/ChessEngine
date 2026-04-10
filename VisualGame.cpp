@@ -1352,6 +1352,10 @@ void VisualGame::exitSetupMode(bool apply) {
         lastEval_ = 0;
         board.halfMoveClock = 0;
         board.fullMoveNumber = 1;
+        board.enPassantTarget = {-1, -1};
+        // Reset castling rights (conservative: all enabled, as if fresh position)
+        board.castlingRights[0][0] = board.castlingRights[0][1] = true;
+        board.castlingRights[1][0] = board.castlingRights[1][1] = true;
 
         // Reset position history
         positionHistory_.clear();

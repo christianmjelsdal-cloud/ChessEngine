@@ -370,8 +370,13 @@ bool Board::fromFEN(const std::string& fen) {
         enPassantTarget = { -1, -1 };
     }
 
-    halfMoveClock = halfmoveStr.empty() ? 0 : std::stoi(halfmoveStr);
-    fullMoveNumber = fullmoveStr.empty() ? 1 : std::stoi(fullmoveStr);
+    try {
+        halfMoveClock = halfmoveStr.empty() ? 0 : std::stoi(halfmoveStr);
+        fullMoveNumber = fullmoveStr.empty() ? 1 : std::stoi(fullmoveStr);
+    } catch (...) {
+        halfMoveClock = 0;
+        fullMoveNumber = 1;
+    }
 
     return true;
 }
