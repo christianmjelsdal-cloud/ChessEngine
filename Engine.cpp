@@ -466,6 +466,10 @@ static int countKnightMobility(const Board& board, Square sq, Color color) {
 }
 
 int Engine::evaluate(const Board& board) {
+    // Use DuckNNUE for duck chess positions, standard NNUE for regular chess
+    if (board.isDuckChess && duckNnue_) {
+        return duckNnue_->evaluate(board);
+    }
     if (nnue_) {
         return nnue_->evaluate(board);
     }

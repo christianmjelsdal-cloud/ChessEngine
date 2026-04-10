@@ -80,6 +80,7 @@ enum {
     ID_CHK_GRAPH_LOSS   = 1050,
     ID_CHK_GRAPH_ACC    = 1051,
     ID_CHK_GRAPH_LR     = 1052,
+    ID_COMBO_VARIANT    = 1060,
     ID_TIMER            = 2001,
 };
 
@@ -91,7 +92,11 @@ static const COLORREF C_DIM    = RGB(100, 100, 120);
 static const COLORREF C_ACCENT = RGB(65, 125, 245);
 
 // ── Data structures ───────────────────────────────────────────────
+// Variant enum for chess variant selection
+enum class ChessVariant { Standard = 0, DuckChess = 1 };
+
 struct Config {
+    ChessVariant variant = ChessVariant::Standard;
     int    generations   = 10;
     int    gamesPerGen   = 5000;
     int    epochsPerGen  = 10;
@@ -116,6 +121,20 @@ struct Config {
     std::string pyScript = "train_nnue.py";
     std::string dataDir  = "assets";
     std::string modelDir = "assets";
+
+    // Variant-aware helpers
+    std::string weightsBaseName() const {
+        return (variant == ChessVariant::DuckChess) ? "duck_nnue_weights" : "nnue_weights";
+    }
+    std::string trainingDataName() const {
+        return (variant == ChessVariant::DuckChess) ? "duck_training_data.bin" : "training_data.bin";
+    }
+    std::string selfplayPrefix() const {
+        return (variant == ChessVariant::DuckChess) ? "duck_selfplay_gen" : "selfplay_gen";
+    }
+    std::string variantFlag() const {
+        return (variant == ChessVariant::DuckChess) ? " --duck-chess" : "";
+    }
 };
 
 // -- Preset definition --
@@ -222,6 +241,9 @@ static HWND g_hChkElo = nullptr, g_hChkOvfit = nullptr;
 static std::vector<Preset> g_allPresets;
 static int g_currentPresetIdx = 1;
 static HWND g_hBtnSave = nullptr, g_hBtnDel = nullptr;
+
+// -- Variant selector --
+static HWND g_hVariant = nullptr;
 
 // -- Graph toggle globals --
 static bool g_showLoss = true;
@@ -620,21 +642,22 @@ static bool SelfPlay(const Config& cfg, int gen) {
     std::string d = exeDir();
     fs::path assetsDir = fs::path(d)/cfg.dataDir;
     fs::create_directories(assetsDir);
-    fs::path outFile = assetsDir/("selfplay_gen"+std::to_string(gen)+".bin");
+    fs::path outFile = assetsDir/(cfg.selfplayPrefix()+std::to_string(gen)+".bin");
     std::string weightsArg;
     if (gen > cfg.startGen + 1) {
-        fs::path prev = assetsDir/("nnue_weights_gen"+std::to_string(gen-1)+".bin");
+        fs::path prev = assetsDir/(cfg.weightsBaseName()+"_gen"+std::to_string(gen-1)+".bin");
         if (fs::exists(prev)) weightsArg = " --weights \""+prev.string()+"\"";
     }
+    std::string variantLabel = (cfg.variant == ChessVariant::DuckChess) ? "Duck Chess" : "Standard";
     std::wstring cmd = W(
         "\"" + (fs::path(d)/cfg.exeName).string() + "\""
         " --generate --games " + std::to_string(cfg.gamesPerGen) +
         " --depth " + std::to_string(cfg.depth) +
         " --workers " + std::to_string(cfg.workers) +
         " --output \"" + outFile.string() + "\"" +
-        weightsArg
+        weightsArg + cfg.variantFlag()
     );
-    g_st.setStatus("Gen "+std::to_string(gen)+": self-play ("+std::to_string(cfg.gamesPerGen)+" games)");
+    g_st.setStatus("Gen "+std::to_string(gen)+": "+variantLabel+" self-play ("+std::to_string(cfg.gamesPerGen)+" games)");
     g_st.setPhase("selfplay");
     g_st.phaseStart = std::chrono::steady_clock::now();
     { std::lock_guard<std::mutex> lk(g_st.mtx); g_st.curEpoch=0; g_st.totalEpochs=cfg.gamesPerGen; }
@@ -664,11 +687,11 @@ static bool Training(const Config& cfg, int gen) {
     std::string d = exeDir();
     fs::path assetsDir = fs::path(d)/cfg.dataDir;
     fs::create_directories(assetsDir);
-    fs::path baseData     = assetsDir/"training_data.bin";
-    fs::path selfplayData = assetsDir/("selfplay_gen"+std::to_string(gen)+".bin");
-    fs::path prevWeights  = assetsDir/("nnue_weights_gen"+std::to_string(gen-1)+".bin");
-    fs::path outputWeights= assetsDir/"nnue_weights.bin";
-    fs::path genWeights   = assetsDir/("nnue_weights_gen"+std::to_string(gen)+".bin");
+    fs::path baseData     = assetsDir/cfg.trainingDataName();
+    fs::path selfplayData = assetsDir/(cfg.selfplayPrefix()+std::to_string(gen)+".bin");
+    fs::path prevWeights  = assetsDir/(cfg.weightsBaseName()+"_gen"+std::to_string(gen-1)+".bin");
+    fs::path outputWeights= assetsDir/(cfg.weightsBaseName()+".bin");
+    fs::path genWeights   = assetsDir/(cfg.weightsBaseName()+"_gen"+std::to_string(gen)+".bin");
     std::string args =
         " --data \""        + baseData.string() + "\""
         " --extra-data \""  + selfplayData.string() + "\" " + dbl2s(cfg.splRatio) +
@@ -692,7 +715,8 @@ static bool Training(const Config& cfg, int gen) {
         args += " --load-weights \"" + prevWeights.string() + "\"";
     args += " --output \"" + outputWeights.string() + "\"";
     std::wstring cmd = W("py -3.10 -u \"" + (fs::path(d)/cfg.pyScript).string() + "\"" + args);
-    g_st.setStatus("Gen "+std::to_string(gen)+": training ("+std::to_string(cfg.epochsPerGen)+" epochs)");
+    std::string variantLabel = (cfg.variant == ChessVariant::DuckChess) ? "Duck Chess" : "Standard";
+    g_st.setStatus("Gen "+std::to_string(gen)+": "+variantLabel+" training ("+std::to_string(cfg.epochsPerGen)+" epochs)");
     g_st.setPhase("training");
     g_st.phaseStart = std::chrono::steady_clock::now();
     { std::lock_guard<std::mutex> lk(g_st.mtx);
@@ -827,8 +851,8 @@ static void EloVal(const Config& cfg, int gen) {
     if (!cfg.eloValidate || gen <= cfg.startGen + 1) return;
     std::string d = exeDir();
     fs::path assetsDir = fs::path(d)/cfg.dataDir;
-    fs::path newWt  = assetsDir/("nnue_weights_gen"+std::to_string(gen)+".bin");
-    fs::path prevWt = assetsDir/("nnue_weights_gen"+std::to_string(gen-1)+".bin");
+    fs::path newWt  = assetsDir/(cfg.weightsBaseName()+"_gen"+std::to_string(gen)+".bin");
+    fs::path prevWt = assetsDir/(cfg.weightsBaseName()+"_gen"+std::to_string(gen-1)+".bin");
     if (!fs::exists(newWt)||!fs::exists(prevWt)) return;
     fs::path cutechess = fs::path(d)/"cutechess"/"cutechess-cli.exe";
     if (!fs::exists(cutechess)) {
@@ -876,7 +900,8 @@ static void PipelineThread(Config cfg) {
       g_st.phaseStart = g_st.pipelineStart;
       g_st.completedGens = 0;
       g_st.pts.clear(); }
-    g_st.pushLog("=== Pipeline start: "+std::to_string(cfg.generations)+" generations (gen "+std::to_string(firstGen)+" to "+std::to_string(lastGen)+") ===");
+    std::string variantName = (cfg.variant == ChessVariant::DuckChess) ? "Duck Chess" : "Standard Chess";
+    g_st.pushLog("=== Pipeline start: "+variantName+" | "+std::to_string(cfg.generations)+" generations (gen "+std::to_string(firstGen)+" to "+std::to_string(lastGen)+") ===");
 
     for (int gen=firstGen; gen<=lastGen && !g_st.stopFlag.load(); gen++) {
         { std::lock_guard<std::mutex> lk(g_st.mtx); g_st.curGen=gen-firstGen; }
@@ -1352,6 +1377,21 @@ static void BuildConfigPane(HWND pane, int PW) {
     int y = 8, dy = 24;
 
 
+    // ── Section: Variant ─────────────────────────────────────────
+    {
+        HWND lbl = mkLabel(pane, L"Variant", lx, y+2, lw, 18);
+        g_hVariant = CreateWindowExW(0, L"COMBOBOX", nullptr,
+                                     WS_CHILD|WS_VISIBLE|CBS_DROPDOWNLIST|WS_VSCROLL,
+                                     ex, y, ew, 120, pane,
+                                     (HMENU)(LONG_PTR)ID_COMBO_VARIANT, g_hInst, nullptr);
+        SendMessageW(g_hVariant, WM_SETFONT, (WPARAM)g_fUI, TRUE);
+        SendMessageW(g_hVariant, CB_ADDSTRING, 0, (LPARAM)L"Standard Chess");
+        SendMessageW(g_hVariant, CB_ADDSTRING, 0, (LPARAM)L"Duck Chess");
+        SendMessageW(g_hVariant, CB_SETCURSEL, 0, 0);
+        AddTooltip(lbl, L"Select which chess variant to train. Standard Chess uses 768-feature NNUE. Duck Chess uses 832-feature DuckNNUE with duck-square encoding.");
+        y += dy;
+    }
+
     // ── Section: Presets ──────────────────────────────────────────
     {
         HWND lbl = mkLabel(pane, L"Preset", lx, y+2, lw, 18);
@@ -1618,6 +1658,9 @@ static Config ReadConfig() {
     c.startGen     = pInt(e(ID_EDIT_STARTGEN), 0);
     c.eloValidate   = Button_GetCheck(g_hChkElo)   == BST_CHECKED;
     c.overfitDetect = Button_GetCheck(g_hChkOvfit) == BST_CHECKED;
+    // Read variant selection
+    int variantSel = (int)SendMessageW(g_hVariant, CB_GETCURSEL, 0, 0);
+    c.variant = (variantSel == 1) ? ChessVariant::DuckChess : ChessVariant::Standard;
     return c;
 }
 
@@ -1910,6 +1953,9 @@ static LRESULT CALLBACK WndProc(HWND hw, UINT msg, WPARAM wp, LPARAM lp) {
         }
         else if (id == ID_BTN_DEL_PRESET) {
             DeleteCurrentPreset();
+        }
+        else if (id == ID_COMBO_VARIANT && HIWORD(wp) == CBN_SELCHANGE) {
+            // Variant changed – just update the stored config; pipeline reads on start
         }
         else if (id == ID_CHK_GRAPH_LOSS) {
             g_showLoss = (Button_GetCheck(g_hChkGLoss) == BST_CHECKED);

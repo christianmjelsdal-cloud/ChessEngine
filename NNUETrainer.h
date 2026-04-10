@@ -1,5 +1,6 @@
 #pragma once
 #include "NNUE.h"
+#include "DuckNNUE.h"
 #include "Engine.h"
 #include "Board.h"
 #include "MoveGen.h"
@@ -43,6 +44,9 @@ namespace NNUE {
                                        // diversifies starting positions to avoid repetitive games
                                        // positions from these random moves are NOT recorded as training data
         bool useOpeningBook = false;   // future: use an opening book instead of random moves
+
+        // === Duck Chess variant ===
+        bool isDuckChess = false;          // generate duck chess games instead of standard
     };
 
     struct EloResult {
@@ -61,8 +65,14 @@ namespace NNUE {
             std::function<void(int gamesPlayed, int totalGames)> progressCallback = nullptr,
             std::atomic<bool>* cancelFlag = nullptr);
 
-        // Training loop (now with early stopping)
+        // Training loop (now with early stopping) — standard 768-feature NNUE
         void train(Network& net, const std::vector<TrainingPosition>& data,
+            const TrainingConfig& config,
+            std::function<void(int epoch, float loss)> progressCallback = nullptr,
+            std::atomic<bool>* cancelFlag = nullptr);
+
+        // Training loop for duck chess — 832-feature DuckNNUE
+        void trainDuck(DuckNNUE::Network& net, const std::vector<TrainingPosition>& data,
             const TrainingConfig& config,
             std::function<void(int epoch, float loss)> progressCallback = nullptr,
             std::atomic<bool>* cancelFlag = nullptr);
@@ -107,7 +117,13 @@ namespace NNUE {
         // Single-threaded data generation worker (used by parallel version)
         std::vector<TrainingPosition> generateGamesWorker(
             int numGames, int thinkTimeMs, int seedOffset,
-            int randomOpeningMoves,  // NEW: pass through config
+            int randomOpeningMoves,
+            std::atomic<bool>* cancelFlag = nullptr);
+
+        // Duck chess self-play data generation worker
+        std::vector<TrainingPosition> generateDuckGamesWorker(
+            int numGames, int thinkTimeMs, int seedOffset,
+            int randomOpeningMoves,
             std::atomic<bool>* cancelFlag = nullptr);
     };
 }

@@ -1,5 +1,6 @@
 #include "Board.h"
 #include <iostream>
+#include <sstream>
 
 Board::Board() {
     setStartingPosition();
@@ -250,4 +251,140 @@ bool Board::isSquareAttacked(Square sq, Color byColor) const {
         }
 
     return false;
+}
+
+// ── FEN support ──────────────────────────────────────────────────
+
+std::string Board::toFEN() const {
+    std::string fen;
+
+    // Piece placement
+    for (int r = 7; r >= 0; r--) {
+        int empty = 0;
+        for (int c = 0; c < 8; c++) {
+            Piece p = squares[r][c];
+            if (p.isNone() || p.isDuck()) {
+                empty++;
+            } else {
+                if (empty > 0) { fen += std::to_string(empty); empty = 0; }
+                char ch = '.';
+                switch (p.type) {
+                    case PieceType::Pawn:   ch = 'P'; break;
+                    case PieceType::Knight: ch = 'N'; break;
+                    case PieceType::Bishop: ch = 'B'; break;
+                    case PieceType::Rook:   ch = 'R'; break;
+                    case PieceType::Queen:  ch = 'Q'; break;
+                    case PieceType::King:   ch = 'K'; break;
+                    default: break;
+                }
+                if (p.color == Color::Black) ch = static_cast<char>(tolower(ch));
+                fen += ch;
+            }
+        }
+        if (empty > 0) fen += std::to_string(empty);
+        if (r > 0) fen += '/';
+    }
+
+    // Side to move
+    fen += (turn == Color::White) ? " w " : " b ";
+
+    // Castling
+    std::string castling;
+    if (castlingRights[0][0]) castling += 'K';
+    if (castlingRights[0][1]) castling += 'Q';
+    if (castlingRights[1][0]) castling += 'k';
+    if (castlingRights[1][1]) castling += 'q';
+    fen += castling.empty() ? "-" : castling;
+
+    // En passant
+    if (enPassantTarget.isValid()) {
+        fen += ' ';
+        fen += static_cast<char>('a' + enPassantTarget.col);
+        fen += static_cast<char>('1' + enPassantTarget.rank);
+    } else {
+        fen += " -";
+    }
+
+    // Half-move clock and full move number
+    fen += ' ' + std::to_string(halfMoveClock);
+    fen += ' ' + std::to_string(fullMoveNumber);
+
+    return fen;
+}
+
+bool Board::fromFEN(const std::string& fen) {
+    clearBoard();
+
+    std::istringstream iss(fen);
+    std::string pieces, turnStr, castling, ep, halfmoveStr, fullmoveStr;
+    if (!(iss >> pieces >> turnStr >> castling >> ep)) return false;
+    iss >> halfmoveStr >> fullmoveStr; // optional
+
+    int rank = 7, col = 0;
+    for (char c : pieces) {
+        if (c == '/') {
+            rank--;
+            col = 0;
+        }
+        else if (c >= '1' && c <= '8') {
+            col += (c - '0');
+        }
+        else {
+            if (rank < 0 || rank > 7 || col < 0 || col > 7) return false;
+            Color color = std::isupper(c) ? Color::White : Color::Black;
+            PieceType pt = PieceType::None;
+            switch (std::tolower(c)) {
+                case 'p': pt = PieceType::Pawn;   break;
+                case 'n': pt = PieceType::Knight; break;
+                case 'b': pt = PieceType::Bishop; break;
+                case 'r': pt = PieceType::Rook;   break;
+                case 'q': pt = PieceType::Queen;  break;
+                case 'k': pt = PieceType::King;   break;
+                default: return false;
+            }
+            squares[rank][col] = Piece{pt, color};
+            col++;
+        }
+    }
+
+    turn = (turnStr == "w") ? Color::White : Color::Black;
+
+    castlingRights[0][0] = false;
+    castlingRights[0][1] = false;
+    castlingRights[1][0] = false;
+    castlingRights[1][1] = false;
+    if (castling != "-") {
+        for (char c : castling) {
+            switch (c) {
+                case 'K': castlingRights[0][0] = true; break;
+                case 'Q': castlingRights[0][1] = true; break;
+                case 'k': castlingRights[1][0] = true; break;
+                case 'q': castlingRights[1][1] = true; break;
+            }
+        }
+    }
+
+    if (ep != "-" && ep.size() == 2) {
+        enPassantTarget = { ep[1] - '1', ep[0] - 'a' };
+    } else {
+        enPassantTarget = { -1, -1 };
+    }
+
+    halfMoveClock = halfmoveStr.empty() ? 0 : std::stoi(halfmoveStr);
+    fullMoveNumber = fullmoveStr.empty() ? 1 : std::stoi(fullmoveStr);
+
+    return true;
+}
+
+bool Board::hasValidKings() const {
+    bool whiteKing = false, blackKing = false;
+    for (int r = 0; r < 8; r++) {
+        for (int c = 0; c < 8; c++) {
+            if (squares[r][c].type == PieceType::King) {
+                if (squares[r][c].color == Color::White) whiteKing = true;
+                else blackKing = true;
+            }
+        }
+    }
+    return whiteKing && blackKing;
 }

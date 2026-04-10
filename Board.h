@@ -45,4 +45,11 @@ public:
     // Check if a square is blocked by the duck (can't move to or through)
     bool isDuckSquare(Square sq) const;
     bool isDuckSquare(int rank, int col) const;
+
+    // FEN support
+    std::string toFEN() const;
+    bool fromFEN(const std::string& fen);
+
+    // Validation: checks that both kings are present
+    bool hasValidKings() const;
 };

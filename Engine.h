@@ -2,6 +2,7 @@
 #include "Board.h"
 #include "MoveGen.h"
 #include "NNUE.h"
+#include "DuckNNUE.h"
 #include <vector>
 #include <cstdint>
 #include <atomic>
@@ -51,6 +52,10 @@ public:
     void setNNUE(NNUE::Network* net) { nnue_ = net; }
     NNUE::Network* getNNUE() const { return nnue_; }
 
+    /// Set/clear Duck NNUE network for duck chess evaluation.
+    void setDuckNNUE(DuckNNUE::Network* net) { duckNnue_ = net; }
+    DuckNNUE::Network* getDuckNNUE() const { return duckNnue_; }
+
     /// Callback for UCI info output (set by UCI layer).
     /// Signature: depth, score_cp, nodes, nps, elapsed_ms, pv_string
     std::function<void(int, int, uint64_t, uint64_t, int64_t, const std::string&)> onInfoCallback;
@@ -78,6 +83,7 @@ private:
 
     /* ---------- NNUE ---------- */
     NNUE::Network* nnue_ = nullptr;
+    DuckNNUE::Network* duckNnue_ = nullptr;
 
     /* ---------- SEE (Static Exchange Evaluation) ---------- */
     static int see(const Board& board, const Move& m);

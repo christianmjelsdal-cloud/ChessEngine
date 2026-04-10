@@ -1,4 +1,5 @@
 #include "NNUETrainer.h"
+#include "DuckNNUE.h"
 #include "MoveGen.h"
 #include <random>
 #include <algorithm>
@@ -230,12 +231,46 @@ namespace NNUE {
             for (int rank = 0; rank < 8; ++rank) {
                 for (int col = 0; col < 8; ++col) {
                     Piece piece = board.squares[rank][col];
-                    if (piece.isNone()) continue;
+                    if (piece.isNone() || piece.isDuck()) continue;
                     int idx = featureIndex(piece.type, piece.color, rank, col);
                     if (idx >= 0) features.push_back(idx);
                 }
             }
             return features;
+        }
+
+        // Helper: extract active features for duck chess (832 features)
+        // Includes standard piece features (0-767) + duck square feature (768-831)
+        std::vector<int> extractDuckActiveFeatures(const Board& board) {
+            std::vector<int> features;
+            features.reserve(33);  // up to 32 pieces + 1 duck
+            for (int rank = 0; rank < 8; ++rank) {
+                for (int col = 0; col < 8; ++col) {
+                    Piece piece = board.squares[rank][col];
+                    if (piece.isNone() || piece.isDuck()) continue;
+                    int idx = featureIndex(piece.type, piece.color, rank, col);
+                    if (idx >= 0) features.push_back(idx);
+                }
+            }
+            // Add duck square feature
+            if (board.isDuckChess && board.duckSquare.isValid()) {
+                features.push_back(DuckNNUE::duckFeatureIndex(
+                    board.duckSquare.rank, board.duckSquare.col));
+            }
+            return features;
+        }
+
+        // Mirror a duck feature horizontally (swap files a<->h)
+        int mirrorDuckFeatureHorizontal(int feature) {
+            if (feature < DuckNNUE::DUCK_FEATURE_OFFSET) {
+                return mirrorFeatureHorizontal(feature);  // standard piece feature
+            }
+            // Duck feature: mirror the col
+            int sq = feature - DuckNNUE::DUCK_FEATURE_OFFSET;
+            int rank = sq / 8;
+            int col = sq % 8;
+            int mirroredCol = 7 - col;
+            return DuckNNUE::DUCK_FEATURE_OFFSET + rank * 8 + mirroredCol;
         }
 
         // Count total pieces on board
@@ -436,8 +471,136 @@ namespace NNUE {
     }
 
     // -------------------------------------------------------------------------
+    // Duck chess self-play worker: generates duck chess training data
+    // Uses 832-feature encoding (768 piece + 64 duck square)
+    // -------------------------------------------------------------------------
+    std::vector<TrainingPosition> Trainer::generateDuckGamesWorker(
+        int numGames, int thinkTimeMs, int seedOffset,
+        int randomOpeningMoves,
+        std::atomic<bool>* cancelFlag)
+    {
+        std::vector<TrainingPosition> allPositions;
+        std::mt19937 rng(42 + seedOffset);
+
+        for (int gameIdx = 0; gameIdx < numGames; ++gameIdx) {
+            if (cancelFlag && cancelFlag->load()) break;
+
+            Board board;
+            board.setStartingPosition();
+            board.isDuckChess = true;
+
+            Engine engine;
+            engine.setTimeLimit(thinkTimeMs);
+
+            // Play random opening moves to diversify starting positions
+            int openingMovesPlayed = 0;
+            for (int i = 0; i < randomOpeningMoves; ++i) {
+                auto moves = MoveGen::getLegalMoves(board);
+                if (moves.empty()) break;
+
+                std::uniform_int_distribution<int> moveDist(0, static_cast<int>(moves.size()) - 1);
+                Move randomMove = moves[moveDist(rng)];
+                board.applyMove(randomMove);
+
+                // In duck chess, place the duck randomly after each move
+                if (board.isDuckChess) {
+                    auto duckPlacements = MoveGen::getDuckPlacements(board);
+                    if (!duckPlacements.empty()) {
+                        std::uniform_int_distribution<int> duckDist(0, static_cast<int>(duckPlacements.size()) - 1);
+                        board.placeDuck(duckPlacements[duckDist(rng)]);
+                    }
+                }
+
+                ++openingMovesPlayed;
+
+                auto nextMoves = MoveGen::getLegalMoves(board);
+                if (nextMoves.empty()) break;
+            }
+
+            // If game ended during random opening, skip
+            {
+                auto moves = MoveGen::getLegalMoves(board);
+                if (moves.empty()) continue;
+            }
+
+            struct GamePosition {
+                std::vector<int> activeFeatures;
+                Color sideToMove;
+                float searchEval;
+            };
+            std::vector<GamePosition> gamePositions;
+
+            std::vector<int> currentFeatures = extractDuckActiveFeatures(board);
+
+            int ply = openingMovesPlayed;
+            float gameResult = 0.5f;
+
+            while (ply < 300) {
+                auto moves = MoveGen::getLegalMoves(board);
+
+                if (moves.empty() && MoveGen::isInCheck(board, board.turn)) {
+                    gameResult = (board.turn == Color::White) ? 0.0f : 1.0f;
+                    break;
+                }
+
+                if (moves.empty()) {
+                    gameResult = 0.5f;
+                    break;
+                }
+
+                if (isDraw(board)) {
+                    gameResult = 0.5f;
+                    break;
+                }
+
+                Move bestMove = engine.getBestMove(board);
+                int eval = engine.getLiveEval();
+
+                float evalWhitePOV = (board.turn == Color::White) ?
+                    static_cast<float>(eval) : static_cast<float>(-eval);
+
+                bool isMateScore = (std::abs(eval) > 20000);
+                bool enoughPieces = countBoardPieces(board) >= 6;  // slightly lower threshold for duck chess
+                bool pastOpening = (ply >= openingMovesPlayed + 2);
+
+                if (pastOpening && enoughPieces && !isMateScore) {
+                    GamePosition gp;
+                    gp.activeFeatures = currentFeatures;
+                    gp.sideToMove = board.turn;
+                    gp.searchEval = evalWhitePOV;
+                    gamePositions.push_back(std::move(gp));
+                }
+
+                board.applyMove(bestMove);
+
+                // In duck chess, the engine handles duck placement via searchDuck
+                // The board state after applyMove + duck placement is recorded next iteration
+
+                ++ply;
+
+                currentFeatures = extractDuckActiveFeatures(board);
+            }
+
+            if (ply >= 300) {
+                gameResult = 0.5f;
+            }
+
+            for (auto& gp : gamePositions) {
+                TrainingPosition tp;
+                tp.activeFeatures = std::move(gp.activeFeatures);
+                tp.sideToMove = gp.sideToMove;
+                tp.gameResult = gameResult;
+                tp.searchEval = gp.searchEval;
+                allPositions.push_back(std::move(tp));
+            }
+        }
+
+        return allPositions;
+    }
+
+    // -------------------------------------------------------------------------
     // generateTrainingData: parallel self-play using multiple threads
-    // CHANGED: Now passes randomOpeningMoves to workers
+    // Routes to standard or duck chess worker based on config.isDuckChess
     // -------------------------------------------------------------------------
     std::vector<TrainingPosition> Trainer::generateTrainingData(
         const TrainingConfig& config,
@@ -460,8 +623,11 @@ namespace NNUE {
             for (int gameIdx = 0; gameIdx < config.numGames; ++gameIdx) {
                 if (cancelFlag && cancelFlag->load()) break;
 
-                auto gameData = generateGamesWorker(1, config.thinkTimeMs, gameIdx,
-                    config.randomOpeningMoves, cancelFlag);
+                auto gameData = config.isDuckChess
+                    ? generateDuckGamesWorker(1, config.thinkTimeMs, gameIdx,
+                        config.randomOpeningMoves, cancelFlag)
+                    : generateGamesWorker(1, config.thinkTimeMs, gameIdx,
+                        config.randomOpeningMoves, cancelFlag);
                 allPositions.insert(allPositions.end(), gameData.begin(), gameData.end());
                 if (progressCallback) {
                     progressCallback(gameIdx + 1, config.numGames);
@@ -486,6 +652,7 @@ namespace NNUE {
             if (gamesPerThread[t] <= 0) continue;
 
             threads.emplace_back([&, t]() {
+                bool isDuck = config.isDuckChess;
                 int thinkTime = config.thinkTimeMs;
                 int numGames = gamesPerThread[t];
                 int seedOffset = t * 1000;
@@ -495,8 +662,11 @@ namespace NNUE {
                 for (int g = 0; g < numGames; ++g) {
                     if (cancelFlag && cancelFlag->load()) break;
 
-                    auto gameData = generateGamesWorker(1, thinkTime, seedOffset + g,
-                        config.randomOpeningMoves, cancelFlag);
+                    auto gameData = isDuck
+                        ? generateDuckGamesWorker(1, thinkTime, seedOffset + g,
+                            config.randomOpeningMoves, cancelFlag)
+                        : generateGamesWorker(1, thinkTime, seedOffset + g,
+                            config.randomOpeningMoves, cancelFlag);
                     localPositions.insert(localPositions.end(),
                         gameData.begin(), gameData.end());
 
@@ -901,6 +1071,384 @@ namespace NNUE {
                 adamUpdate(params, grads, adamState, lr);
 
                 // Check cancel flag every 50 batches for responsive cancellation
+                if (cancelFlag && (numBatches % 50 == 0) && cancelFlag->load()) break;
+
+            } // end batch loop
+
+            lr *= config.lrDecay;
+
+            float avgLoss = epochLoss / static_cast<float>(numBatches);
+
+            if (progressCallback) {
+                progressCallback(epoch + 1, avgLoss);
+            }
+
+            // Early stopping
+            if (config.earlyStopPatience > 0) {
+                if (avgLoss < bestLoss - 0.0001f) {
+                    bestLoss = avgLoss;
+                    epochsWithoutImprovement = 0;
+                } else {
+                    epochsWithoutImprovement++;
+                    if (epochsWithoutImprovement >= config.earlyStopPatience) {
+                        if (progressCallback) {
+                            progressCallback(epoch + 1, avgLoss);
+                        }
+                        break;
+                    }
+                }
+            }
+        } // end epoch loop
+
+        unpackWeights(params);
+        net.saveWeights(config.outputPath);
+    }
+
+    // -------------------------------------------------------------------------
+    // trainDuck: backpropagation training loop for 832-feature DuckNNUE
+    // Same algorithm as train() but uses DuckNNUE::NUM_FEATURES and duck mirror
+    // -------------------------------------------------------------------------
+    void Trainer::trainDuck(
+        DuckNNUE::Network& net,
+        const std::vector<TrainingPosition>& data,
+        const TrainingConfig& config,
+        std::function<void(int, float)> progressCallback,
+        std::atomic<bool>* cancelFlag)
+    {
+        if (data.empty()) {
+            std::cerr << "No duck training data provided." << std::endl;
+            return;
+        }
+
+        constexpr int DNUM = DuckNNUE::NUM_FEATURES;  // 832
+
+        const int numL1w = DNUM * L1_SIZE;
+        const int numL1b = L1_SIZE;
+        const int numL2w = (L1_SIZE * 2) * L2_SIZE;
+        const int numL2b = L2_SIZE;
+        const int numL3w = L2_SIZE * L3_SIZE;
+        const int numL3b = L3_SIZE;
+        const int numOutW = L3_SIZE;
+        const int numOutB = 1;
+        const int totalParams = numL1w + numL1b + numL2w + numL2b + numL3w + numL3b + numOutW + numOutB;
+
+        auto packWeights = [&](std::vector<float>& params) {
+            params.resize(totalParams);
+            int idx = 0;
+            for (int f = 0; f < DNUM; ++f)
+                for (int j = 0; j < L1_SIZE; ++j)
+                    params[idx++] = net.L1_weights[f][j];
+            for (int j = 0; j < L1_SIZE; ++j)
+                params[idx++] = net.L1_biases[j];
+            for (int i = 0; i < L1_SIZE * 2; ++i)
+                for (int j = 0; j < L2_SIZE; ++j)
+                    params[idx++] = net.L2_weights[i][j];
+            for (int j = 0; j < L2_SIZE; ++j)
+                params[idx++] = net.L2_biases[j];
+            for (int i = 0; i < L2_SIZE; ++i)
+                for (int j = 0; j < L3_SIZE; ++j)
+                    params[idx++] = net.L3_weights[i][j];
+            for (int j = 0; j < L3_SIZE; ++j)
+                params[idx++] = net.L3_biases[j];
+            for (int i = 0; i < L3_SIZE; ++i)
+                params[idx++] = net.output_weights[i];
+            params[idx++] = net.output_bias;
+        };
+
+        auto unpackWeights = [&](const std::vector<float>& params) {
+            int idx = 0;
+            for (int f = 0; f < DNUM; ++f)
+                for (int j = 0; j < L1_SIZE; ++j)
+                    net.L1_weights[f][j] = params[idx++];
+            for (int j = 0; j < L1_SIZE; ++j)
+                net.L1_biases[j] = params[idx++];
+            for (int i = 0; i < L1_SIZE * 2; ++i)
+                for (int j = 0; j < L2_SIZE; ++j)
+                    net.L2_weights[i][j] = params[idx++];
+            for (int j = 0; j < L2_SIZE; ++j)
+                net.L2_biases[j] = params[idx++];
+            for (int i = 0; i < L2_SIZE; ++i)
+                for (int j = 0; j < L3_SIZE; ++j)
+                    net.L3_weights[i][j] = params[idx++];
+            for (int j = 0; j < L3_SIZE; ++j)
+                net.L3_biases[j] = params[idx++];
+            for (int i = 0; i < L3_SIZE; ++i)
+                net.output_weights[i] = params[idx++];
+            net.output_bias = params[idx++];
+        };
+
+        // Duck-aware mirror feature for perspective flip
+        auto mirrorDuckFeature = [](int feat) -> int {
+            return DuckNNUE::mirrorDuckFeature(feat);
+        };
+
+        std::vector<float> params;
+        packWeights(params);
+
+        AdamState adamState;
+        adamState.m.assign(totalParams, 0.0f);
+        adamState.v.assign(totalParams, 0.0f);
+        adamState.t = 0;
+
+        const int offL1w = 0;
+        const int offL1b = offL1w + numL1w;
+        const int offL2w = offL1b + numL1b;
+        const int offL2b = offL2w + numL2w;
+        const int offL3w = offL2b + numL2b;
+        const int offL3b = offL3w + numL3w;
+        const int offOutW = offL3b + numL3b;
+        const int offOutB = offOutW + numOutW;
+
+        std::mt19937 rng(123);
+
+        // Phase-balanced training: classify positions
+        std::vector<int> openingIdx, middlegameIdx, endgameIdx;
+        if (config.phaseBalancedTraining) {
+            for (int i = 0; i < static_cast<int>(data.size()); ++i) {
+                GamePhase gp = classifyPhase(data[i].activeFeatures);
+                switch (gp) {
+                    case GamePhase::Opening:    openingIdx.push_back(i); break;
+                    case GamePhase::Middlegame: middlegameIdx.push_back(i); break;
+                    case GamePhase::Endgame:    endgameIdx.push_back(i); break;
+                }
+            }
+        }
+
+        bool usePhaseBalance = config.phaseBalancedTraining &&
+                               !openingIdx.empty() && !middlegameIdx.empty() && !endgameIdx.empty();
+
+        std::vector<int> indices;
+        float lr = config.learningRate;
+
+        float bestLoss = 1e9f;
+        int epochsWithoutImprovement = 0;
+
+        for (int epoch = 0; epoch < config.epochs; ++epoch) {
+            if (cancelFlag && cancelFlag->load()) break;
+
+            if (usePhaseBalance) {
+                size_t maxCount = std::max({openingIdx.size(), middlegameIdx.size(), endgameIdx.size()});
+
+                auto oversamplePhase = [&](std::vector<int>& src) -> std::vector<int> {
+                    size_t target = std::min(maxCount, src.size() * 5);
+                    std::shuffle(src.begin(), src.end(), rng);
+                    std::vector<int> result;
+                    result.reserve(target);
+                    for (size_t i = 0; i < target; ++i)
+                        result.push_back(src[i % src.size()]);
+                    return result;
+                };
+
+                auto oSampled = oversamplePhase(openingIdx);
+                auto mSampled = oversamplePhase(middlegameIdx);
+                auto eSampled = oversamplePhase(endgameIdx);
+
+                indices.clear();
+                indices.reserve(oSampled.size() + mSampled.size() + eSampled.size());
+                indices.insert(indices.end(), oSampled.begin(), oSampled.end());
+                indices.insert(indices.end(), mSampled.begin(), mSampled.end());
+                indices.insert(indices.end(), eSampled.begin(), eSampled.end());
+            } else {
+                indices.resize(data.size());
+                std::iota(indices.begin(), indices.end(), 0);
+            }
+            std::shuffle(indices.begin(), indices.end(), rng);
+
+            float epochLoss = 0.0f;
+            int numBatches = 0;
+
+            for (int batchStart = 0; batchStart < static_cast<int>(indices.size()); batchStart += config.batchSize) {
+                int batchEnd = std::min(batchStart + config.batchSize, static_cast<int>(indices.size()));
+                int batchActualSize = batchEnd - batchStart;
+
+                unpackWeights(params);
+
+                std::vector<float> grads(totalParams, 0.0f);
+                float batchLoss = 0.0f;
+
+                for (int bi = batchStart; bi < batchEnd; ++bi) {
+                    const TrainingPosition& pos = data[indices[bi]];
+
+                    // ---- FORWARD PASS (with SCReLU) ----
+                    std::array<float, L1_SIZE> whiteAcc;
+                    std::array<float, L1_SIZE> blackAcc;
+                    for (int j = 0; j < L1_SIZE; ++j) {
+                        whiteAcc[j] = net.L1_biases[j];
+                        blackAcc[j] = net.L1_biases[j];
+                    }
+
+                    for (int feat : pos.activeFeatures) {
+                        int mirFeat = mirrorDuckFeature(feat);
+                        for (int j = 0; j < L1_SIZE; ++j) {
+                            whiteAcc[j] += net.L1_weights[feat][j];
+                        }
+                        for (int j = 0; j < L1_SIZE; ++j) {
+                            blackAcc[j] += net.L1_weights[mirFeat][j];
+                        }
+                    }
+
+                    // SCReLU activation for L1
+                    std::array<float, L1_SIZE * 2> l1Out;
+                    std::array<float, L1_SIZE * 2> l1Pre;
+                    const auto& stmAcc = (pos.sideToMove == Color::White) ? whiteAcc : blackAcc;
+                    const auto& oppAcc = (pos.sideToMove == Color::White) ? blackAcc : whiteAcc;
+
+                    for (int i = 0; i < L1_SIZE; ++i) {
+                        l1Pre[i] = stmAcc[i];
+                        l1Out[i] = screlu(stmAcc[i]);
+                    }
+                    for (int i = 0; i < L1_SIZE; ++i) {
+                        l1Pre[L1_SIZE + i] = oppAcc[i];
+                        l1Out[L1_SIZE + i] = screlu(oppAcc[i]);
+                    }
+
+                    // SCReLU activation for L2
+                    std::array<float, L2_SIZE> l2Pre, l2Out;
+                    for (int j = 0; j < L2_SIZE; ++j) {
+                        float sum = net.L2_biases[j];
+                        for (int i = 0; i < L1_SIZE * 2; ++i) {
+                            sum += l1Out[i] * net.L2_weights[i][j];
+                        }
+                        l2Pre[j] = sum;
+                        l2Out[j] = screlu(sum);
+                    }
+
+                    // SCReLU activation for L3
+                    std::array<float, L3_SIZE> l3Pre, l3Out;
+                    for (int j = 0; j < L3_SIZE; ++j) {
+                        float sum = net.L3_biases[j];
+                        for (int i = 0; i < L2_SIZE; ++i) {
+                            sum += l2Out[i] * net.L3_weights[i][j];
+                        }
+                        l3Pre[j] = sum;
+                        l3Out[j] = screlu(sum);
+                    }
+
+                    float rawOutput = net.output_bias;
+                    for (int i = 0; i < L3_SIZE; ++i) {
+                        rawOutput += l3Out[i] * net.output_weights[i];
+                    }
+
+                    float predicted = rawOutput * 400.0f;
+                    float predictedWhitePOV = (pos.sideToMove == Color::White) ? predicted : -predicted;
+
+                    // ---- LOSS COMPUTATION ----
+                    float sigPred = sigmoid(predictedWhitePOV / config.evalScale);
+                    float sigTarget = sigmoid(pos.searchEval / config.evalScale);
+                    float result = pos.gameResult;
+
+                    float evalLoss = (sigPred - sigTarget) * (sigPred - sigTarget);
+                    float resultLoss = (sigPred - result) * (sigPred - result);
+                    float loss = config.lambda * evalLoss + (1.0f - config.lambda) * resultLoss;
+                    batchLoss += loss;
+
+                    // ---- BACKWARD PASS (with SCReLU derivatives) ----
+                    float dLdSigPred = 2.0f * config.lambda * (sigPred - sigTarget)
+                                     + 2.0f * (1.0f - config.lambda) * (sigPred - result);
+
+                    float dSigPred_dPredW = sigPred * (1.0f - sigPred) / config.evalScale;
+                    float dLdPredW = dLdSigPred * dSigPred_dPredW;
+                    float dLdPred = (pos.sideToMove == Color::White) ? dLdPredW : -dLdPredW;
+                    float dLdRawOutput = dLdPred * 400.0f;
+
+                    for (int i = 0; i < L3_SIZE; ++i) {
+                        grads[offOutW + i] += dLdRawOutput * l3Out[i];
+                    }
+                    grads[offOutB] += dLdRawOutput;
+
+                    std::array<float, L3_SIZE> dLdL3Out;
+                    for (int i = 0; i < L3_SIZE; ++i) {
+                        dLdL3Out[i] = dLdRawOutput * net.output_weights[i];
+                    }
+
+                    std::array<float, L3_SIZE> dLdL3Pre;
+                    for (int j = 0; j < L3_SIZE; ++j) {
+                        dLdL3Pre[j] = dLdL3Out[j] * screlu_derivative(l3Pre[j]);
+                    }
+
+                    for (int i = 0; i < L2_SIZE; ++i) {
+                        for (int j = 0; j < L3_SIZE; ++j) {
+                            grads[offL3w + i * L3_SIZE + j] += dLdL3Pre[j] * l2Out[i];
+                        }
+                    }
+                    for (int j = 0; j < L3_SIZE; ++j) {
+                        grads[offL3b + j] += dLdL3Pre[j];
+                    }
+
+                    std::array<float, L2_SIZE> dLdL2Out;
+                    dLdL2Out.fill(0.0f);
+                    for (int i = 0; i < L2_SIZE; ++i) {
+                        for (int j = 0; j < L3_SIZE; ++j) {
+                            dLdL2Out[i] += dLdL3Pre[j] * net.L3_weights[i][j];
+                        }
+                    }
+
+                    std::array<float, L2_SIZE> dLdL2Pre;
+                    for (int j = 0; j < L2_SIZE; ++j) {
+                        dLdL2Pre[j] = dLdL2Out[j] * screlu_derivative(l2Pre[j]);
+                    }
+
+                    for (int i = 0; i < L1_SIZE * 2; ++i) {
+                        for (int j = 0; j < L2_SIZE; ++j) {
+                            grads[offL2w + i * L2_SIZE + j] += dLdL2Pre[j] * l1Out[i];
+                        }
+                    }
+                    for (int j = 0; j < L2_SIZE; ++j) {
+                        grads[offL2b + j] += dLdL2Pre[j];
+                    }
+
+                    std::array<float, L1_SIZE * 2> dLdL1Out;
+                    dLdL1Out.fill(0.0f);
+                    for (int i = 0; i < L1_SIZE * 2; ++i) {
+                        for (int j = 0; j < L2_SIZE; ++j) {
+                            dLdL1Out[i] += dLdL2Pre[j] * net.L2_weights[i][j];
+                        }
+                    }
+
+                    std::array<float, L1_SIZE * 2> dLdL1Pre;
+                    for (int i = 0; i < L1_SIZE * 2; ++i) {
+                        dLdL1Pre[i] = dLdL1Out[i] * screlu_derivative(l1Pre[i]);
+                    }
+
+                    std::array<float, L1_SIZE> dLdWhiteAcc, dLdBlackAcc;
+                    if (pos.sideToMove == Color::White) {
+                        for (int j = 0; j < L1_SIZE; ++j) {
+                            dLdWhiteAcc[j] = dLdL1Pre[j];
+                            dLdBlackAcc[j] = dLdL1Pre[L1_SIZE + j];
+                        }
+                    } else {
+                        for (int j = 0; j < L1_SIZE; ++j) {
+                            dLdBlackAcc[j] = dLdL1Pre[j];
+                            dLdWhiteAcc[j] = dLdL1Pre[L1_SIZE + j];
+                        }
+                    }
+
+                    for (int j = 0; j < L1_SIZE; ++j) {
+                        grads[offL1b + j] += dLdWhiteAcc[j] + dLdBlackAcc[j];
+                    }
+
+                    for (int feat : pos.activeFeatures) {
+                        int mirFeat = mirrorDuckFeature(feat);
+                        for (int j = 0; j < L1_SIZE; ++j) {
+                            grads[offL1w + feat * L1_SIZE + j] += dLdWhiteAcc[j];
+                        }
+                        for (int j = 0; j < L1_SIZE; ++j) {
+                            grads[offL1w + mirFeat * L1_SIZE + j] += dLdBlackAcc[j];
+                        }
+                    }
+
+                } // end batch sample loop
+
+                float invBatch = 1.0f / static_cast<float>(batchActualSize);
+                for (int i = 0; i < totalParams; ++i) {
+                    grads[i] *= invBatch;
+                }
+
+                epochLoss += batchLoss / static_cast<float>(batchActualSize);
+                ++numBatches;
+
+                adamUpdate(params, grads, adamState, lr);
+
                 if (cancelFlag && (numBatches % 50 == 0) && cancelFlag->load()) break;
 
             } // end batch loop

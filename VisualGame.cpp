@@ -9,7 +9,7 @@
 // CONSTRUCTOR / DESTRUCTOR
 // -------------------------------------------------------
 VisualGame::VisualGame()
-    : window(sf::VideoMode({static_cast<unsigned>(OX * 2 + SQ * 8),
+    : window(sf::VideoMode({static_cast<unsigned>(OX * 2 + SQ * 8 + SETUP_PANEL_W),
                             static_cast<unsigned>(OY * 2 + SQ * 8 + 80)}), "Chess Engine")
 {
     window.setFramerateLimit(60);
@@ -28,8 +28,6 @@ VisualGame::~VisualGame() {
     engine2_.stop();
     if (engineThread.joinable())
         engineThread.join();
-    if (nnueThread_.joinable())
-        nnueThread_.join();
 }
 
 // -------------------------------------------------------
@@ -63,7 +61,7 @@ void VisualGame::loadAssets() {
 // INPUT LOCKED
 // -------------------------------------------------------
 bool VisualGame::inputLocked() const {
-    return isAnimating || isPromoting || gameOver;
+    return isAnimating || isPromoting || gameOver || setupMode_;
 }
 
 // -------------------------------------------------------
@@ -80,9 +78,10 @@ void VisualGame::run() {
             else if (const auto* kp = event->getIf<sf::Event::KeyPressed>()) {
                 handleKeyPress(kp->code);
             }
-            else if (const auto* te = event->getIf<sf::Event::TextEntered>()) {
-                if (nnueInputMode_ || nnueEloInputMode_) {
-                    handleTextInput(te->unicode);
+            else if (setupMode_) {
+                if (const auto* mb = event->getIf<sf::Event::MouseButtonPressed>()) {
+                    if (mb->button == sf::Mouse::Button::Left)
+                        handleSetupClick(mb->position.x, mb->position.y);
                 }
             }
             else if (isPromoting) {
@@ -137,316 +136,40 @@ void VisualGame::run() {
 }
 
 // -------------------------------------------------------
-// TEXT INPUT HANDLER (for training config)
-// -------------------------------------------------------
-void VisualGame::handleTextInput(uint32_t unicode) {
-    if (unicode == 13 || unicode == 10) { // Enter
-        if (nnueEloInputMode_)
-            processEloInput();
-        else
-            processTrainingInput();
-    }
-    else if (unicode == 8) { // Backspace
-        if (!nnueInputBuffer_.empty())
-            nnueInputBuffer_.pop_back();
-    }
-    else if (unicode == 27) { // Escape
-        nnueInputMode_ = false;
-        nnueEloInputMode_ = false;
-        nnueInputBuffer_.clear();
-        nnueStatus_ = "";
-    }
-    else if (unicode >= '0' && unicode <= '9') {
-        nnueInputBuffer_ += static_cast<char>(unicode);
-    }
-
-    // Update display
-    if (nnueInputMode_) {
-        if (nnueInputStep_ == 0)
-            nnueStatus_ = "# games to generate (0=skip): " + nnueInputBuffer_ + "_";
-        else if (nnueInputStep_ == 1)
-            nnueStatus_ = "Max positions (0=all): " + nnueInputBuffer_ + "_";
-        else if (nnueInputStep_ == 2)
-            nnueStatus_ = "# epochs (0=default 50): " + nnueInputBuffer_ + "_";
-    }
-    else if (nnueEloInputMode_) {
-        nnueStatus_ = "# games for ELO test (0=default 100): " + nnueInputBuffer_ + "_";
-    }
-}
-
-// -------------------------------------------------------
-// PROCESS TRAINING INPUT
-// -------------------------------------------------------
-void VisualGame::processTrainingInput() {
-    int value = nnueInputBuffer_.empty() ? 0 : std::stoi(nnueInputBuffer_);
-    nnueInputBuffer_.clear();
-
-    if (nnueInputStep_ == 0) {
-        nnueConfigGames_ = value;
-        nnueInputStep_ = 1;
-        nnueStatus_ = "Max positions (0=all): _";
-    }
-    else if (nnueInputStep_ == 1) {
-        nnueConfigMaxPositions_ = value;
-        nnueInputStep_ = 2;
-        nnueStatus_ = "# epochs (0=default 50): _";
-    }
-    else if (nnueInputStep_ == 2) {
-        nnueConfigEpochs_ = (value <= 0) ? 50 : value;
-        nnueInputMode_ = false;
-        startTraining();
-    }
-}
-
-// -------------------------------------------------------
-// ETA HELPERS
-// -------------------------------------------------------
-void VisualGame::updateETA(std::chrono::steady_clock::time_point startTime, int done, int total) {
-    if (done <= 0 || total <= 0) { nnueETAEndMs_ = 0; return; }
-    auto elapsed = std::chrono::steady_clock::now() - startTime;
-    double elapsedSec = std::chrono::duration<double>(elapsed).count();
-    double rate = elapsedSec / done;
-    auto remainingMs = static_cast<int64_t>(rate * (total - done) * 1000.0);
-    auto endMs = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now().time_since_epoch()).count() + remainingMs;
-    nnueETAEndMs_ = endMs;
-}
-
-static std::string formatCountdown(int64_t endMs) {
-    auto nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now().time_since_epoch()).count();
-    auto remainMs = endMs - nowMs;
-    if (remainMs <= 0) return " ~0s left";
-    int secs = static_cast<int>(remainMs / 1000);
-    if (secs < 60)
-        return " ~" + std::to_string(secs) + "s left";
-    int mins = secs / 60;
-    secs = secs % 60;
-    return " ~" + std::to_string(mins) + "m" + std::to_string(secs) + "s left";
-}
-
-// -------------------------------------------------------
-// PROCESS ELO INPUT
-// -------------------------------------------------------
-void VisualGame::processEloInput() {
-    int value = nnueInputBuffer_.empty() ? 0 : std::stoi(nnueInputBuffer_);
-    nnueInputBuffer_.clear();
-    nnueEloInputMode_ = false;
-
-    nnueConfigEloGames_ = (value <= 0) ? 100 : value;
-    startEloEstimation();
-}
-
-// -------------------------------------------------------
-// START ELO ESTIMATION
-// -------------------------------------------------------
-void VisualGame::startEloEstimation() {
-    // Load weights if no net yet
-    if (!nnueNet_) {
-        auto tempNet = std::make_unique<NNUE::Network>();
-        if (tempNet->loadWeights("assets/nnue_weights.bin")) {
-            nnueNet_ = std::move(tempNet);
-        } else {
-            nnueStatus_ = "Train first (press T)!";
-            return;
-        }
-    }
-
-    if (nnueTraining_ || nnueEstimating_) return;
-
-    nnueEstimating_ = true;
-    nnueCancelFlag_.store(false);
-    nnueStatus_ = "Estimating ELO (" + std::to_string(nnueConfigEloGames_) + " games)...";
-
-    // Stop bot-vs-bot if active
-    if (botVsBot) {
-        botVsBot = false;
-        engine_.stop();
-        engine2_.stop();
-        if (engineThread.joinable()) engineThread.join();
-        engineThinking = false;
-    }
-
-    if (nnueThread_.joinable()) nnueThread_.join();
-
-    int eloGames = nnueConfigEloGames_;
-    nnueThread_ = std::thread([this, eloGames]() {
-        NNUE::Trainer trainer;
-        auto eloStart = std::chrono::steady_clock::now();
-        lastEloResult_ = trainer.estimateElo(*nnueNet_, eloGames, 500, 2100,
-            [this, eloStart](int done, int total) {
-                nnueStatus_ = "ELO test: game " + std::to_string(done) + "/" + std::to_string(total);
-                updateETA(eloStart, done, total);
-            }, &nnueCancelFlag_);
-
-        if (nnueCancelFlag_.load()) {
-            nnueStatus_ = "ELO estimation cancelled. Partial: " +
-                std::to_string(lastEloResult_.estimatedElo) +
-                " (W:" + std::to_string(lastEloResult_.wins) +
-                " D:" + std::to_string(lastEloResult_.draws) +
-                " L:" + std::to_string(lastEloResult_.losses) + ")";
-        } else {
-            hasEloResult_ = true;
-            nnueStatus_ = "ELO: " + std::to_string(lastEloResult_.estimatedElo) +
-                " (W:" + std::to_string(lastEloResult_.wins) +
-                " D:" + std::to_string(lastEloResult_.draws) +
-                " L:" + std::to_string(lastEloResult_.losses) + ")";
-        }
-        nnueEstimating_ = false;
-        nnueETAEndMs_ = 0;
-    });
-    updateStatus();
-}
-
-// -------------------------------------------------------
-// START TRAINING (extracted from old T key handler)
-// -------------------------------------------------------
-void VisualGame::startTraining() {
-    nnueTraining_ = true;
-    nnueCancelFlag_.store(false);
-
-    if (nnueConfigGames_ == 0)
-        nnueStatus_ = "Skipping data gen, loading existing positions...";
-    else
-        nnueStatus_ = "Generating training data...";
-
-    // Stop bot-vs-bot if active
-    if (botVsBot) {
-        botVsBot = false;
-        engine_.stop();
-        engine2_.stop();
-        if (engineThread.joinable()) engineThread.join();
-        engineThinking = false;
-    }
-
-    if (nnueThread_.joinable()) nnueThread_.join();
-
-    nnueThread_ = std::thread([this]() {
-        if (!nnueNet_)
-            nnueNet_ = std::make_unique<NNUE::Network>();
-
-        NNUE::Trainer trainer;
-        NNUE::TrainingConfig config;
-        config.numGames = nnueConfigGames_;
-        config.thinkTimeMs = 50;          // CHANGED: 100 -> 50 for 2x faster generation
-        config.epochs = nnueConfigEpochs_;
-        config.batchSize = 512;
-        config.learningRate = 0.001f;
-        config.outputPath = "assets/nnue_weights.bin";
-        config.dataPath = "assets/training_data.bin";
-        config.numThreads = 0;
-        config.earlyStopPatience = 15;    // In-app training uses lower patience (Python script uses 100)
-        config.mirrorPositions = true;
-        config.appendExistingData = true;
-        config.phaseBalancedTraining = true;
-
-        // === Phase 1: Load existing data ===
-        std::vector<NNUE::TrainingPosition> existingData;
-        if (config.appendExistingData) {
-            existingData = trainer.loadTrainingData(config.dataPath);
-            if (!existingData.empty()) {
-                nnueStatus_ = "Loaded " + std::to_string(existingData.size()) + " existing positions.";
-            }
-        }
-
-        if (nnueCancelFlag_.load()) { nnueTraining_ = false; nnueETAEndMs_ = 0; nnueStatus_ = "Cancelled."; return; }
-
-        // === Phase 1.5: Limit existing positions if requested ===
-        if (nnueConfigMaxPositions_ > 0 && static_cast<int>(existingData.size()) > nnueConfigMaxPositions_) {
-            std::mt19937 rng(static_cast<unsigned int>(std::chrono::steady_clock::now().time_since_epoch().count()));
-            std::shuffle(existingData.begin(), existingData.end(), rng);
-            existingData.resize(nnueConfigMaxPositions_);
-            nnueStatus_ = "Using " + std::to_string(nnueConfigMaxPositions_) + " random existing positions.";
-        }
-
-        // === Phase 2: Generate new data (skip if numGames == 0) ===
-        std::vector<NNUE::TrainingPosition> newData;
-        if (config.numGames > 0) {
-            auto dataGenStart = std::chrono::steady_clock::now();
-            newData = trainer.generateTrainingData(config,
-                [this, dataGenStart](int done, int total) {
-                    nnueStatus_ = "Data gen: game " + std::to_string(done) + "/" + std::to_string(total);
-                    updateETA(dataGenStart, done, total);
-                }, &nnueCancelFlag_);
-        }
-
-        if (nnueCancelFlag_.load()) { nnueTraining_ = false; nnueETAEndMs_ = 0; nnueStatus_ = "Cancelled."; return; }
-
-        // === Phase 3: Mirror new data ===
-        std::vector<NNUE::TrainingPosition> mirroredData;
-        if (config.mirrorPositions && !newData.empty()) {
-            nnueStatus_ = "Mirroring positions...";
-            mirroredData = NNUE::Trainer::mirrorData(newData);
-        }
-
-        // === Phase 4: Combine all data ===
-        std::vector<NNUE::TrainingPosition> allData;
-        size_t totalSize = existingData.size() + newData.size() + mirroredData.size();
-        allData.reserve(totalSize);
-
-        allData.insert(allData.end(),
-            std::make_move_iterator(existingData.begin()),
-            std::make_move_iterator(existingData.end()));
-        allData.insert(allData.end(),
-            std::make_move_iterator(newData.begin()),
-            std::make_move_iterator(newData.end()));
-        allData.insert(allData.end(),
-            std::make_move_iterator(mirroredData.begin()),
-            std::make_move_iterator(mirroredData.end()));
-
-        if (allData.empty()) {
-            nnueStatus_ = "No training data available!";
-            nnueTraining_ = false;
-            return;
-        }
-
-        // Compute phase distribution stats
-        int nOpening = 0, nMiddle = 0, nEndgame = 0;
-        for (const auto& pos : allData) {
-            auto phase = NNUE::Trainer::classifyPhase(pos.activeFeatures);
-            switch (phase) {
-                case NNUE::Trainer::GamePhase::Opening:    ++nOpening; break;
-                case NNUE::Trainer::GamePhase::Middlegame: ++nMiddle; break;
-                case NNUE::Trainer::GamePhase::Endgame:    ++nEndgame; break;
-            }
-        }
-        nnueStatus_ = "Training: " + std::to_string(allData.size()) + " pos (O:"
-            + std::to_string(nOpening) + " M:" + std::to_string(nMiddle)
-            + " E:" + std::to_string(nEndgame) + ")";
-
-        // === Phase 5: Save combined data for future reuse ===
-        if (!newData.empty()) {
-            // Only save if we generated new data (to preserve existing data when skipping)
-            trainer.saveTrainingData(allData, config.dataPath);
-        }
-
-        if (nnueCancelFlag_.load()) { nnueTraining_ = false; nnueETAEndMs_ = 0; nnueStatus_ = "Cancelled."; return; }
-
-        // === Phase 6: Train ===
-        auto trainStart = std::chrono::steady_clock::now();
-        int totalEpochs = config.epochs;
-        trainer.train(*nnueNet_, allData, config,
-            [this, trainStart, totalEpochs](int epoch, float loss) {
-                nnueStatus_ = "Epoch " + std::to_string(epoch) + "/" + std::to_string(totalEpochs)
-                    + " loss: " + std::to_string(loss).substr(0, 8);
-                updateETA(trainStart, epoch, totalEpochs);
-            }, &nnueCancelFlag_);
-
-        if (nnueCancelFlag_.load()) {
-            nnueStatus_ = "Training cancelled at current epoch. Weights saved.";
-        } else {
-            nnueStatus_ = "Training complete! Press N to enable NNUE.";
-        }
-        nnueTraining_ = false;
-        nnueETAEndMs_ = 0;
-    });
-    updateStatus();
-}
-
-// -------------------------------------------------------
 // KEY PRESS HANDLER
 // -------------------------------------------------------
 void VisualGame::handleKeyPress(sf::Keyboard::Key key) {
+    // Setup mode key handling
+    if (setupMode_) {
+        if (key == sf::Keyboard::Key::Escape || key == sf::Keyboard::Key::S) {
+            exitSetupMode(false);
+        }
+        else if (key == sf::Keyboard::Key::Enter) {
+            exitSetupMode(true);
+        }
+        else if (key == sf::Keyboard::Key::C && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::LControl)) {
+            sf::Clipboard::setString(window, board.toFEN());
+            setupStatus_ = "FEN copied to clipboard!";
+        }
+        else if (key == sf::Keyboard::Key::V && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::LControl)) {
+            auto fenStr = sf::Clipboard::getString(window);
+            std::string fen(fenStr);
+            if (board.fromFEN(fen)) {
+                board.isDuckChess = isDuckChess_;
+                setupStatus_ = board.hasValidKings() ? "FEN loaded! Click PLAY" : "FEN loaded. Need both kings!";
+            } else {
+                setupStatus_ = "Invalid FEN string!";
+            }
+        }
+        return; // block all other keys in setup mode
+    }
+
+    // Enter setup mode
+    if (key == sf::Keyboard::Key::S) {
+        enterSetupMode();
+        return;
+    }
+
     if (key == sf::Keyboard::Key::B) {
         // Toggle bot vs bot mode
         if (!botVsBot) {
@@ -497,74 +220,46 @@ void VisualGame::handleKeyPress(sf::Keyboard::Key key) {
         // Reset game
         resetGame();
     }
-    else if (key == sf::Keyboard::Key::T) {
-        if (nnueTraining_) {
-            // Cancel training
-            nnueCancelFlag_.store(true);
-            nnueStatus_ = "Cancelling training...";
-        }
-        else if (nnueEstimating_) {
-            // Cancel ELO estimation
-            nnueCancelFlag_.store(true);
-            nnueStatus_ = "Cancelling ELO estimation...";
-        }
-        else if (nnueInputMode_) {
-            // Already in input mode, cancel it
-            nnueInputMode_ = false;
-            nnueStatus_ = "";
-        }
-        else {
-            // Enter training config input mode
-            nnueInputMode_ = true;
-            nnueInputStep_ = 0;
-            nnueInputBuffer_.clear();
-            nnueStatus_ = "# games to generate (0=skip): _";
-        }
-    }
-    else if (key == sf::Keyboard::Key::E) {
-        if (nnueEstimating_) {
-            // Cancel ELO estimation
-            nnueCancelFlag_.store(true);
-            nnueStatus_ = "Cancelling ELO estimation...";
-        }
-        else if (nnueTraining_) {
-            // Cancel training first
-            nnueCancelFlag_.store(true);
-            nnueStatus_ = "Cancelling training...";
-        }
-        else if (nnueEloInputMode_) {
-            // Cancel ELO input
-            nnueEloInputMode_ = false;
-            nnueInputBuffer_.clear();
-            nnueStatus_ = "";
-        }
-        else {
-            // Enter ELO config input mode
-            nnueEloInputMode_ = true;
-            nnueInputBuffer_.clear();
-            nnueStatus_ = "# games for ELO test (0=default 100): _";
-        }
-    }
     else if (key == sf::Keyboard::Key::N) {
         // Toggle NNUE evaluation
-        if (nnueNet_ && !nnueTraining_) {
+        if (nnueNet_ || duckNnueNet_) {
             nnueEnabled_ = !nnueEnabled_;
             NNUE::Network* net = nnueEnabled_ ? nnueNet_.get() : nullptr;
+            DuckNNUE::Network* dnet = nnueEnabled_ ? duckNnueNet_.get() : nullptr;
             engine_.setNNUE(net);
             engine2_.setNNUE(net);
+            engine_.setDuckNNUE(dnet);
+            engine2_.setDuckNNUE(dnet);
             nnueStatus_ = nnueEnabled_ ? "NNUE eval ON" : "NNUE eval OFF (handcrafted)";
         }
-        else if (!nnueNet_) {
-            // Try loading saved weights
-            nnueNet_ = std::make_unique<NNUE::Network>();
-            if (nnueNet_->loadWeights("assets/nnue_weights.bin")) {
+        else {
+            // Try loading saved weights for both standard and duck NNUE
+            bool anyLoaded = false;
+
+            auto stdNet = std::make_unique<NNUE::Network>();
+            if (stdNet->loadWeights("assets/nnue_weights.bin")) {
+                nnueNet_ = std::move(stdNet);
+                anyLoaded = true;
+            }
+
+            auto duckNet = std::make_unique<DuckNNUE::Network>();
+            if (duckNet->loadWeights("assets/duck_nnue_weights.bin")) {
+                duckNnueNet_ = std::move(duckNet);
+                anyLoaded = true;
+            }
+
+            if (anyLoaded) {
                 nnueEnabled_ = true;
                 engine_.setNNUE(nnueNet_.get());
                 engine2_.setNNUE(nnueNet_.get());
-                nnueStatus_ = "NNUE loaded and enabled!";
+                engine_.setDuckNNUE(duckNnueNet_.get());
+                engine2_.setDuckNNUE(duckNnueNet_.get());
+                std::string loaded;
+                if (nnueNet_) loaded += "Standard";
+                if (duckNnueNet_) { if (!loaded.empty()) loaded += " + "; loaded += "Duck"; }
+                nnueStatus_ = loaded + " NNUE loaded!";
             } else {
-                nnueNet_.reset();
-                nnueStatus_ = "No weights found. Train first (press T)!";
+                nnueStatus_ = "No weights found.";
             }
         }
         updateStatus();
@@ -1104,14 +799,16 @@ void VisualGame::updateStatus() {
 void VisualGame::render() {
     window.clear(sf::Color(40, 40, 40));
     drawBoard();
-    drawHighlights();
+    if (!setupMode_) drawHighlights();
     drawPieces();
-    if (showArrows && (engineThinking || botHasPendingMove_))
+    if (!setupMode_ && showArrows && (engineThinking || botHasPendingMove_))
         drawPVArrows();
-    drawEvalBar();
+    if (!setupMode_) drawEvalBar();
     drawCoordinates();
     drawStatus();
     drawHUD();
+    if (setupMode_)
+        drawSetupPanel();
 
     if (isAnimating)
         drawAnimatingPiece();
@@ -1513,6 +1210,15 @@ void VisualGame::drawCoordinates() {
 // DRAW STATUS BAR
 // -------------------------------------------------------
 void VisualGame::drawStatus() {
+    if (setupMode_) {
+        std::string display = "SETUP MODE  |  " + (setupStatus_.empty() ? "Click piece, then click board" : setupStatus_);
+        sf::Text status(font, display, 20);
+        status.setFillColor(sf::Color(255, 200, 100));
+        status.setPosition({float(OX), float(OY + 8 * SQ + 28)});
+        window.draw(status);
+        return;
+    }
+
     if (engineThinking && !engineDone.load()) {
         std::string side = (board.turn == Color::White) ? "White" : "Black";
         int liveDepth = 0;
@@ -1538,29 +1244,26 @@ void VisualGame::drawStatus() {
 // -------------------------------------------------------
 void VisualGame::drawHUD() {
     std::string hudText;
-    if (botVsBot) {
+    if (setupMode_) {
+        hudText = "SETUP MODE  |  [Enter] Play  [Esc] Cancel  [Ctrl+C] Copy FEN  [Ctrl+V] Paste FEN";
+        if (isDuckChess_) hudText += "  [DUCK]";
+    }
+    else if (botVsBot) {
         hudText = "BOT vs BOT";
         if (isDuckChess_) hudText += "  [DUCK]";
         if (botPaused) hudText += "  [PAUSED]";
         if (fastMode) hudText += "  [FAST]";
         if (nnueEnabled_) hudText += "  [NNUE]";
-        hudText += "  |  [Space] Pause  [A] Arrows  [F] Fast  [D] Duck  [R] Reset  [B] Exit";
+        hudText += "  |  [Space] Pause  [A] Arrows  [F] Fast  [D] Duck  [R] Reset  [S] Setup  [B] Exit";
     } else {
         hudText = "PLAYER vs ENGINE";
         if (isDuckChess_) hudText += "  [DUCK]";
         if (nnueEnabled_) hudText += "  [NNUE]";
-        hudText += "  |  [B] Bot  [A] Arrows  [D] Duck  [R] Reset";
+        hudText += "  |  [B] Bot  [A] Arrows  [D] Duck  [R] Reset  [S] Setup";
     }
-    if (nnueTraining_)
-        hudText += "  [T] Cancel Train";
-    else if (nnueEstimating_)
-        hudText += "  [E] Cancel ELO";
-    else if (nnueInputMode_)
-        hudText += "  [Esc] Cancel Input";
-    else if (nnueEloInputMode_)
-        hudText += "  [Esc] Cancel ELO Input";
-    else
-        hudText += "  [T] Train  [E] ELO  [N] NNUE";
+    if (!setupMode_) {
+        hudText += "  [N] NNUE";
+    }
 
     sf::Text hud(font, hudText, 13);
     hud.setFillColor(sf::Color(180, 180, 180));
@@ -1578,15 +1281,347 @@ void VisualGame::drawHUD() {
 
     // NNUE status line (below board, above status)
     if (!nnueStatus_.empty()) {
-        std::string displayStatus = nnueStatus_;
-        auto etaEnd = nnueETAEndMs_.load();
-        if (etaEnd > 0) {
-            displayStatus += formatCountdown(etaEnd);
-        }
-        sf::Text nnueTxt(font, displayStatus, 14);
+        sf::Text nnueTxt(font, nnueStatus_, 14);
         nnueTxt.setFillColor(sf::Color(100, 200, 255));
         nnueTxt.setPosition({float(OX), float(OY + 8 * SQ + 50)});
         window.draw(nnueTxt);
+    }
+}
+
+// =======================================================
+//  B O A R D   S E T U P   M O D E
+// =======================================================
+
+void VisualGame::enterSetupMode() {
+    // Save current state for cancel
+    setupSavedBoard_ = board;
+    setupSavedDuckChess_ = isDuckChess_;
+
+    // Stop any running engine/bot
+    if (botVsBot) {
+        botVsBot = false;
+        botWaiting = false;
+        botPaused = false;
+    }
+    engine_.stop();
+    engine2_.stop();
+    if (engineThread.joinable())
+        engineThread.join();
+    engineThinking = false;
+    engineDone.store(false);
+    activeEngine_ = nullptr;
+    botHasPendingMove_ = false;
+    cachedPV_.clear();
+
+    // Enter setup mode
+    setupMode_ = true;
+    setupPaletteIdx_ = 0; // default to white pawn
+    setupStatus_ = board.hasValidKings() ? "Edit position, then click PLAY" : "Place both kings!";
+    pieceSelected = false;
+    selectedMoves.clear();
+    isDragging = false;
+    isAnimating = false;
+    placingDuck_ = false;
+    gameOver = false;
+
+    updateStatus();
+}
+
+void VisualGame::exitSetupMode(bool apply) {
+    if (apply) {
+        if (!board.hasValidKings()) {
+            setupStatus_ = "Need both kings! Cannot start.";
+            return;
+        }
+
+        // Apply duck chess state
+        board.isDuckChess = isDuckChess_;
+
+        // Reset game state with the custom position
+        legalMoves = MoveGen::getLegalMoves(board);
+        gameOver = false;
+        moveNumber = 1;
+        lastMove = {{-1,-1},{-1,-1}};
+        hasLastMove = false;
+        pieceSelected = false;
+        selectedMoves.clear();
+        isDragging = false;
+        isAnimating = false;
+        isPromoting = false;
+        placingDuck_ = false;
+        lastEval_ = 0;
+        board.halfMoveClock = 0;
+        board.fullMoveNumber = 1;
+
+        // Reset position history
+        positionHistory_.clear();
+        positionHistory_.push_back(Engine::computeHash(board));
+    } else {
+        // Cancel: restore saved state
+        board = setupSavedBoard_;
+        isDuckChess_ = setupSavedDuckChess_;
+        legalMoves = MoveGen::getLegalMoves(board);
+    }
+
+    setupMode_ = false;
+    setupStatus_.clear();
+    updateStatus();
+}
+
+void VisualGame::handleSetupClick(int x, int y) {
+    const int palX = OX + SQ * 8 + 20;
+    const int palY = OY + 10;
+    const int rowStride = PALETTE_SQ + 2;
+    const int colStride = PALETTE_SQ + 4;
+    const float duckRowY = float(palY + 6 * rowStride + 8);
+    const float btnW = float(PALETTE_SQ * 2 + 4);
+    const float btnH = 28.f;
+    const float btnStartY = duckRowY + PALETTE_SQ + 16;
+
+    // Check palette piece cells (6 rows x 2 cols)
+    for (int row = 0; row < 6; row++) {
+        for (int col = 0; col < 2; col++) {
+            float cx = float(palX + col * colStride);
+            float cy = float(palY + row * rowStride);
+            if (x >= cx && x < cx + PALETTE_SQ && y >= cy && y < cy + PALETTE_SQ) {
+                setupPaletteIdx_ = col * 6 + row;
+                return;
+            }
+        }
+    }
+
+    // Check duck cell
+    {
+        float cx = float(palX);
+        if (x >= cx && x < cx + PALETTE_SQ && y >= duckRowY && y < duckRowY + PALETTE_SQ) {
+            setupPaletteIdx_ = 12;
+            return;
+        }
+    }
+
+    // Check eraser cell
+    {
+        float cx = float(palX + colStride);
+        if (x >= cx && x < cx + PALETTE_SQ && y >= duckRowY && y < duckRowY + PALETTE_SQ) {
+            setupPaletteIdx_ = 13;
+            return;
+        }
+    }
+
+    // Check buttons
+    float curBtnY = btnStartY;
+
+    // "Clear" button
+    if (x >= palX && x < palX + btnW && y >= curBtnY && y < curBtnY + btnH) {
+        board.clearBoard();
+        board.duckSquare = {-1, -1};
+        board.isDuckChess = isDuckChess_;
+        setupStatus_ = "Board cleared. Place both kings!";
+        return;
+    }
+
+    // Side-to-move toggle
+    curBtnY += btnH + 8;
+    if (x >= palX && x < palX + btnW && y >= curBtnY && y < curBtnY + btnH) {
+        board.turn = (board.turn == Color::White) ? Color::Black : Color::White;
+        return;
+    }
+
+    // "Play" button
+    curBtnY += btnH + 8;
+    if (x >= palX && x < palX + btnW && y >= curBtnY && y < curBtnY + btnH) {
+        exitSetupMode(true);
+        return;
+    }
+
+    // Check board click -> place piece
+    Square sq = screenToSquare(x, y);
+    if (!sq.isValid()) return;
+
+    if (setupPaletteIdx_ == 13) {
+        // Eraser
+        if (board.isDuckSquare(sq)) {
+            board.duckSquare = {-1, -1};
+        }
+        board.setPiece(sq, Piece{});
+    }
+    else if (setupPaletteIdx_ == 12) {
+        // Duck
+        board.setPiece(sq, Piece{});
+        board.placeDuck(sq);
+    }
+    else if (setupPaletteIdx_ >= 0 && setupPaletteIdx_ <= 11) {
+        // Place piece
+        int row = setupPaletteIdx_ % 6;
+        PieceType type = static_cast<PieceType>(row + 1);
+        Color color = (setupPaletteIdx_ < 6) ? Color::White : Color::Black;
+
+        // If placing on duck square, clear duck
+        if (board.isDuckSquare(sq)) {
+            board.duckSquare = {-1, -1};
+        }
+        board.setPiece(sq, Piece{type, color});
+    }
+
+    setupStatus_ = board.hasValidKings() ? "Press Enter or click PLAY" : "Place both kings!";
+}
+
+void VisualGame::drawSetupPanel() {
+    if (!setupMode_) return;
+
+    const int palX = OX + SQ * 8 + 20;
+    const int palY = OY + 10;
+    const int rowStride = PALETTE_SQ + 2;
+    const int colStride = PALETTE_SQ + 4;
+
+    // Background panel
+    sf::RectangleShape bg({float(SETUP_PANEL_W - 10), float(SQ * 8 - 20)});
+    bg.setPosition({float(OX + SQ * 8 + 10), float(OY + 10)});
+    bg.setFillColor(sf::Color(30, 30, 30, 220));
+    bg.setOutlineThickness(1.f);
+    bg.setOutlineColor(sf::Color(80, 80, 80));
+    window.draw(bg);
+
+    // "PIECES" label
+    sf::Text piecesLabel(font, "PIECES", 12);
+    piecesLabel.setFillColor(sf::Color(160, 160, 160));
+    piecesLabel.setPosition({float(palX + 20), float(palY - 14)});
+    window.draw(piecesLabel);
+
+    // Draw piece palette (6 rows x 2 cols: white left, black right)
+    for (int row = 0; row < 6; row++) {
+        for (int col = 0; col < 2; col++) {
+            int idx = col * 6 + row;
+            float cx = float(palX + col * colStride);
+            float cy = float(palY + row * rowStride);
+
+            // Cell background
+            sf::RectangleShape cell({float(PALETTE_SQ), float(PALETTE_SQ)});
+            cell.setPosition({cx, cy});
+            bool selected = (idx == setupPaletteIdx_);
+            cell.setFillColor(selected ? sf::Color(80, 160, 80, 180) : sf::Color(55, 55, 55));
+            cell.setOutlineThickness(selected ? 2.f : 1.f);
+            cell.setOutlineColor(selected ? sf::Color(120, 220, 120) : sf::Color(90, 90, 90));
+            window.draw(cell);
+
+            // Piece texture
+            int ci = col; // 0=white, 1=black
+            int pi = row; // 0=pawn, ..., 5=king
+            sf::Sprite sprite(pieceTextures[ci][pi]);
+            sf::Vector2u ts = pieceTextures[ci][pi].getSize();
+            float scale = float(PALETTE_SQ - 6) / float(ts.x);
+            sprite.setScale({scale, scale});
+            sprite.setPosition({cx + 3, cy + 3});
+            window.draw(sprite);
+        }
+    }
+
+    // Duck and Eraser (row 6, with gap)
+    float duckY = float(palY + 6 * rowStride + 8);
+
+    // Duck cell
+    {
+        bool selected = (12 == setupPaletteIdx_);
+        float cx = float(palX);
+        sf::RectangleShape cell({float(PALETTE_SQ), float(PALETTE_SQ)});
+        cell.setPosition({cx, duckY});
+        cell.setFillColor(selected ? sf::Color(80, 160, 80, 180) : sf::Color(55, 55, 55));
+        cell.setOutlineThickness(selected ? 2.f : 1.f);
+        cell.setOutlineColor(selected ? sf::Color(120, 220, 120) : sf::Color(90, 90, 90));
+        window.draw(cell);
+
+        sf::Sprite sprite(duckTexture_);
+        sf::Vector2u ts = duckTexture_.getSize();
+        float scale = float(PALETTE_SQ - 6) / float(ts.x);
+        sprite.setScale({scale, scale});
+        sprite.setPosition({cx + 3, duckY + 3});
+        window.draw(sprite);
+    }
+
+    // Eraser cell
+    {
+        bool selected = (13 == setupPaletteIdx_);
+        float cx = float(palX + colStride);
+        sf::RectangleShape cell({float(PALETTE_SQ), float(PALETTE_SQ)});
+        cell.setPosition({cx, duckY});
+        cell.setFillColor(selected ? sf::Color(180, 60, 60, 180) : sf::Color(55, 55, 55));
+        cell.setOutlineThickness(selected ? 2.f : 1.f);
+        cell.setOutlineColor(selected ? sf::Color(220, 100, 100) : sf::Color(90, 90, 90));
+        window.draw(cell);
+
+        // Draw "X" for eraser
+        sf::Text xText(font, "X", 26);
+        xText.setFillColor(selected ? sf::Color(255, 120, 120) : sf::Color(180, 80, 80));
+        auto xBounds = xText.getLocalBounds();
+        xText.setPosition({cx + (PALETTE_SQ - xBounds.size.x) / 2.f,
+                           duckY + (PALETTE_SQ - xBounds.size.y) / 2.f - 5});
+        window.draw(xText);
+    }
+
+    // ── Buttons ──
+    float btnW = float(PALETTE_SQ * 2 + 4);
+    float btnH = 28.f;
+    float btnY = duckY + PALETTE_SQ + 16;
+
+    // "CLEAR" button
+    {
+        sf::RectangleShape btn({btnW, btnH});
+        btn.setPosition({float(palX), btnY});
+        btn.setFillColor(sf::Color(70, 50, 50));
+        btn.setOutlineThickness(1.f);
+        btn.setOutlineColor(sf::Color(120, 80, 80));
+        window.draw(btn);
+
+        sf::Text txt(font, "CLEAR", 13);
+        txt.setFillColor(sf::Color(200, 150, 150));
+        auto tb = txt.getLocalBounds();
+        txt.setPosition({float(palX) + (btnW - tb.size.x) / 2.f, btnY + 4});
+        window.draw(txt);
+    }
+
+    // Side-to-move toggle
+    btnY += btnH + 8;
+    {
+        std::string sideStr = (board.turn == Color::White) ? "Side: WHITE" : "Side: BLACK";
+        sf::RectangleShape btn({btnW, btnH});
+        btn.setPosition({float(palX), btnY});
+        btn.setFillColor(board.turn == Color::White ? sf::Color(190, 190, 190) : sf::Color(45, 45, 45));
+        btn.setOutlineThickness(1.f);
+        btn.setOutlineColor(sf::Color(110, 110, 110));
+        window.draw(btn);
+
+        sf::Text txt(font, sideStr, 12);
+        txt.setFillColor(board.turn == Color::White ? sf::Color(30, 30, 30) : sf::Color(200, 200, 200));
+        auto tb = txt.getLocalBounds();
+        txt.setPosition({float(palX) + (btnW - tb.size.x) / 2.f, btnY + 5});
+        window.draw(txt);
+    }
+
+    // "PLAY" button
+    btnY += btnH + 8;
+    {
+        bool valid = board.hasValidKings();
+        sf::RectangleShape btn({btnW, btnH});
+        btn.setPosition({float(palX), btnY});
+        btn.setFillColor(valid ? sf::Color(50, 110, 50) : sf::Color(55, 55, 55));
+        btn.setOutlineThickness(1.f);
+        btn.setOutlineColor(valid ? sf::Color(80, 180, 80) : sf::Color(75, 75, 75));
+        window.draw(btn);
+
+        sf::Text txt(font, "PLAY", 14);
+        txt.setFillColor(valid ? sf::Color(170, 255, 170) : sf::Color(90, 90, 90));
+        auto tb = txt.getLocalBounds();
+        txt.setPosition({float(palX) + (btnW - tb.size.x) / 2.f, btnY + 3});
+        window.draw(txt);
+    }
+
+    // FEN hint
+    btnY += btnH + 14;
+    {
+        sf::Text hint(font, "Ctrl+C/V: FEN", 11);
+        hint.setFillColor(sf::Color(100, 100, 100));
+        hint.setPosition({float(palX), btnY});
+        window.draw(hint);
     }
 }
 

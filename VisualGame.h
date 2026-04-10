@@ -4,7 +4,7 @@
 #include "MoveGen.h"
 #include "Engine.h"
 #include "NNUE.h"
-#include "NNUETrainer.h"
+#include "DuckNNUE.h"
 #include <vector>
 #include <string>
 #include <thread>
@@ -96,37 +96,26 @@ private:
     Move pendingChessMove_;             // the chess move awaiting duck placement
     sf::Texture duckTexture_;           // duck piece texture
 
+    // Board Setup Mode
+    bool setupMode_ = false;
+    int setupPaletteIdx_ = 0;          // selected palette item
+    Board setupSavedBoard_;             // saved board for cancel
+    bool setupSavedDuckChess_ = false;
+    std::string setupStatus_;
+
     // NNUE
-    std::unique_ptr<NNUE::Network> nnueNet_;     // trained NNUE network
-    bool              nnueEnabled_ = false;       // whether to use NNUE eval
-    bool              nnueTraining_ = false;      // training in progress
-    bool              nnueEstimating_ = false;    // ELO estimation in progress
-    std::thread       nnueThread_;                // background thread for training/estimation
-    std::string       nnueStatus_;                // training/ELO progress text
-    NNUE::EloResult   lastEloResult_;             // last ELO estimation result
-    bool              hasEloResult_ = false;
-
-    // Cancel flag for training/ELO
-    std::atomic<bool> nnueCancelFlag_{false};
-
-    // Text input mode for training config
-    bool nnueInputMode_ = false;
-    std::string nnueInputBuffer_;
-    int nnueInputStep_ = 0;  // 0=games, 1=max positions, 2=epochs
-    int nnueConfigGames_ = 50;
-    int nnueConfigMaxPositions_ = 0;
-    int nnueConfigEpochs_ = 50;
-    std::atomic<int64_t> nnueETAEndMs_{0};  // 0 = no countdown, else steady_clock ms when task should finish
-
-    // ELO estimation config input
-    bool nnueEloInputMode_ = false;
-    int nnueConfigEloGames_ = 100;
+    std::unique_ptr<NNUE::Network> nnueNet_;           // standard NNUE network
+    std::unique_ptr<DuckNNUE::Network> duckNnueNet_;   // duck chess NNUE network
+    bool              nnueEnabled_ = false;             // whether to use NNUE eval
+    std::string       nnueStatus_;                      // NNUE status text
 
     // Layout
     static const int SQ = 80;
     static const int EVAL_BAR_W = 28;   // eval bar width
     static const int OX = 100;          // board offset (room for eval bar + coords)
     static const int OY = 40;
+    static const int SETUP_PANEL_W = 140;  // extra width for setup palette
+    static const int PALETTE_SQ = 48;       // palette cell size
 
     // Setup
     void loadAssets();
@@ -137,12 +126,6 @@ private:
     void handleMouseUp(int x, int y);
     void handlePromotionClick(int x, int y);
     void handleKeyPress(sf::Keyboard::Key key);
-    void handleTextInput(uint32_t unicode);
-    void processTrainingInput();
-    void startTraining();
-    void processEloInput();
-    void startEloEstimation();
-    void updateETA(std::chrono::steady_clock::time_point startTime, int done, int total);
     void selectPiece(Square sq);
     void executeMove(const Move& move, bool animate = true);
     void startAnimation(const Move& move, Piece piece);
@@ -152,6 +135,9 @@ private:
     void checkEngineResult();
     void updateStatus();
     void resetGame();
+    void enterSetupMode();
+    void exitSetupMode(bool apply);
+    void handleSetupClick(int x, int y);
 
     // Rendering
     void render();
@@ -167,6 +153,7 @@ private:
     void drawArrow(sf::Vector2f from, sf::Vector2f to, sf::Color color);
     void drawEvalBar();
     void drawHUD();
+    void drawSetupPanel();
 
     // Helpers
     Square       screenToSquare(int x, int y);
