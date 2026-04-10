@@ -1350,12 +1350,9 @@ void VisualGame::exitSetupMode(bool apply) {
         isPromoting = false;
         placingDuck_ = false;
         lastEval_ = 0;
-        board.halfMoveClock = 0;
-        board.fullMoveNumber = 1;
-        board.enPassantTarget = {-1, -1};
-        // Reset castling rights (conservative: all enabled, as if fresh position)
-        board.castlingRights[0][0] = board.castlingRights[0][1] = true;
-        board.castlingRights[1][0] = board.castlingRights[1][1] = true;
+        // Note: board.halfMoveClock, fullMoveNumber, enPassantTarget, and
+        // castlingRights are preserved as-is — they are already correct from
+        // either fromFEN() (paste) or clearBoard() (manual editing).
 
         // Reset position history
         positionHistory_.clear();
