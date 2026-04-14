@@ -6,19 +6,28 @@
 #include <cstring>
 
 #ifdef _MSC_VER
-#include <intrin.h>
+#  include <intrin.h>
+#  include <immintrin.h>
 #else
 #include <immintrin.h>
 #endif
 
 namespace DuckNNUE {
 
-    // SSE helper: SCReLU (Squared Clipped ReLU) on 4 floats: max(0, min(x, 1))^2
+    // SSE helper: SCReLU on 4 floats
     static inline __m128 screlu_sse(__m128 x) {
         __m128 zero = _mm_setzero_ps();
         __m128 one = _mm_set1_ps(1.0f);
         __m128 clamped = _mm_max_ps(zero, _mm_min_ps(x, one));
         return _mm_mul_ps(clamped, clamped);
+    }
+
+    // AVX2 helper: SCReLU on 8 floats
+    static inline __m256 screlu_avx(__m256 x) {
+        __m256 zero = _mm256_setzero_ps();
+        __m256 one  = _mm256_set1_ps(1.0f);
+        __m256 c = _mm256_min_ps(_mm256_max_ps(x, zero), one);
+        return _mm256_mul_ps(c, c);
     }
 
     Network::Network() {
@@ -43,10 +52,10 @@ namespace DuckNNUE {
 
     void Network::refreshAccumulator(const Board& board, Accumulator& acc) {
         // Initialize with biases
-        for (int j = 0; j < L1_SIZE; j += 4) {
-            __m128 bias = _mm_loadu_ps(&L1_biases[j]);
-            _mm_storeu_ps(&acc.white[j], bias);
-            _mm_storeu_ps(&acc.black[j], bias);
+        for (int j = 0; j < L1_SIZE; j += 8) {
+            __m256 bias = _mm256_loadu_ps(&L1_biases[j]);
+            _mm256_storeu_ps(&acc.white[j], bias);
+            _mm256_storeu_ps(&acc.black[j], bias);
         }
 
         // Standard piece features (0-767)
@@ -60,18 +69,14 @@ namespace DuckNNUE {
 
                 const float* wWeights = L1_weights[wFeature].data();
                 float* wAcc = acc.white.data();
-                for (int j = 0; j < L1_SIZE; j += 4) {
-                    __m128 a = _mm_loadu_ps(&wAcc[j]);
-                    __m128 w = _mm_loadu_ps(&wWeights[j]);
-                    _mm_storeu_ps(&wAcc[j], _mm_add_ps(a, w));
+                for (int j = 0; j < L1_SIZE; j += 8) {
+                    _mm256_storeu_ps(&wAcc[j], _mm256_add_ps(_mm256_loadu_ps(&wAcc[j]), _mm256_loadu_ps(&wWeights[j])));
                 }
 
                 const float* bWeights = L1_weights[bFeature].data();
                 float* bAcc = acc.black.data();
-                for (int j = 0; j < L1_SIZE; j += 4) {
-                    __m128 a = _mm_loadu_ps(&bAcc[j]);
-                    __m128 w = _mm_loadu_ps(&bWeights[j]);
-                    _mm_storeu_ps(&bAcc[j], _mm_add_ps(a, w));
+                for (int j = 0; j < L1_SIZE; j += 8) {
+                    _mm256_storeu_ps(&bAcc[j], _mm256_add_ps(_mm256_loadu_ps(&bAcc[j]), _mm256_loadu_ps(&bWeights[j])));
                 }
             }
         }
@@ -110,19 +115,15 @@ namespace DuckNNUE {
 
         const float* wWeights = L1_weights[feature].data();
         float* wAcc = acc.white.data();
-        for (int j = 0; j < L1_SIZE; j += 4) {
-            __m128 a = _mm_loadu_ps(&wAcc[j]);
-            __m128 w = _mm_loadu_ps(&wWeights[j]);
-            _mm_storeu_ps(&wAcc[j], _mm_add_ps(a, w));
-        }
+        for (int j = 0; j < L1_SIZE; j += 8) {
+                    _mm256_storeu_ps(&wAcc[j], _mm256_add_ps(_mm256_loadu_ps(&wAcc[j]), _mm256_loadu_ps(&wWeights[j])));
+                }
 
         const float* bWeights = L1_weights[mirrored].data();
         float* bAcc = acc.black.data();
-        for (int j = 0; j < L1_SIZE; j += 4) {
-            __m128 a = _mm_loadu_ps(&bAcc[j]);
-            __m128 w = _mm_loadu_ps(&bWeights[j]);
-            _mm_storeu_ps(&bAcc[j], _mm_add_ps(a, w));
-        }
+        for (int j = 0; j < L1_SIZE; j += 8) {
+                    _mm256_storeu_ps(&bAcc[j], _mm256_add_ps(_mm256_loadu_ps(&bAcc[j]), _mm256_loadu_ps(&bWeights[j])));
+                }
     }
 
     void Network::removeFeature(int feature, Accumulator& acc) {
@@ -150,9 +151,9 @@ namespace DuckNNUE {
         alignas(16) float input[L1_SIZE * 2];
         const auto& stmAcc = (sideToMove == Color::White) ? acc.white : acc.black;
         const auto& oppAcc = (sideToMove == Color::White) ? acc.black : acc.white;
-        for (int i = 0; i < L1_SIZE; i += 4) {
-            _mm_storeu_ps(&input[i],           screlu_sse(_mm_loadu_ps(&stmAcc[i])));
-            _mm_storeu_ps(&input[L1_SIZE + i], screlu_sse(_mm_loadu_ps(&oppAcc[i])));
+        for (int i = 0; i < L1_SIZE; i += 8) {
+            _mm256_storeu_ps(&input[i],           screlu_avx(_mm256_loadu_ps(&stmAcc[i])));
+            _mm256_storeu_ps(&input[L1_SIZE + i], screlu_avx(_mm256_loadu_ps(&oppAcc[i])));
         }
 
         // L2 — use transposed weights for cache-friendly access
@@ -160,8 +161,10 @@ namespace DuckNNUE {
         for (int j = 0; j < L2_SIZE; ++j) {
             const float* w = L2_weights_T[j].data();
             __m128 sum = _mm_setzero_ps();
-            for (int i = 0; i < L1_SIZE * 2; i += 4)
-                sum = _mm_add_ps(sum, _mm_mul_ps(_mm_loadu_ps(&input[i]), _mm_loadu_ps(&w[i])));
+            for (int i = 0; i < L1_SIZE * 2; i += 8) {
+                __m256 s = _mm256_mul_ps(_mm256_loadu_ps(&input[i]), _mm256_loadu_ps(&w[i]));
+                sum = _mm_add_ps(sum, _mm_add_ps(_mm256_castps256_ps128(s), _mm256_extractf128_ps(s, 1)));
+            }
             // horizontal sum
             __m128 shuf = _mm_movehdup_ps(sum);
             sum = _mm_add_ps(sum, shuf);
@@ -177,8 +180,10 @@ namespace DuckNNUE {
         for (int j = 0; j < L3_SIZE; ++j) {
             const float* w = L3_weights_T[j].data();
             __m128 sum = _mm_setzero_ps();
-            for (int i = 0; i < L2_SIZE; i += 4)
-                sum = _mm_add_ps(sum, _mm_mul_ps(_mm_loadu_ps(&l2Out[i]), _mm_loadu_ps(&w[i])));
+            for (int i = 0; i < L2_SIZE; i += 8) {
+                __m256 s = _mm256_mul_ps(_mm256_loadu_ps(&l2Out[i]), _mm256_loadu_ps(&w[i]));
+                sum = _mm_add_ps(sum, _mm_add_ps(_mm256_castps256_ps128(s), _mm256_extractf128_ps(s, 1)));
+            }
             __m128 shuf = _mm_movehdup_ps(sum);
             sum = _mm_add_ps(sum, shuf);
             shuf = _mm_movehl_ps(shuf, sum);
