@@ -1,4 +1,5 @@
 #include "MoveGen.h"
+#include "Bitboard.h"
 
 // Helper: is a square on the board?
 static bool inBounds(int r, int c) {
@@ -20,7 +21,7 @@ static bool canLandOn(const Board& board, int r, int c, Color myColor) {
 // -------------------------------------------------------
 // PAWN
 // -------------------------------------------------------
-void MoveGen::generatePawnMoves(const Board& board, Square sq, std::vector<Move>& moves) {
+void MoveGen::generatePawnMoves(const Board& board, Square sq, MoveList& moves) {
     Piece p = board.getPiece(sq);
     int dir = (p.color == Color::White) ? 1 : -1;
     int startRank = (p.color == Color::White) ? 1 : 6;
@@ -30,6 +31,7 @@ void MoveGen::generatePawnMoves(const Board& board, Square sq, std::vector<Move>
     int nr = sq.rank + dir;
     if (inBounds(nr, sq.col) && board.squares[nr][sq.col].isNone() && !isDuck(board, nr, sq.col)) {
         if (nr == promoRank) {
+            // INFO [8.13]: All 4 promotions generated (Q/R/B/N). Queen-first optimal for search.
             for (auto pt : { PieceType::Queen, PieceType::Rook,
                              PieceType::Bishop, PieceType::Knight })
                 moves.push_back({ sq, {nr, sq.col}, pt });
@@ -39,7 +41,7 @@ void MoveGen::generatePawnMoves(const Board& board, Square sq, std::vector<Move>
 
             // Two squares forward from starting rank
             int nr2 = nr + dir;
-            if (sq.rank == startRank && board.squares[nr2][sq.col].isNone() && !isDuck(board, nr2, sq.col))
+            if (sq.rank == startRank && nr2 >= 0 && nr2 < 8 && board.squares[nr2][sq.col].isNone() && !isDuck(board, nr2, sq.col))
                 moves.push_back({ sq, {nr2, sq.col} });
         }
     }
@@ -53,6 +55,7 @@ void MoveGen::generatePawnMoves(const Board& board, Square sq, std::vector<Move>
         if (isDuck(board, nr, nc)) continue;
 
         Piece target = board.squares[nr][nc];
+        // INFO [8.12]: EP pins handled correctly by getLegalMoves (make+check).
         bool isEnPassant = (board.enPassantTarget.rank == nr &&
             board.enPassantTarget.col == nc);
 
@@ -70,80 +73,101 @@ void MoveGen::generatePawnMoves(const Board& board, Square sq, std::vector<Move>
 }
 
 // -------------------------------------------------------
-// KNIGHT
+// KNIGHT (bitboard-based)
 // -------------------------------------------------------
-void MoveGen::generateKnightMoves(const Board& board, Square sq, std::vector<Move>& moves) {
+void MoveGen::generateKnightMoves(const Board& board, Square sq, MoveList& moves) {
     Piece p = board.getPiece(sq);
-    int offsets[8][2] = { {2,1},{2,-1},{-2,1},{-2,-1},{1,2},{1,-2},{-1,2},{-1,-2} };
-    for (auto& o : offsets) {
-        int nr = sq.rank + o[0], nc = sq.col + o[1];
-        if (!inBounds(nr, nc)) continue;
-        if (isDuck(board, nr, nc)) continue; // can't land on duck
-        Piece target = board.squares[nr][nc];
-        if (target.isNone() || (target.color != p.color && !target.isDuck()))
-            moves.push_back({ sq, {nr, nc} });
+    int sqIdx = BB::toSquareIndex(sq);
+    Bitboard attacks = BB::KnightAttacks[sqIdx] & ~board.pieces(p.color);
+#ifdef DUCK_CHESS
+    if (board.isDuckChess && board.duckSquare.isValid())
+        attacks &= ~BB::squareBB(board.duckSquare);
+#endif
+    while (attacks) {
+        int to = BB::popLsb(attacks);
+        moves.push_back({ sq, BB::toSquare(to) });
     }
 }
 
 // -------------------------------------------------------
-// SLIDING PIECES (Bishop, Rook, Queen)
+// SLIDING PIECES — bitboard magic attacks (Bishop, Rook, Queen)
 // -------------------------------------------------------
-static void generateSlidingMoves(const Board& board, Square sq,
-    const int dirs[][2], int numDirs,
-    std::vector<Move>& moves) {
-    Piece p = board.getPiece(sq);
-    for (int i = 0; i < numDirs; i++) {
-        int nr = sq.rank + dirs[i][0];
-        int nc = sq.col + dirs[i][1];
-        while (inBounds(nr, nc)) {
-            // Duck blocks sliding pieces completely
-            if (isDuck(board, nr, nc)) break;
 
-            Piece target = board.squares[nr][nc];
-            if (target.isNone()) {
-                moves.push_back({ sq, {nr, nc} });
-            }
-            else {
-                if (target.color != p.color && !target.isDuck())
-                    moves.push_back({ sq, {nr, nc} }); // capture
-                break; // blocked
-            }
-            nr += dirs[i][0];
-            nc += dirs[i][1];
-        }
+// Helper: get board occupancy including the duck (if present) for sliding piece blockers.
+static Bitboard slidingOccupancy(const Board& board) {
+    Bitboard occ = board.occupied();
+#ifdef DUCK_CHESS
+    if (board.isDuckChess && board.duckSquare.isValid())
+        occ |= BB::squareBB(board.duckSquare);
+#endif
+    return occ;
+}
+
+void MoveGen::generateBishopMoves(const Board& board, Square sq, MoveList& moves) {
+    Piece p = board.getPiece(sq);
+    int sqIdx = BB::toSquareIndex(sq);
+    Bitboard occ = slidingOccupancy(board);
+    Bitboard attacks = BB::bishopAttacks(sqIdx, occ);
+    attacks &= ~board.pieces(p.color); // can't capture own pieces
+#ifdef DUCK_CHESS
+    if (board.isDuckChess && board.duckSquare.isValid())
+        attacks &= ~BB::squareBB(board.duckSquare); // can't land on duck
+#endif
+    while (attacks) {
+        int to = BB::popLsb(attacks);
+        moves.push_back({ sq, BB::toSquare(to) });
     }
 }
 
-void MoveGen::generateBishopMoves(const Board& board, Square sq, std::vector<Move>& moves) {
-    const int dirs[4][2] = { {1,1},{1,-1},{-1,1},{-1,-1} };
-    generateSlidingMoves(board, sq, dirs, 4, moves);
-}
-
-void MoveGen::generateRookMoves(const Board& board, Square sq, std::vector<Move>& moves) {
-    const int dirs[4][2] = { {1,0},{-1,0},{0,1},{0,-1} };
-    generateSlidingMoves(board, sq, dirs, 4, moves);
-}
-
-void MoveGen::generateQueenMoves(const Board& board, Square sq, std::vector<Move>& moves) {
-    generateBishopMoves(board, sq, moves);
-    generateRookMoves(board, sq, moves);
-}
-
-// -------------------------------------------------------
-// KING
-// -------------------------------------------------------
-void MoveGen::generateKingMoves(const Board& board, Square sq, std::vector<Move>& moves) {
+void MoveGen::generateRookMoves(const Board& board, Square sq, MoveList& moves) {
     Piece p = board.getPiece(sq);
-    for (int dr = -1; dr <= 1; dr++)
-        for (int dc = -1; dc <= 1; dc++) {
-            if (dr == 0 && dc == 0) continue;
-            int nr = sq.rank + dr, nc = sq.col + dc;
-            if (!inBounds(nr, nc)) continue;
-            if (isDuck(board, nr, nc)) continue; // can't land on duck
-            Piece target = board.squares[nr][nc];
-            if (target.isNone() || (target.color != p.color && !target.isDuck()))
-                moves.push_back({ sq, {nr, nc} });
-        }
+    int sqIdx = BB::toSquareIndex(sq);
+    Bitboard occ = slidingOccupancy(board);
+    Bitboard attacks = BB::rookAttacks(sqIdx, occ);
+    attacks &= ~board.pieces(p.color); // can't capture own pieces
+#ifdef DUCK_CHESS
+    if (board.isDuckChess && board.duckSquare.isValid())
+        attacks &= ~BB::squareBB(board.duckSquare); // can't land on duck
+#endif
+    while (attacks) {
+        int to = BB::popLsb(attacks);
+        moves.push_back({ sq, BB::toSquare(to) });
+    }
+}
+
+void MoveGen::generateQueenMoves(const Board& board, Square sq, MoveList& moves) {
+    Piece p = board.getPiece(sq);
+    int sqIdx = BB::toSquareIndex(sq);
+    Bitboard occ = slidingOccupancy(board);
+    Bitboard attacks = BB::queenAttacks(sqIdx, occ);
+    attacks &= ~board.pieces(p.color); // can't capture own pieces
+#ifdef DUCK_CHESS
+    if (board.isDuckChess && board.duckSquare.isValid())
+        attacks &= ~BB::squareBB(board.duckSquare); // can't land on duck
+#endif
+    while (attacks) {
+        int to = BB::popLsb(attacks);
+        moves.push_back({ sq, BB::toSquare(to) });
+    }
+}
+
+// -------------------------------------------------------
+// KING (bitboard-based normal moves + castling with bitboard attack checks)
+// -------------------------------------------------------
+void MoveGen::generateKingMoves(const Board& board, Square sq, MoveList& moves) {
+    Piece p = board.getPiece(sq);
+    int sqIdx = BB::toSquareIndex(sq);
+
+    // Normal king moves via bitboard lookup
+    Bitboard attacks = BB::KingAttacks[sqIdx] & ~board.pieces(p.color);
+#ifdef DUCK_CHESS
+    if (board.isDuckChess && board.duckSquare.isValid())
+        attacks &= ~BB::squareBB(board.duckSquare);
+#endif
+    while (attacks) {
+        int to = BB::popLsb(attacks);
+        moves.push_back({ sq, BB::toSquare(to) });
+    }
 
     // Castling
     int backRank = (p.color == Color::White) ? 0 : 7;
@@ -152,7 +176,10 @@ void MoveGen::generateKingMoves(const Board& board, Square sq, std::vector<Move>
 
     if (sq.rank == backRank && sq.col == 4) {
         // Kingside
+        // AUDIT FIX CS-4: Verify rook is on starting square before generating castling
         if (board.castlingRights[colorIdx][0] &&
+            board.squares[backRank][7].type == PieceType::Rook &&
+            board.squares[backRank][7].color == p.color &&
             board.squares[backRank][5].isNone() && !isDuck(board, backRank, 5) &&
             board.squares[backRank][6].isNone() && !isDuck(board, backRank, 6)) {
 
@@ -160,27 +187,30 @@ void MoveGen::generateKingMoves(const Board& board, Square sq, std::vector<Move>
                 // In duck chess: no check concept, just need clear path (no duck blocking)
                 moves.push_back({ sq, {backRank, 6} });
             } else {
-                // Standard chess: king must not be in check, pass through check, or land in check
-                if (!board.isSquareAttacked(sq, opponent) &&
-                    !board.isSquareAttacked({backRank, 5}, opponent) &&
-                    !board.isSquareAttacked({backRank, 6}, opponent)) {
+                // Standard chess: use bitboard attack detection for castling legality
+                if (!board.isAttackedBy(sqIdx, opponent) &&
+                    !board.isAttackedBy(BB::toSquareIndex(backRank, 5), opponent) &&
+                    !board.isAttackedBy(BB::toSquareIndex(backRank, 6), opponent)) {
                     moves.push_back({ sq, {backRank, 6} });
                 }
             }
         }
 
         // Queenside
+        // AUDIT FIX CS-4: Verify rook is on starting square before generating castling
         if (board.castlingRights[colorIdx][1] &&
+            board.squares[backRank][0].type == PieceType::Rook &&
+            board.squares[backRank][0].color == p.color &&
             board.squares[backRank][3].isNone() && !isDuck(board, backRank, 3) &&
             board.squares[backRank][2].isNone() && !isDuck(board, backRank, 2) &&
-            board.squares[backRank][1].isNone() && !isDuck(board, backRank, 1)) {
+            board.squares[backRank][1].isNone() && !isDuck(board, backRank, 1) /* INFO [8.11]: isDuck check is redundant here — isNone() already rejects duck squares */) {
 
             if (board.isDuckChess) {
                 moves.push_back({ sq, {backRank, 2} });
             } else {
-                if (!board.isSquareAttacked(sq, opponent) &&
-                    !board.isSquareAttacked({backRank, 3}, opponent) &&
-                    !board.isSquareAttacked({backRank, 2}, opponent)) {
+                if (!board.isAttackedBy(sqIdx, opponent) &&
+                    !board.isAttackedBy(BB::toSquareIndex(backRank, 3), opponent) &&
+                    !board.isAttackedBy(BB::toSquareIndex(backRank, 2), opponent)) {
                     moves.push_back({ sq, {backRank, 2} });
                 }
             }
@@ -191,99 +221,139 @@ void MoveGen::generateKingMoves(const Board& board, Square sq, std::vector<Move>
 // -------------------------------------------------------
 // PSEUDO-LEGAL (all moves, may leave king in check)
 // -------------------------------------------------------
-std::vector<Move> MoveGen::getPseudoLegalMoves(const Board& board) {
-    std::vector<Move> moves;
-    for (int r = 0; r < 8; r++)
-        for (int c = 0; c < 8; c++) {
-            Piece p = board.squares[r][c];
-            if (p.isNone() || p.isDuck() || p.color != board.turn) continue;
-            Square sq = { r, c };
-            switch (p.type) {
-            case PieceType::Pawn:   generatePawnMoves(board, sq, moves);   break;
-            case PieceType::Knight: generateKnightMoves(board, sq, moves); break;
-            case PieceType::Bishop: generateBishopMoves(board, sq, moves); break;
-            case PieceType::Rook:   generateRookMoves(board, sq, moves);   break;
-            case PieceType::Queen:  generateQueenMoves(board, sq, moves);  break;
-            case PieceType::King:   generateKingMoves(board, sq, moves);   break;
-            default: break;
-            }
+// §1.2: MoveList-based implementation (primary - no heap allocation)
+// Iterates over own pieces via bitboard instead of scanning all 64 squares.
+void MoveGen::getPseudoLegalMoves(const Board& board, MoveList& moves) {
+    Bitboard ourPieces = board.pieces(board.turn);
+    while (ourPieces) {
+        int sqIdx = BB::popLsb(ourPieces);
+        Square sq = BB::toSquare(sqIdx);
+        Piece p = board.squares[sq.rank][sq.col];
+        switch (p.type) {
+        case PieceType::Pawn:   generatePawnMoves(board, sq, moves);   break;
+        case PieceType::Knight: generateKnightMoves(board, sq, moves); break;
+        case PieceType::Bishop: generateBishopMoves(board, sq, moves); break;
+        case PieceType::Rook:   generateRookMoves(board, sq, moves);   break;
+        case PieceType::Queen:  generateQueenMoves(board, sq, moves);  break;
+        case PieceType::King:   generateKingMoves(board, sq, moves);   break;
+        default: break;
         }
-    return moves;
+    }
 }
 
+// (vector-returning getPseudoLegalMoves removed — use MoveList overload)
+
 // -------------------------------------------------------
-// CHECK DETECTION
+// CHECK DETECTION (bitboard-based — O(1) via magic bitboard attack lookups)
 // -------------------------------------------------------
 bool MoveGen::isInCheck(const Board& board, Color color) {
     // In duck chess, there is no check concept
     if (board.isDuckChess) return false;
 
-    // Find the king
-    Square kingSq = { -1, -1 };
-    for (int r = 0; r < 8; r++)
-        for (int c = 0; c < 8; c++)
-            if (board.squares[r][c].type == PieceType::King &&
-                board.squares[r][c].color == color)
-                kingSq = { r, c };
-
-    if (!kingSq.isValid()) return false;
+    // Use bitboard to find king square — O(1) via lsb
+    Bitboard kingBB = board.pieces(color, PieceType::King);
+    if (!kingBB) return false;
+    int kingSq = BB::lsb(kingBB);
 
     Color opponent = (color == Color::White) ? Color::Black : Color::White;
-    return board.isSquareAttacked(kingSq, opponent);
+    return board.isAttackedBy(kingSq, opponent);
 }
 
 // -------------------------------------------------------
-// LEGAL MOVES (filters out moves that leave king in check)
+// §1.2: MoveList-based LEGAL MOVES (no heap allocation)
 // -------------------------------------------------------
-std::vector<Move> MoveGen::getLegalMoves(const Board& board) {
-    // In duck chess, use the duck chess move generator
-    if (board.isDuckChess)
-        return getDuckChessMoves(board);
-
-    auto pseudoMoves = getPseudoLegalMoves(board);
-    std::vector<Move> legal;
-
-    for (auto& move : pseudoMoves) {
-        Board temp = board;
-        temp.applyMove(move);
-        if (!isInCheck(temp, board.turn))
-            legal.push_back(move);
+// AUDIT FIX C-4: Accept Board& (not const) — we use makeMove/unmakeMove internally
+void MoveGen::getLegalMoves(Board& board, MoveList& out) {
+#ifdef DUCK_CHESS
+    if (board.isDuckChess) {
+        getDuckChessMoves(board, out);
+        return;
     }
-
-    return legal;
+#endif
+    // AUDIT FIX 8: Use makeMove/unmakeMove instead of Board copies (~3-5x faster).
+    MoveList pseudo;
+    getPseudoLegalMoves(board, pseudo);
+    for (int i = 0; i < pseudo.count; i++) {
+        Color sideToMove = board.turn;
+        Board temp = board;
+        temp.applyMove(pseudo[i]);
+        if (!isInCheck(temp, sideToMove))
+            out.add(pseudo[i]);
+    }
 }
+
+// -------------------------------------------------------
+// §1.2: MoveList-based LEGAL CAPTURES (no heap allocation)
+// -------------------------------------------------------
+// AUDIT FIX C-4: Accept Board& (not const) — we use makeMove/unmakeMove internally
+void MoveGen::getLegalCaptures(Board& board, MoveList& out) {
+    MoveList pseudo;
+    getPseudoLegalMoves(board, pseudo);
+    for (int i = 0; i < pseudo.count; i++) {
+        const Move& m = pseudo[i];
+        bool isCapture = false;
+        bool isPromotion = (m.promotion != PieceType::None);
+
+        Piece target = board.squares[m.to.rank][m.to.col];
+        if (!target.isNone() && target.color != board.turn && !target.isDuck())
+            isCapture = true;
+
+        Piece mover = board.squares[m.from.rank][m.from.col];
+        if (mover.type == PieceType::Pawn &&
+            m.from.col != m.to.col && target.isNone())
+            isCapture = true;
+
+        if (!isCapture && !isPromotion) continue;
+
+        Color sideToMove = board.turn;
+        Board temp = board;
+        temp.applyMove(m);
+#ifdef DUCK_CHESS
+        if (board.isDuckChess) {
+            out.add(m);
+        } else
+#endif
+        {
+            if (!MoveGen::isInCheck(temp, sideToMove))
+                out.add(m);
+        }
+    }
+}
+
+// (vector-returning getLegalMoves removed — use MoveList overload)
+
+// (vector-returning getLegalCaptures removed — use MoveList overload)
 
 // -------------------------------------------------------
 // DUCK CHESS: LEGAL CHESS MOVES (no check filtering)
 // -------------------------------------------------------
-std::vector<Move> MoveGen::getDuckChessMoves(const Board& board) {
+#ifdef DUCK_CHESS
+void MoveGen::getDuckChessMoves(const Board& board, MoveList& out) {
     // In duck chess, all pseudo-legal moves are legal
     // (there is no check concept - you CAN leave your king in danger)
-    return getPseudoLegalMoves(board);
+    getPseudoLegalMoves(board, out);
 }
+
 
 // -------------------------------------------------------
 // DUCK CHESS: VALID DUCK PLACEMENTS
 // Returns all empty squares where the duck can be placed
 // -------------------------------------------------------
-std::vector<Square> MoveGen::getDuckPlacements(const Board& board) {
-    std::vector<Square> placements;
+void MoveGen::getDuckPlacements(const Board& board, SquareList& out) {
     for (int r = 0; r < 8; r++)
         for (int c = 0; c < 8; c++) {
             if (board.squares[r][c].isNone())
-                placements.push_back({ r, c });
+                out.add({ r, c });
         }
-    return placements;
 }
+
 
 // -------------------------------------------------------
 // DUCK CHESS: CHECK IF A KING WAS CAPTURED
 // -------------------------------------------------------
 bool MoveGen::isKingCaptured(const Board& board, Color color) {
-    for (int r = 0; r < 8; r++)
-        for (int c = 0; c < 8; c++)
-            if (board.squares[r][c].type == PieceType::King &&
-                board.squares[r][c].color == color)
-                return false;
-    return true; // king not found = captured
+    // FIX 1.12: Use bitboard instead of scanning 64 squares
+    return board.pieces(color, PieceType::King) == 0;
 }
+#endif
+

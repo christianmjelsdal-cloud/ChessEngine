@@ -1,5 +1,10 @@
 #include "Board.h"
+#include "Zobrist.h"
 #include <iostream>
+#include <sstream>
+
+// Forward declaration — defined later in this file
+static int piecePhaseWeight(PieceType pt);
 
 Board::Board() {
     setStartingPosition();
@@ -10,6 +15,13 @@ void Board::clearBoard() {
         for (int c = 0; c < 8; c++)
             squares[r][c] = Piece{};
     duckSquare = { -1, -1 };
+    // Reset Automate Chess state
+    isAutomateChess = false;
+    automateSetupComplete = false;
+    automateBudget[0] = automateBudget[1] = 35;
+    automatePawnsPlaced[0] = automatePawnsPlaced[1] = 0;
+    automateKingPlaced[0] = automateKingPlaced[1] = false;
+    automateSetupTurn = Color::White;
 }
 
 void Board::setStartingPosition() {
@@ -36,6 +48,17 @@ void Board::setStartingPosition() {
 
     // Duck starts off the board
     duckSquare = { -1, -1 };
+
+    // Reset game state
+    turn = Color::White;
+    castlingRights[0][0] = castlingRights[0][1] = true;
+    castlingRights[1][0] = castlingRights[1][1] = true;
+    enPassantTarget = { -1, -1 };
+    halfMoveClock = 0;
+    fullMoveNumber = 1;
+    hash = 0;
+
+    recomputeBitboards();
 }
 
 Piece Board::getPiece(Square sq) const {
@@ -63,7 +86,9 @@ void Board::placeDuck(Square sq) {
     }
     // Place duck on new position
     duckSquare = sq;
+#ifdef DUCK_CHESS
     squares[sq.rank][sq.col] = { PieceType::Duck, Color::White }; // color is irrelevant
+#endif
 }
 
 void Board::printBoard() const {
@@ -81,10 +106,16 @@ void Board::printBoard() const {
                 case PieceType::Rook:   symbol = 'R'; break;
                 case PieceType::Queen:  symbol = 'Q'; break;
                 case PieceType::King:   symbol = 'K'; break;
+                #ifdef DUCK_CHESS
                 case PieceType::Duck:   symbol = '@'; break; // duck
+#endif
                 default: break;
                 }
-                if (p.color == Color::Black && p.type != PieceType::Duck)
+                if (p.color == Color::Black
+#ifdef DUCK_CHESS
+                    && p.type != PieceType::Duck
+#endif
+                    )
                     symbol = tolower(symbol);
             }
             std::cout << symbol << " ";
@@ -96,6 +127,29 @@ void Board::printBoard() const {
 
 void Board::applyMove(const Move& move) {
     Piece moving = getPiece(move.from);
+
+    // ── Incremental Zobrist hash update ──────────────────────────────────────
+    // Remove old castling/EP contributions before state changes
+    if (Zobrist::ready) {
+        int oldCi = (castlingRights[0][0] ? 1 : 0)
+                  | (castlingRights[0][1] ? 2 : 0)
+                  | (castlingRights[1][0] ? 4 : 0)
+                  | (castlingRights[1][1] ? 8 : 0);
+        hash ^= Zobrist::castle[oldCi];
+        if (enPassantTarget.isValid())
+            hash ^= Zobrist::ep[enPassantTarget.col];
+        if (turn == Color::Black)
+            hash ^= Zobrist::side;
+        // Remove moving piece from its source square
+        if (!moving.isNone() && !moving.isDuck())
+            hash ^= Zobrist::piece[(int)moving.color][(int)moving.type]
+                                  [move.from.rank * 8 + move.from.col];
+        // Remove captured piece (if any)
+        Piece captured = getPiece(move.to);
+        if (!captured.isNone() && !captured.isDuck())
+            hash ^= Zobrist::piece[(int)captured.color][(int)captured.type]
+                                  [move.to.rank * 8 + move.to.col];
+    }
 
     // Update half-move clock (for 50-move rule)
     bool isCapture = !getPiece(move.to).isNone() && !getPiece(move.to).isDuck();
@@ -143,7 +197,6 @@ void Board::applyMove(const Move& move) {
             squares[backRank][3] = squares[backRank][0];
             squares[backRank][0] = Piece{};
         }
-        // Revoke castling rights
         int ci = (moving.color == Color::White) ? 0 : 1;
         castlingRights[ci][0] = castlingRights[ci][1] = false;
     }
@@ -154,7 +207,6 @@ void Board::applyMove(const Move& move) {
         if (move.from.col == 7) castlingRights[ci][0] = false;
         if (move.from.col == 0) castlingRights[ci][1] = false;
     }
-    // Revoke opponent castling rights if their rook is captured
     {
         Piece captured = getPiece(move.to);
         if (captured.type == PieceType::Rook) {
@@ -166,9 +218,6 @@ void Board::applyMove(const Move& move) {
         }
     }
 
-    // In duck chess, check if king was captured (game-ending)
-    // (We don't prevent this — it's how you win in duck chess)
-
     // Move the piece
     setPiece(move.to, moving);
     setPiece(move.from, Piece{});
@@ -178,12 +227,57 @@ void Board::applyMove(const Move& move) {
         squares[move.to.rank][move.to.col].type = move.promotion;
 
     // Handle duck placement if specified in the move (used by engine)
+#ifdef DUCK_CHESS
     if (isDuckChess && move.duckTo.isValid()) {
         placeDuck(move.duckTo);
     }
+#endif
 
     // Flip turn
     turn = (turn == Color::White) ? Color::Black : Color::White;
+
+    // ── Finalize incremental hash ─────────────────────────────────────────────
+    if (Zobrist::ready) {
+        // En passant: remove the captured pawn (it's NOT on move.to)
+        if (moving.type == PieceType::Pawn &&
+            move.to.rank != move.from.rank &&
+            squares[move.from.rank][move.to.col].isNone()) {
+            // The EP pawn was already cleared from squares[] above;
+            // XOR it out of the hash using the opponent's pawn key
+            Color opp = (moving.color == Color::White) ? Color::Black : Color::White;
+            hash ^= Zobrist::piece[(int)opp][(int)PieceType::Pawn]
+                                  [move.from.rank * 8 + move.to.col];
+        }
+        // Castling: update rook hash
+        if (moving.type == PieceType::King) {
+            int backRank = move.from.rank;
+            Color col = moving.color;
+            if (move.to.col - move.from.col == 2) { // kingside
+                hash ^= Zobrist::piece[(int)col][(int)PieceType::Rook][backRank * 8 + 7];
+                hash ^= Zobrist::piece[(int)col][(int)PieceType::Rook][backRank * 8 + 5];
+            } else if (move.from.col - move.to.col == 2) { // queenside
+                hash ^= Zobrist::piece[(int)col][(int)PieceType::Rook][backRank * 8 + 0];
+                hash ^= Zobrist::piece[(int)col][(int)PieceType::Rook][backRank * 8 + 3];
+            }
+        }
+        // Add moving piece at destination (after promotion, use promoted type)
+        PieceType finalType = (move.promotion != PieceType::None) ? move.promotion : moving.type;
+        hash ^= Zobrist::piece[(int)moving.color][(int)finalType]
+                              [move.to.rank * 8 + move.to.col];
+        // New castling rights
+        int newCi = (castlingRights[0][0] ? 1 : 0)
+                  | (castlingRights[0][1] ? 2 : 0)
+                  | (castlingRights[1][0] ? 4 : 0)
+                  | (castlingRights[1][1] ? 8 : 0);
+        hash ^= Zobrist::castle[newCi];
+        if (enPassantTarget.isValid())
+            hash ^= Zobrist::ep[enPassantTarget.col];
+        if (turn == Color::Black)  // turn already flipped above
+            hash ^= Zobrist::side;
+    }
+
+    // Rebuild bitboards from squares[][] (needed by getLegalMoves and evaluate)
+    recomputeBitboards();
 }
 
 bool Board::isSquareAttacked(Square sq, Color byColor) const {
@@ -250,4 +344,361 @@ bool Board::isSquareAttacked(Square sq, Color byColor) const {
         }
 
     return false;
+}
+
+// ── FEN support ──────────────────────────────────────────────────
+
+std::string Board::toFEN() const {
+    std::string fen;
+
+    // Piece placement
+    for (int r = 7; r >= 0; r--) {
+        int empty = 0;
+        for (int c = 0; c < 8; c++) {
+            Piece p = squares[r][c];
+            if (p.isNone() || p.isDuck()) {
+                empty++;
+            } else {
+                if (empty > 0) { fen += std::to_string(empty); empty = 0; }
+                char ch = '.';
+                switch (p.type) {
+                    case PieceType::Pawn:   ch = 'P'; break;
+                    case PieceType::Knight: ch = 'N'; break;
+                    case PieceType::Bishop: ch = 'B'; break;
+                    case PieceType::Rook:   ch = 'R'; break;
+                    case PieceType::Queen:  ch = 'Q'; break;
+                    case PieceType::King:   ch = 'K'; break;
+                    default: break;
+                }
+                if (p.color == Color::Black) ch = static_cast<char>(tolower(ch));
+                fen += ch;
+            }
+        }
+        if (empty > 0) fen += std::to_string(empty);
+        if (r > 0) fen += '/';
+    }
+
+    // Side to move
+    fen += (turn == Color::White) ? " w " : " b ";
+
+    // Castling
+    std::string castling;
+    if (castlingRights[0][0]) castling += 'K';
+    if (castlingRights[0][1]) castling += 'Q';
+    if (castlingRights[1][0]) castling += 'k';
+    if (castlingRights[1][1]) castling += 'q';
+    fen += castling.empty() ? "-" : castling;
+
+    // En passant
+    if (enPassantTarget.isValid()) {
+        fen += ' ';
+        fen += static_cast<char>('a' + enPassantTarget.col);
+        fen += static_cast<char>('1' + enPassantTarget.rank);
+    } else {
+        fen += " -";
+    }
+
+    // Half-move clock and full move number
+    fen += ' ' + std::to_string(halfMoveClock);
+    fen += ' ' + std::to_string(fullMoveNumber);
+
+    return fen;
+}
+
+bool Board::fromFEN(const std::string& fen) {
+    clearBoard();
+
+    std::istringstream iss(fen);
+    std::string pieces, turnStr, castling, ep, halfmoveStr, fullmoveStr;
+    if (!(iss >> pieces >> turnStr >> castling >> ep)) return false;
+    iss >> halfmoveStr >> fullmoveStr; // optional
+
+    int rank = 7, col = 0;
+    for (char c : pieces) {
+        if (c == '/') {
+            rank--;
+            col = 0;
+        }
+        else if (c >= '1' && c <= '8') {
+            col += (c - '0');
+        }
+        else {
+            if (rank < 0 || rank > 7 || col < 0 || col > 7) return false;
+            Color color = std::isupper(c) ? Color::White : Color::Black;
+            PieceType pt = PieceType::None;
+            switch (std::tolower(c)) {
+                case 'p': pt = PieceType::Pawn;   break;
+                case 'n': pt = PieceType::Knight; break;
+                case 'b': pt = PieceType::Bishop; break;
+                case 'r': pt = PieceType::Rook;   break;
+                case 'q': pt = PieceType::Queen;  break;
+                case 'k': pt = PieceType::King;   break;
+                default: return false;
+            }
+            squares[rank][col] = Piece{pt, color};
+            col++;
+        }
+    }
+
+    turn = (turnStr == "w") ? Color::White : Color::Black;
+
+    castlingRights[0][0] = false;
+    castlingRights[0][1] = false;
+    castlingRights[1][0] = false;
+    castlingRights[1][1] = false;
+    if (castling != "-") {
+        for (char c : castling) {
+            switch (c) {
+                case 'K': castlingRights[0][0] = true; break;
+                case 'Q': castlingRights[0][1] = true; break;
+                case 'k': castlingRights[1][0] = true; break;
+                case 'q': castlingRights[1][1] = true; break;
+            }
+        }
+    }
+
+    if (ep != "-" && ep.size() == 2) {
+        enPassantTarget = { ep[1] - '1', ep[0] - 'a' };
+    } else {
+        enPassantTarget = { -1, -1 };
+    }
+
+    try {
+        halfMoveClock = halfmoveStr.empty() ? 0 : std::stoi(halfmoveStr);
+        fullMoveNumber = fullmoveStr.empty() ? 1 : std::stoi(fullmoveStr);
+    } catch (...) {
+        halfMoveClock = 0;
+        fullMoveNumber = 1;
+    }
+
+    recomputeBitboards();
+    return true;
+}
+
+bool Board::hasValidKings() const {
+    bool whiteKing = false, blackKing = false;
+    for (int r = 0; r < 8; r++) {
+        for (int c = 0; c < 8; c++) {
+            if (squares[r][c].type == PieceType::King) {
+                if (squares[r][c].color == Color::White) whiteKing = true;
+                else blackKing = true;
+            }
+        }
+    }
+    return whiteKing && blackKing;
+}
+
+// ============================================================
+// Bitboard helpers
+// ============================================================
+
+static inline Bitboard sqBB(int rank, int col) {
+    return 1ULL << (rank * 8 + col);
+}
+
+static int piecePhaseWeight(PieceType pt) {
+    switch (pt) {
+        case PieceType::Knight: return 1;
+        case PieceType::Bishop: return 1;
+        case PieceType::Rook:   return 2;
+        case PieceType::Queen:  return 4;
+        default: return 0;
+    }
+}
+
+void Board::bbSet(int rank, int col, Piece p) {
+    Bitboard bb = sqBB(rank, col);
+    occupiedBB          |= bb;
+    colorBB[(int)p.color] |= bb;
+    pieceBBs[(int)p.type] |= bb;
+    if (p.type == PieceType::King) {
+        if (p.color == Color::White) whiteKingSq = {rank, col};
+        else                         blackKingSq = {rank, col};
+    }
+    phase += piecePhaseWeight(p.type);
+}
+
+void Board::bbClear(int rank, int col) {
+    Piece p = squares[rank][col];
+    if (p.isNone()) return;
+    Bitboard bb = sqBB(rank, col);
+    occupiedBB              &= ~bb;
+    colorBB[(int)p.color]   &= ~bb;
+    pieceBBs[(int)p.type]   &= ~bb;
+    phase -= piecePhaseWeight(p.type);
+}
+
+void Board::recomputeBitboards() {
+    occupiedBB = 0;
+    colorBB[0] = colorBB[1] = 0;
+    for (int i = 0; i < 7; i++) pieceBBs[i] = 0;
+    whiteKingSq = {0, 4};
+    blackKingSq = {7, 4};
+    phase = 0;
+    for (int r = 0; r < 8; r++) {
+        for (int c = 0; c < 8; c++) {
+            Piece p = squares[r][c];
+            if (p.isNone()) continue;
+#ifdef DUCK_CHESS
+            if (p.isDuck()) continue;
+#endif
+            Bitboard bb = sqBB(r, c);
+            occupiedBB             |= bb;
+            colorBB[(int)p.color]  |= bb;
+            pieceBBs[(int)p.type]  |= bb;
+            if (p.type == PieceType::King) {
+                if (p.color == Color::White) whiteKingSq = {r, c};
+                else                         blackKingSq = {r, c};
+            }
+            phase += piecePhaseWeight(p.type);
+        }
+    }
+}
+
+// ============================================================
+// makeMove / unmakeMove (reversible — saves full snapshot)
+// ============================================================
+
+void Board::makeMove(const Move& m, UndoInfo& undo) {
+    // Save entire state for simple-but-correct unmake
+    undo.enPassantTarget = enPassantTarget;
+    for (int i = 0; i < 2; i++)
+        for (int j = 0; j < 2; j++)
+            undo.castlingRights[i][j] = castlingRights[i][j];
+    undo.halfMoveClock  = halfMoveClock;
+    undo.fullMoveNumber = fullMoveNumber;
+    undo.hash           = hash;
+    undo.occupiedBB     = occupiedBB;
+    undo.colorBB[0]     = colorBB[0];
+    undo.colorBB[1]     = colorBB[1];
+    for (int i = 0; i < 7; i++) undo.pieceBBs[i] = pieceBBs[i];
+    undo.whiteKingSq = whiteKingSq;
+    undo.blackKingSq = blackKingSq;
+    undo.phase       = phase;
+    undo.duckSquare  = duckSquare;
+    for (int r = 0; r < 8; r++)
+        for (int c = 0; c < 8; c++)
+            undo.squares[r][c] = squares[r][c];
+
+    // Apply the move (applyMove now updates squares[][] AND bitboards incrementally)
+    applyMove(m);
+}
+
+void Board::unmakeMove(const Move& /*m*/, const UndoInfo& undo) {
+    // Restore full state from snapshot
+    enPassantTarget = undo.enPassantTarget;
+    for (int i = 0; i < 2; i++)
+        for (int j = 0; j < 2; j++)
+            castlingRights[i][j] = undo.castlingRights[i][j];
+    halfMoveClock  = undo.halfMoveClock;
+    fullMoveNumber = undo.fullMoveNumber;
+    hash           = undo.hash;
+    occupiedBB     = undo.occupiedBB;
+    colorBB[0]     = undo.colorBB[0];
+    colorBB[1]     = undo.colorBB[1];
+    for (int i = 0; i < 7; i++) pieceBBs[i] = undo.pieceBBs[i];
+    whiteKingSq = undo.whiteKingSq;
+    blackKingSq = undo.blackKingSq;
+    phase       = undo.phase;
+    duckSquare  = undo.duckSquare;
+    for (int r = 0; r < 8; r++)
+        for (int c = 0; c < 8; c++)
+            squares[r][c] = undo.squares[r][c];
+    turn = (turn == Color::White) ? Color::Black : Color::White;
+}
+
+// ============================================================
+// Automate Chess — piece costs and placement validation
+// ============================================================
+
+// Piece costs: Queen=7, Rook=4, Knight=3, Bishop=3, Pawn=1, King=free
+int Board::automatePieceCost(PieceType pt) {
+    switch (pt) {
+        case PieceType::Queen:  return 7;
+        case PieceType::Rook:   return 4;
+        case PieceType::Knight: return 3;
+        case PieceType::Bishop: return 3;
+        case PieceType::Pawn:   return 1;
+        case PieceType::King:   return 0;
+        default:                return 0;
+    }
+}
+
+// Check whether a side can legally place a piece on a given square.
+// Rules:
+//   - Pawns: ranks 2-3 (indices 1-2 for White, 5-6 for Black), max 2 per file
+//   - Pieces (Q/R/N/B): ranks 1-2 (indices 0-1 for White, 6-7 for Black),
+//     only after 6 mandatory pawns placed
+//   - King: ranks 1-2 (same as pieces), only after 6 mandatory pawns placed,
+//     must be placed last (after all other pieces), must not be in check
+//   - Square must be empty
+//   - Must have enough budget
+bool Board::automateCanPlace(Color side, PieceType pt, Square sq) const {
+    if (!isAutomateChess || automateSetupComplete) return false;
+    if (automateSetupTurn != side) return false;
+    if (!sq.isValid()) return false;
+    if (!squares[sq.rank][sq.col].isNone()) return false; // square occupied
+
+    int ci = (int)side;
+    int cost = automatePieceCost(pt);
+    if (cost > automateBudget[ci]) return false;
+
+    // King already placed — can't place again
+    if (pt == PieceType::King && automateKingPlaced[ci]) return false;
+
+    // Must place 6 pawns before any non-pawn non-king piece
+    bool minPawnsMet = (automatePawnsPlaced[ci] >= 6);
+
+    // Rank constraints depend on side
+    int backRank  = (side == Color::White) ? 0 : 7;
+    int pawnRank1 = (side == Color::White) ? 1 : 6;
+    int pawnRank2 = (side == Color::White) ? 2 : 5;
+
+    if (pt == PieceType::Pawn) {
+        // Pawns go on ranks 2-3 (pawnRank1 or pawnRank2)
+        if (sq.rank != pawnRank1 && sq.rank != pawnRank2) return false;
+        // Max 2 pawns per file
+        int pawnsInFile = 0;
+        for (int r = 0; r < 8; r++) {
+            Piece p = squares[r][sq.col];
+            if (p.type == PieceType::Pawn && p.color == side) pawnsInFile++;
+        }
+        if (pawnsInFile >= 2) return false;
+    } else if (pt == PieceType::King) {
+        // King: must have met pawn minimum, placed on back rank or pawn rank 1
+        if (!minPawnsMet) return false;
+        if (sq.rank != backRank && sq.rank != pawnRank1) return false;
+        // King-in-check = instant loss (caller handles this)
+    } else {
+        // Q/R/N/B: must have met pawn minimum, placed on back rank or pawn rank 1
+        if (!minPawnsMet) return false;
+        if (sq.rank != backRank && sq.rank != pawnRank1) return false;
+    }
+
+    return true;
+}
+
+// Place a piece during Automate Chess setup phase.
+// Assumes automateCanPlace() returned true.
+void Board::automatePlacePiece(Color side, PieceType pt, Square sq) {
+    int ci = (int)side;
+    squares[sq.rank][sq.col] = { pt, side };
+    automateBudget[ci] -= automatePieceCost(pt);
+    if (pt == PieceType::Pawn) automatePawnsPlaced[ci]++;
+    if (pt == PieceType::King) automateKingPlaced[ci] = true;
+
+    // Advance setup turn to the other side
+    automateSetupTurn = (side == Color::White) ? Color::Black : Color::White;
+
+    // Check if setup is complete: both kings placed
+    if (automateKingPlaced[0] && automateKingPlaced[1]) {
+        automateSetupComplete = true;
+        // Set up for normal play: White moves first
+        turn = Color::White;
+        // Disable castling (non-standard armies)
+        castlingRights[0][0] = castlingRights[0][1] = false;
+        castlingRights[1][0] = castlingRights[1][1] = false;
+    }
+
+    recomputeBitboards();
 }

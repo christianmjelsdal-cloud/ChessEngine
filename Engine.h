@@ -2,6 +2,7 @@
 #include "Board.h"
 #include "MoveGen.h"
 #include "NNUE.h"
+#include "DuckNNUE.h"
 #include <vector>
 #include <cstdint>
 #include <atomic>
@@ -12,61 +13,72 @@
 class Engine {
 public:
     Engine();
+    explicit Engine(size_t ttSize);
 
     /// Iterative-deepening search with time management.
-    /// Searches until timeLimitMs expires or maxDepth is reached.
     Move getBestMove(Board& board, int maxDepth = 64);
 
-    /// Signal the engine to abort the current search (call from another thread).
     void stop() { stop_.store(true, std::memory_order_relaxed); }
 
-    /// Set time limit in milliseconds (legacy — sets both soft and hard to same value)
     void setTimeLimit(int ms) { softLimitMs_ = ms; hardLimitMs_ = ms; }
-
-    /// Set soft and hard time limits separately.
-    /// Soft limit: don't start a new iteration after this.
-    /// Hard limit: abort the search immediately at this point.
     void setTimeLimits(int softMs, int hardMs) { softLimitMs_ = softMs; hardLimitMs_ = hardMs; }
 
-    /// Get the principal variation from the last completed search.
     const std::vector<Move>& getPV() const { return lastPV_; }
+    int      getLastDepth() const { return lastDepth_; }
+    uint64_t getNodes()     const { return nodes_; }
 
-    /// Get the depth reached in the last completed search.
-    int getLastDepth() const { return lastDepth_; }
-
-    /// Get node count from last search.
-    uint64_t getNodes() const { return nodes_; }
-
-    /// Set position history for repetition detection (call before getBestMove).
     void setPositionHistory(const std::vector<uint64_t>& hashes) { gameHistory_ = hashes; }
 
-    /// Get live PV (thread-safe — call from render thread during search).
     std::vector<Move> getLivePV();
-
-    /// Get live search depth and eval (thread-safe — call from render thread).
     int getLiveDepth() const { return liveDepth_.load(std::memory_order_relaxed); }
     int getLiveEval()  const { return liveEval_.load(std::memory_order_relaxed); }
 
-    /// Set/clear NNUE network for evaluation (nullptr = use handcrafted eval).
-    void setNNUE(NNUE::Network* net) { nnue_ = net; }
+    void setNNUE(const NNUE::Network* net) { nnue_ = const_cast<NNUE::Network*>(net); }
     NNUE::Network* getNNUE() const { return nnue_; }
 
-    /// Callback for UCI info output (set by UCI layer).
-    /// Signature: depth, score_cp, nodes, nps, elapsed_ms, pv_string
-    std::function<void(int, int, uint64_t, uint64_t, int64_t, const std::string&)> onInfoCallback;
+    void setDuckNNUE(DuckNNUE::Network* net) { duckNnue_ = net; }
+    DuckNNUE::Network* getDuckNNUE() const { return duckNnue_; }
 
-    /// Compute Zobrist hash for a position (public so VisualGame can track history).
+    /// Callback: depth, score_cp, nodes, nps, elapsed_ms, pv_string, pv_index
+    std::function<void(int, int, uint64_t, uint64_t, int64_t, const std::string&, int)> onInfoCallback;
+
     static uint64_t computeHash(const Board& board);
+    static void     initZobrist();
 
-    /// Initialize Zobrist tables (called automatically by constructor).
-    static void initZobrist();
+    // ----------------------------------------------------------------
+    // Public constants
+    // ----------------------------------------------------------------
+    static constexpr int    MATE_SCORE       = 100000;
+    static constexpr size_t TT_ENTRY_BYTES   = 16;
+    static constexpr size_t SELFPLAY_TT_SIZE = 1 << 20;
+
+    // ----------------------------------------------------------------
+    // Optional features
+    // ----------------------------------------------------------------
+    void resizeTT(size_t entries)     { tt_.resize(entries); }
+    void setThreadCount(int)          {}   // stub — Lazy SMP not yet implemented
+    void setMultiPV(int n)            { multiPV_ = n; }
+    void setContempt(int cp)          { contempt_ = cp; }
+    void clearSearchState();
+    void startPonder()                {}
+    void ponderHit()                  {}
+    void ponderHit(int softMs, int hardMs) { setTimeLimits(softMs, hardMs); }
+    uint64_t getCumulativeNodes() const { return cumulativeNodes_; }
+    int      getMultiPV()     const   { return multiPV_; }
+    uint64_t getTBHits()      const   { return tbHits_; }
+    Move     getPonderMove()  const   { return ponderMove_; }
 
 private:
     /* ---------- constants ---------- */
-    static constexpr int MATE_SCORE = 100000;
-    static constexpr int INF        = MATE_SCORE + 1;
-    static constexpr int MAX_PLY    = 64;
-    static constexpr size_t TT_SIZE = 1 << 22;   // ~4M entries
+    static constexpr int INF     = MATE_SCORE + 1;
+    static constexpr int MAX_PLY = 64;
+    static constexpr size_t TT_SIZE = 1 << 22;
+
+    /* ---------- optional feature state ---------- */
+    int      multiPV_    = 1;
+    int      contempt_   = 0;
+    uint64_t tbHits_     = 0;
+    Move     ponderMove_ = {};
 
     /* ---------- search ---------- */
     int search(Board& board, int depth, int alpha, int beta,
@@ -77,19 +89,20 @@ private:
     int evaluate(const Board& board);
 
     /* ---------- NNUE ---------- */
-    NNUE::Network* nnue_ = nullptr;
+    NNUE::Network*     nnue_     = nullptr;
+    DuckNNUE::Network* duckNnue_ = nullptr;
 
-    /* ---------- SEE (Static Exchange Evaluation) ---------- */
+    /* ---------- SEE ---------- */
     static int see(const Board& board, const Move& m);
     static PieceType findLVA(const Board& board, Square target, Color side,
                              const bool removed[8][8], Square& outSq);
 
     /* ---------- move ordering ---------- */
-    void orderMoves(std::vector<Move>& moves, const Board& board,
+    void orderMoves(MoveList& moves, const Board& board,
                     int ply, const Move& hashMove) const;
     int  scoreMove(const Move& m, const Board& board,
                    int ply, const Move& hashMove) const;
-    static int mvvLva(const Board& board, const Move& m);
+    static int  mvvLva(const Board& board, const Move& m);
     static bool isCapture(const Board& board, const Move& m);
 
     /* ---------- Zobrist hashing ---------- */
@@ -98,14 +111,12 @@ private:
     static uint64_t zCastle_[16];
     static uint64_t zEP_[8];
     static uint64_t zSide_;
-
-    // === Duck Chess Zobrist ===
     static uint64_t zDuck_[64];
 
     /* ---------- Duck Chess search ---------- */
     int searchDuck(Board& board, int depth, int alpha, int beta, int ply);
     int scoreDuckPlacement(const Board& board, Square duckSq, Color myColor) const;
-    void orderDuckPlacements(std::vector<Square>& placements, const Board& board, Color myColor) const;
+    void orderDuckPlacements(SquareList& placements, const Board& board, Color myColor) const;
 
     /* ---------- transposition table ---------- */
     enum TTFlag : uint8_t { TT_EXACT, TT_LOWER, TT_UPPER };
@@ -115,38 +126,32 @@ private:
         int16_t  depth = -1;
         TTFlag   flag  = TT_UPPER;
         Move     best{};
-        uint8_t  gen   = 0;   // generation for aging
+        uint8_t  gen   = 0;
     };
     std::vector<TTEntry> tt_;
-    uint8_t ttGen_ = 0;       // incremented each getBestMove call
+    uint8_t ttGen_ = 0;
 
-    /* ---------- killer moves (2 per ply) ---------- */
+    /* ---------- killer / history / countermove ---------- */
     Move killers_[MAX_PLY][2]{};
-
-    /* ---------- history heuristic [color][fromSq][toSq] ---------- */
-    int history_[2][64][64]{};
-
-    /* ---------- countermove heuristic [color][fromSq][toSq] ---------- */
+    int  history_[2][64][64]{};
     Move countermoves_[2][64][64]{};
     Move previousMove_{};
 
     /* ---------- principal variation ---------- */
     Move pvTable_[MAX_PLY][MAX_PLY]{};
     int  pvLength_[MAX_PLY]{};
-    std::vector<Move> lastPV_;   // PV from last completed iteration
+    std::vector<Move> lastPV_;
     int lastDepth_ = 0;
 
-    /* ---------- live PV for real-time arrow display ---------- */
+    /* ---------- live PV / depth / eval ---------- */
     std::mutex livePVMutex_;
     std::vector<Move> livePV_;
-
-    /* ---------- live depth & eval for UI display ---------- */
     std::atomic<int> liveDepth_{0};
-    std::atomic<int> liveEval_{0};   // from White's perspective (centipawns)
+    std::atomic<int> liveEval_{0};
 
     /* ---------- repetition detection ---------- */
-    std::vector<uint64_t> gameHistory_;   // position hashes from the game
-    uint64_t searchStack_[MAX_PLY]{};     // hashes along the search path
+    std::vector<uint64_t> gameHistory_;
+    uint64_t searchStack_[MAX_PLY]{};
 
     /* ---------- dynamic draw scoring ---------- */
     int rootEval_ = 0;
@@ -154,16 +159,13 @@ private:
 
     /* ---------- search control ---------- */
     std::atomic<bool> stop_{false};
-    uint64_t nodes_ = 0;                  // FIXED: was int, now uint64_t
-    int softLimitMs_ = 3000;              // NEW: target time (don't start new iteration after this)
-    int hardLimitMs_ = 3000;              // NEW: absolute max (abort search here)
+    uint64_t nodes_          = 0;
+    uint64_t cumulativeNodes_ = 0;
+    int softLimitMs_ = 3000;
+    int hardLimitMs_ = 3000;
     std::chrono::steady_clock::time_point searchStart_;
 
-    bool shouldStop();   // checks hard time limit + stop flag
-
-    /* ---------- helper: convert PV to UCI string ---------- */
+    bool shouldStop();
     std::string pvToUCI(const std::vector<Move>& pv) const;
-
-    /* ---------- helper: elapsed milliseconds since search start ---------- */
     int64_t elapsedMs() const;
 };

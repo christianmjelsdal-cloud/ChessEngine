@@ -1,4 +1,5 @@
 #include "Engine.h"
+#include "Zobrist.h"
 #include <algorithm>
 #include <cstring>
 #include <random>
@@ -14,7 +15,7 @@ int Engine::drawScore() const {
 }
 
 // =============================================================
-//  ZOBRIST HASHING  (static members)
+//  ZOBRIST HASHING  (static members + Zobrist namespace)
 // =============================================================
 bool     Engine::zobristReady_ = false;
 uint64_t Engine::zPiece_[2][7][64];
@@ -23,18 +24,28 @@ uint64_t Engine::zEP_[8];
 uint64_t Engine::zSide_;
 uint64_t Engine::zDuck_[64];
 
+// Zobrist namespace definitions (used by Board::applyMove for incremental hash)
+namespace Zobrist {
+    bool     ready       = false;
+    uint64_t piece[2][7][64];
+    uint64_t castle[16];
+    uint64_t ep[8];
+    uint64_t side;
+    uint64_t duck[64];
+}
+
 void Engine::initZobrist() {
     if (zobristReady_) return;
     std::mt19937_64 rng(0xBEEF1234ULL);
     for (int c = 0; c < 2; c++)
         for (int p = 0; p < 7; p++)
             for (int s = 0; s < 64; s++)
-                zPiece_[c][p][s] = rng();
-    for (int i = 0; i < 16; i++) zCastle_[i] = rng();
-    for (int i = 0; i < 8; i++)  zEP_[i]     = rng();
-    zSide_ = rng();
-    for (int i = 0; i < 64; i++) zDuck_[i] = rng();
-    zobristReady_ = true;
+                zPiece_[c][p][s] = Zobrist::piece[c][p][s] = rng();
+    for (int i = 0; i < 16; i++) zCastle_[i] = Zobrist::castle[i] = rng();
+    for (int i = 0; i < 8;  i++) zEP_[i]     = Zobrist::ep[i]     = rng();
+    zSide_ = Zobrist::side = rng();
+    for (int i = 0; i < 64; i++) zDuck_[i] = Zobrist::duck[i] = rng();
+    zobristReady_ = Zobrist::ready = true;
 }
 
 uint64_t Engine::computeHash(const Board& board) {
@@ -43,19 +54,19 @@ uint64_t Engine::computeHash(const Board& board) {
         for (int c = 0; c < 8; c++) {
             Piece p = board.squares[r][c];
             if (!p.isNone() && !p.isDuck())
-                h ^= zPiece_[(int)p.color][(int)p.type][r * 8 + c];
+                h ^= Zobrist::piece[(int)p.color][(int)p.type][r * 8 + c];
         }
     int ci = (board.castlingRights[0][0] ? 1 : 0)
            | (board.castlingRights[0][1] ? 2 : 0)
            | (board.castlingRights[1][0] ? 4 : 0)
            | (board.castlingRights[1][1] ? 8 : 0);
-    h ^= zCastle_[ci];
+    h ^= Zobrist::castle[ci];
     if (board.enPassantTarget.isValid())
-        h ^= zEP_[board.enPassantTarget.col];
+        h ^= Zobrist::ep[board.enPassantTarget.col];
     if (board.turn == Color::Black)
-        h ^= zSide_;
+        h ^= Zobrist::side;
     if (board.isDuckChess && board.duckSquare.isValid())
-        h ^= zDuck_[board.duckSquare.rank * 8 + board.duckSquare.col];
+        h ^= Zobrist::duck[board.duckSquare.rank * 8 + board.duckSquare.col];
     return h;
 }
 
@@ -246,13 +257,29 @@ std::string Engine::pvToUCI(const std::vector<Move>& pv) const {
 }
 
 // =============================================================
-//  CONSTRUCTOR
+//  CONSTRUCTORS
 // =============================================================
 Engine::Engine() : tt_(TT_SIZE), nodes_(0) {
     initZobrist();
     std::memset(killers_, 0, sizeof(killers_));
     std::memset(history_, 0, sizeof(history_));
     std::memset(countermoves_, 0, sizeof(countermoves_));
+}
+
+Engine::Engine(size_t ttSize) : tt_(ttSize), nodes_(0) {
+    initZobrist();
+    std::memset(killers_, 0, sizeof(killers_));
+    std::memset(history_, 0, sizeof(history_));
+    std::memset(countermoves_, 0, sizeof(countermoves_));
+}
+
+void Engine::clearSearchState() {
+    std::memset(killers_, 0, sizeof(killers_));
+    std::memset(history_, 0, sizeof(history_));
+    std::memset(countermoves_, 0, sizeof(countermoves_));
+    for (auto& e : tt_) e = TTEntry{};
+    ttGen_ = 0;
+    nodes_ = 0;
 }
 
 // =============================================================
@@ -466,8 +493,12 @@ static int countKnightMobility(const Board& board, Square sq, Color color) {
 }
 
 int Engine::evaluate(const Board& board) {
+    // Route to DuckNNUE for duck chess, standard NNUE for regular chess
+    if (board.isDuckChess && duckNnue_) {
+        return duckNnue_->evaluate(board);
+    }
     if (nnue_) {
-        return nnue_->evaluate(board);
+        return nnue_->evaluateQ(board);
     }
 
     int mgScore = 0, egScore = 0;
@@ -705,7 +736,7 @@ int Engine::scoreMove(const Move& m, const Board& board,
     return history_[ci][fromSq][toSq];
 }
 
-void Engine::orderMoves(std::vector<Move>& moves, const Board& board,
+void Engine::orderMoves(MoveList& moves, const Board& board,
                         int ply, const Move& hashMove) const {
     std::vector<std::pair<int, int>> scored(moves.size());
     for (int i = 0; i < (int)moves.size(); i++)
@@ -714,9 +745,8 @@ void Engine::orderMoves(std::vector<Move>& moves, const Board& board,
     std::sort(scored.begin(), scored.end(),
               [](const auto& a, const auto& b) { return a.first > b.first; });
 
-    std::vector<Move> sorted(moves.size());
-    for (int i = 0; i < (int)moves.size(); i++)
-        sorted[i] = moves[scored[i].second];
+    MoveList sorted;
+    for (int i = 0; i < (int)moves.size(); i++) sorted.add(moves[scored[i].second]);
     moves = std::move(sorted);
 }
 
@@ -733,8 +763,8 @@ int Engine::qsearch(Board& board, int alpha, int beta, int ply) {
     if (standPat >= beta) return beta;
     if (standPat > alpha) alpha = standPat;
 
-    auto legalMoves = MoveGen::getLegalMoves(board);
-    std::vector<Move> captures;
+    MoveList legalMoves; MoveGen::getLegalMoves(board, legalMoves);
+    MoveList captures;
     for (auto& m : legalMoves) {
         if (isCapture(board, m) || m.promotion != PieceType::None)
             captures.push_back(m);
@@ -794,7 +824,7 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
 
     if (board.halfMoveClock >= 100) return drawScore();
 
-    size_t ttIdx = hash % TT_SIZE;
+    size_t ttIdx = hash % tt_.size();
     TTEntry& tte = tt_[ttIdx];
     Move hashMove{};
 
@@ -842,7 +872,7 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
         }
     }
 
-    auto moves = MoveGen::getLegalMoves(board);
+    MoveList moves; MoveGen::getLegalMoves(board, moves);
 
     if (moves.empty()) {
         if (inCheck) return -(MATE_SCORE - ply);
@@ -998,6 +1028,7 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
     return bestScore;
 }
 
+#ifdef DUCK_CHESS
 // =============================================================
 //  DUCK CHESS — Duck placement heuristics
 // =============================================================
@@ -1041,7 +1072,7 @@ int Engine::scoreDuckPlacement(const Board& board, Square duckSq, Color myColor)
     return score;
 }
 
-void Engine::orderDuckPlacements(std::vector<Square>& placements, const Board& board, Color myColor) const {
+void Engine::orderDuckPlacements(SquareList& placements, const Board& board, Color myColor) const {
     std::vector<std::pair<int, int>> scored(placements.size());
     for (int i = 0; i < (int)placements.size(); i++)
         scored[i] = { scoreDuckPlacement(board, placements[i], myColor), i };
@@ -1049,12 +1080,16 @@ void Engine::orderDuckPlacements(std::vector<Square>& placements, const Board& b
     std::sort(scored.begin(), scored.end(),
               [](const auto& a, const auto& b) { return a.first > b.first; });
 
-    std::vector<Square> sorted(placements.size());
+    SquareList sorted;
     for (int i = 0; i < (int)placements.size(); i++)
-        sorted[i] = placements[scored[i].second];
-    placements = std::move(sorted);
+        sorted.add(placements[scored[i].second]);
+    placements = sorted;
 }
 
+#endif // DUCK_CHESS
+
+
+#ifdef DUCK_CHESS
 // =============================================================
 //  DUCK CHESS SEARCH
 // =============================================================
@@ -1070,7 +1105,7 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply) {
     if (MoveGen::isKingCaptured(board, us))
         return -(MATE_SCORE - ply);
 
-    auto chessMoves = MoveGen::getDuckChessMoves(board);
+    MoveList chessMoves; MoveGen::getDuckChessMoves(board, chessMoves);
     if (chessMoves.empty())
         return -(MATE_SCORE - ply);
 
@@ -1088,7 +1123,7 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply) {
         if (MoveGen::isKingCaptured(temp, them))
             return MATE_SCORE - ply;
 
-        auto duckSquares = MoveGen::getDuckPlacements(temp);
+        SquareList duckSquares; MoveGen::getDuckPlacements(temp, duckSquares);
         orderDuckPlacements(duckSquares, temp, us);
 
         int maxDucks = (depth <= 1) ? 12 : (depth <= 2) ? 18 : (int)duckSquares.size();
@@ -1121,6 +1156,9 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply) {
 //  getBestMove — Iterative Deepening with Time Management
 //  NOW: uses soft/hard limits, outputs info at each depth,
 //       extends time when best move is unstable
+
+#endif // DUCK_CHESS
+
 // =============================================================
 Move Engine::getBestMove(Board& board, int maxDepth) {
     stop_.store(false, std::memory_order_relaxed);
@@ -1137,8 +1175,9 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
     // =========================================================
     //  DUCK CHESS — completely separate root search
     // =========================================================
+#ifdef DUCK_CHESS
     if (board.isDuckChess) {
-        auto chessMoves = MoveGen::getDuckChessMoves(board);
+        MoveList chessMoves; MoveGen::getDuckChessMoves(board, chessMoves);
         if (chessMoves.empty()) return Move{};
 
         Move bestMove = chessMoves[0];
@@ -1171,13 +1210,13 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
 
                 Color opponent = (board.turn == Color::White) ? Color::Black : Color::White;
                 if (MoveGen::isKingCaptured(temp, opponent)) {
-                    auto ducks = MoveGen::getDuckPlacements(temp);
+                    SquareList ducks; MoveGen::getDuckPlacements(temp, ducks);
                     Move winMove = chessMoves[i];
                     winMove.duckTo = ducks.empty() ? Square{0,0} : ducks[0];
                     return winMove;
                 }
 
-                auto duckSquares = MoveGen::getDuckPlacements(temp);
+                SquareList duckSquares; MoveGen::getDuckPlacements(temp, duckSquares);
                 orderDuckPlacements(duckSquares, temp, board.turn);
 
                 for (int d = 0; d < (int)duckSquares.size(); d++) {
@@ -1219,18 +1258,19 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
                     int64_t elapsed = elapsedMs();
                     uint64_t nps = elapsed > 0 ? (nodes_ * 1000 / elapsed) : 0;
                     std::string pvStr = pvToUCI({bestMove});
-                    onInfoCallback(depth, whiteEval, nodes_, nps, elapsed, pvStr);
+                    onInfoCallback(depth, whiteEval, nodes_, nps, elapsed, pvStr, 1);
                 }
             }
         }
 
         return bestMove;
     }
+#endif // DUCK_CHESS
 
     // =========================================================
     //  STANDARD CHESS — iterative deepening with soft/hard time
     // =========================================================
-    auto legalMoves = MoveGen::getLegalMoves(board);
+    MoveList legalMoves; MoveGen::getLegalMoves(board, legalMoves);
     if (legalMoves.empty()) return Move{};
     if (legalMoves.size() == 1) return legalMoves[0];
 
@@ -1287,9 +1327,9 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
             beta  = INF;
         }
 
-        auto moves = MoveGen::getLegalMoves(board);
+        MoveList moves; MoveGen::getLegalMoves(board, moves);
         uint64_t hash = computeHash(board);
-        size_t ttIdx = hash % TT_SIZE;
+        size_t ttIdx = hash % tt_.size();
         Move hashMove = (tt_[ttIdx].key == hash) ? tt_[ttIdx].best : Move{};
         orderMoves(moves, board, 0, hashMove);
 
@@ -1329,7 +1369,7 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
             beta  = INF;
             bestScoreIter = -INF;
 
-            auto moves2 = MoveGen::getLegalMoves(board);
+            MoveList moves2; MoveGen::getLegalMoves(board, moves2);
             orderMoves(moves2, board, 0, hashMove);
 
             for (int i = 0; i < (int)moves2.size(); i++) {
@@ -1391,7 +1431,7 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
                 int64_t elapsed = elapsedMs();
                 uint64_t nps = elapsed > 0 ? (nodes_ * 1000 / elapsed) : 0;
                 std::string pvStr = pvToUCI(lastPV_);
-                onInfoCallback(depth, whiteEval, nodes_, nps, elapsed, pvStr);
+                onInfoCallback(depth, whiteEval, nodes_, nps, elapsed, pvStr, 1);
             }
         }
     }

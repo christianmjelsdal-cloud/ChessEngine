@@ -1,58 +1,49 @@
+# Build output
 x64/
-.vs/
 ChessEngine/
+build_test/
+*.obj
+*.pdb
+*.ilk
+*.exp
+*.lib
+*.iobj
+*.ipdb
 
-# Training data & weights (large binary files)
-assets/training_data.bin
-assets/nnue_weights.bin
-assets/nnue_weights_checkpoint.pt
-training_log.csv
+# VS internal
+.vs/
+*.user
+*.suo
+*.aps
 
-# Lichess database folder (huge PGN/bin files)
-Lichess Elite Database/
+# Large binary training/weight files
+*.bin
+*.bin.offidx
+*.pt
+*.pgn
 
 # Python cache
 __pycache__/
 *.pyc
 *.pyo
 
-# Build output
-*.obj
-*.pdb
-*.ilk
-*.exp
-*.lib
+# Logs and temp output
+assets/logs/
+assets/pipeline_log.txt
+training progress/
+training_log.csv
+output.txt
+output_old.txt
+sp_stdout.txt
+sp_stderr.txt
+build.txt
+cmds.txt
+test.bin
+results.pgn
+last_confirmed_elo.txt
 
-# Large binary training/weight files
-*.bin
+# Lichess database
+Lichess Elite Database/
 
-assets/training_data.bin.offidx
-
-Lichess Elite Database/lichess_elite_2019-10.pgn
-
-Lichess Elite Database/lichess_elite_2019-11.pgn
-
-Lichess Elite Database/lichess_elite_2019-12.pgn
-
-Lichess Elite Database/lichess_elite_2020-01.pgn
-
-Lichess Elite Database/lichess_elite_2020-02.pgn
-
-Lichess Elite Database/lichess_elite_2020-03.pgn
-
-Lichess Elite Database/lichess_elite_2020-04.pgn
-
-Lichess Elite Database/lichess_elite_2020-05.pgn
-
+# Stockfish binary
 stockfish/stockfish.exe
-
-x64/Release/assets/training_data.bin.offidx
-
-x64/Release/stockfish/stockfish.exe
-
-# Large binary training/weight files
-*.bin
-
-Lichess Elite Database/pgn_training_data.bin.offidx
-
-Lichess Elite Database/pgn_training_data_draws.bin.offidx

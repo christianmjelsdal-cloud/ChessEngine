@@ -15,19 +15,22 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Main.cpp">
+    <ClCompile Include="Bitboard.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Board.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="MoveGen.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="Engine.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="VisualGame.cpp">
+    <ClCompile Include="GameLogic.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="MoveGen.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="NNUE.cpp">
@@ -36,11 +39,35 @@
     <ClCompile Include="NNUETrainer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="SelfPlayGen.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="UCI.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="VisualGame.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Syzygy.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="tbprobe.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="VisualGame_Input.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="VisualGame_Render.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="DuckNNUE.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Bitboard.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -62,10 +89,22 @@
     <ClInclude Include="NNUE.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="UCI.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SelfPlayGen.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="NNUETrainer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="UCI.h">
+    <ClInclude Include="AssetPath.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Zobrist.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="AutomateNNUE.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

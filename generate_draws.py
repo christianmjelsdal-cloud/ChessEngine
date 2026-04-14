@@ -36,6 +36,36 @@ except ImportError:
     sys.exit(1)
 
 # =============================================================================
+# Draw source types (must match DrawSource enum in train_nnue.py)
+# =============================================================================
+# 0 = NOT_DRAW, 1 = UNKNOWN, 2 = STALEMATE, 3 = INSUFFICIENT,
+# 4 = FIFTY_MOVE, 5 = REPETITION, 6 = AGREEMENT, 7 = TABLEBASE
+DRAW_SOURCE_TABLEBASE = 7  # All positions from this script are Syzygy tablebase draws
+
+# =============================================================================
+# Phase classification (same thresholds as analyze_phases.py / train_nnue.py)
+# =============================================================================
+def compute_material_phase(features):
+    """Compute material-based game phase from feature indices."""
+    phase = 0
+    for feat in features:
+        piece_offset = (feat % 384) // 64
+        if   piece_offset == 1: phase += 1   # knight
+        elif piece_offset == 2: phase += 1   # bishop
+        elif piece_offset == 3: phase += 2   # rook
+        elif piece_offset == 4: phase += 4   # queen
+    return phase
+
+def classify_phase(features):
+    """0=Opening (>=20), 1=Middlegame (8-19), 2=Endgame (<8)"""
+    p = compute_material_phase(features)
+    if p >= 20: return 0
+    if p >= 8:  return 1
+    return 2
+
+PHASE_NAMES = ['Opening', 'Middlegame', 'Endgame']
+
+# =============================================================================
 # Feature encoding - must match C++ / train_nnue.py exactly
 # =============================================================================
 PIECE_TO_INDEX = {
@@ -125,37 +155,57 @@ def generate_random_position(pieces_config, rng):
 # Binary writer
 # =============================================================================
 def write_positions_bin(positions, filename):
+    """Write positions in standard binary format.
+    
+    Note: All positions from this script are tablebase draws (DrawSource.TABLEBASE = 7).
+    The draw source is NOT embedded in the binary — the trainer identifies these
+    positions by their source file. Phase labels are computed at load time.
+    """
     os.makedirs(os.path.dirname(filename) if os.path.dirname(filename) else '.', exist_ok=True)
+    phase_counts = [0, 0, 0]
+    from training_format import write_header as tf_write_header
     with open(filename, 'wb') as f:
-        f.write(struct.pack('<I', len(positions)))
+        tf_write_header(f, len(positions))
         for features, stm, result, eval_val in positions:
             f.write(struct.pack('<H', len(features)))
             for feat in features:
                 f.write(struct.pack('<H', feat))
             f.write(struct.pack('B', stm))
             f.write(struct.pack('<ff', result, eval_val))
+            phase_counts[classify_phase(features)] += 1
     print(f"Wrote {len(positions):,} positions to {filename}")
+    print(f"  Draw source: TABLEBASE (all {len(positions):,} positions)")
+    print(f"  Phase distribution:")
+    for i, name in enumerate(PHASE_NAMES):
+        pct = phase_counts[i] / max(len(positions), 1) * 100
+        print(f"    {name:<12}: {phase_counts[i]:>8,}  ({pct:5.1f}%)")
 
 def merge_bin_files(source, dest):
-    with open(source, 'rb') as f:
-        src_count = struct.unpack('<I', f.read(4))[0]
-        src_data = f.read()
-    with open(dest, 'rb') as f:
-        dst_count = struct.unpack('<I', f.read(4))[0]
+    from training_format import read_header as tf_read_header, write_header as tf_write_header, HEADER_SIZE
+    _, src_count, src_offset = tf_read_header(source)
+    _, dst_count, dst_offset = tf_read_header(dest)
 
     new_count = dst_count + src_count
     temp = dest + '.tmp'
-    with open(dest, 'rb') as fin, open(temp, 'wb') as fout:
-        fin.read(4)
-        fout.write(struct.pack('<I', new_count))
+    with open(dest, 'rb') as fin, open(source, 'rb') as src_f, open(temp, 'wb') as fout:
+        # Write new versioned header
+        tf_write_header(fout, new_count)
+        # Copy dest data (skip its header)
+        fin.seek(dst_offset)
         while True:
             chunk = fin.read(1024 * 1024)
             if not chunk:
                 break
             fout.write(chunk)
-        fout.write(src_data)
+        # Copy source data (skip its header)
+        src_f.seek(src_offset)
+        while True:
+            chunk = src_f.read(1024 * 1024)
+            if not chunk:
+                break
+            fout.write(chunk)
     shutil.move(temp, dest)
-    print(f"Merged: {dest} now has {new_count:,} positions ({dst_count:,} original + {src_count:,} new)")
+    print(f"Merged: {dest} now has {new_count:,} positions ({dst_count:,} original + {src_count:,} new tablebase draws)")
 
 # =============================================================================
 # Main
@@ -213,6 +263,9 @@ def generate(args):
             fen = board.fen()
             if fen in seen_fens:
                 continue
+            # FIX 7.16: Cap seen_fens to prevent unbounded memory growth
+            if len(seen_fens) > 1_000_000:
+                seen_fens.clear()
             seen_fens.add(fen)
 
             # Probe local tablebase (fast!)

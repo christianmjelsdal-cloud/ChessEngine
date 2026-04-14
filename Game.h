@@ -16,7 +16,7 @@ public:
 
 private:
     void printStatus();
-    Move getPlayerMove(const std::vector<Move>& legalMoves);
+    Move getPlayerMove(const MoveList& legalMoves);  // 5.16: Use MoveList instead of vector
 
     // Converts "e2e4" style input to a Move
     Move parseMove(const std::string& input);
@@ -27,6 +27,6 @@ private:
     // Converts Square to string like "e2"
     std::string squareToString(Square sq);
 
-    bool isCheckmate(const std::vector<Move>& legalMoves);
-    bool isStalemate(const std::vector<Move>& legalMoves);
+    bool isCheckmate(const MoveList& legalMoves);   // 5.16: Use MoveList instead of vector
+    bool isStalemate(const MoveList& legalMoves);   // 5.16: Use MoveList instead of vector
 };
