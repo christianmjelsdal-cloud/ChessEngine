@@ -30,9 +30,12 @@ namespace DuckNNUE {
         return _mm256_mul_ps(c, c);
     }
 
-    Network::Network() {
+    Network::Network()
+        : L1_weights_q(std::make_unique<std::array<std::array<int16_t, L1_SIZE>, NUM_FEATURES>>())
+    {
         randomizeWeights();
         transposeWeights();
+        quantizeWeights();
     }
 
     void Network::transposeWeights() {
@@ -44,13 +47,13 @@ namespace DuckNNUE {
                 L3_weights_T[j][i] = L3_weights[i][j];
     }
 
-    int Network::evaluate(const Board& board) {
+    int Network::evaluate(const Board& board) const {
         Accumulator acc;
         refreshAccumulator(board, acc);
         return forward(acc, board.turn);
     }
 
-    void Network::refreshAccumulator(const Board& board, Accumulator& acc) {
+    void Network::refreshAccumulator(const Board& board, Accumulator& acc) const {
         // Initialize with biases
         for (int j = 0; j < L1_SIZE; j += 8) {
             __m256 bias = _mm256_loadu_ps(&L1_biases[j]);
@@ -110,7 +113,7 @@ namespace DuckNNUE {
         acc.valid = true;
     }
 
-    void Network::addFeature(int feature, Accumulator& acc) {
+    void Network::addFeature(int feature, Accumulator& acc) const {
         int mirrored = mirrorDuckFeature(feature);  // handles both standard and duck features
 
         const float* wWeights = L1_weights[feature].data();
@@ -126,7 +129,7 @@ namespace DuckNNUE {
                 }
     }
 
-    void Network::removeFeature(int feature, Accumulator& acc) {
+    void Network::removeFeature(int feature, Accumulator& acc) const {
         int mirrored = mirrorDuckFeature(feature);
 
         const float* wWeights = L1_weights[feature].data();
@@ -146,7 +149,7 @@ namespace DuckNNUE {
         }
     }
 
-    int Network::forward(const Accumulator& acc, Color sideToMove) {
+    int Network::forward(const Accumulator& acc, Color sideToMove) const {
         // Build input with SCReLU
         alignas(16) float input[L1_SIZE * 2];
         const auto& stmAcc = (sideToMove == Color::White) ? acc.white : acc.black;
@@ -217,7 +220,7 @@ namespace DuckNNUE {
         file.read(reinterpret_cast<char*>(output_weights.data()), sizeof(output_weights));
         file.read(reinterpret_cast<char*>(&output_bias), sizeof(output_bias));
 
-        if (file.good()) transposeWeights();
+        if (file.good()) { transposeWeights(); quantizeWeights(); }
         return file.good();
     }
 
@@ -274,6 +277,181 @@ namespace DuckNNUE {
                 w = dist(rng);
             output_bias = 0.0f;
         }
+        transposeWeights();
+        quantizeWeights();
+    }
+
+    // =========================================================================
+    // INT16 quantization
+    // =========================================================================
+    void Network::quantizeWeights() {
+        if (!L1_weights_q)
+            L1_weights_q = std::make_unique<std::array<std::array<int16_t, L1_SIZE>, NUM_FEATURES>>();
+
+        // L1: float → int16 (scale QA=256)
+        for (int f = 0; f < NUM_FEATURES; ++f)
+            for (int j = 0; j < L1_SIZE; ++j) {
+                int q = static_cast<int>(std::round(L1_weights[f][j] * QA));
+                q = std::max(-32768, std::min(32767, q));
+                (*L1_weights_q)[f][j] = static_cast<int16_t>(q);
+            }
+        for (int j = 0; j < L1_SIZE; ++j) {
+            int q = static_cast<int>(std::round(L1_biases[j] * QA));
+            q = std::max(-32768, std::min(32767, q));
+            L1_biases_q[j] = static_cast<int16_t>(q);
+        }
+
+        // L2: float → int8 transposed (scale QW_L2)
+        for (int j = 0; j < L2_SIZE; ++j) {
+            for (int i = 0; i < L1_SIZE * 2; ++i) {
+                int q = static_cast<int>(std::round(L2_weights_T[j][i] * QW_L2));
+                q = std::max(-127, std::min(127, q));
+                L2_weights_T_q[j][i] = static_cast<int8_t>(q);
+            }
+            L2_biases_q[j] = static_cast<int32_t>(std::round(L2_biases[j] * QA_ACT * QW_L2));
+        }
+
+        // L3: float → int8 transposed (scale QW_L3)
+        for (int j = 0; j < L3_SIZE; ++j) {
+            for (int i = 0; i < L2_SIZE; ++i) {
+                int q = static_cast<int>(std::round(L3_weights_T[j][i] * QW_L3));
+                q = std::max(-127, std::min(127, q));
+                L3_weights_T_q[j][i] = static_cast<int8_t>(q);
+            }
+            L3_biases_q[j] = static_cast<int32_t>(std::round(L3_biases[j] * QA_ACT * QW_L3));
+        }
+    }
+
+    void Network::addFeatureQ(int feature, QAccumulator& acc) const {
+        if (!L1_weights_q) return;
+        int mir = mirrorDuckFeature(feature);
+        const int16_t* wW = (*L1_weights_q)[feature].data();
+        const int16_t* bW = (*L1_weights_q)[mir].data();
+        int16_t* wA = acc.white.data(); int16_t* bA = acc.black.data();
+        for (int j = 0; j < L1_SIZE; j += 16) {
+            _mm256_storeu_si256(reinterpret_cast<__m256i*>(&wA[j]),
+                _mm256_adds_epi16(_mm256_loadu_si256(reinterpret_cast<const __m256i*>(&wA[j])),
+                                  _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&wW[j]))));
+            _mm256_storeu_si256(reinterpret_cast<__m256i*>(&bA[j]),
+                _mm256_adds_epi16(_mm256_loadu_si256(reinterpret_cast<const __m256i*>(&bA[j])),
+                                  _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&bW[j]))));
+        }
+    }
+
+    void Network::removeFeatureQ(int feature, QAccumulator& acc) const {
+        if (!L1_weights_q) return;
+        int mir = mirrorDuckFeature(feature);
+        const int16_t* wW = (*L1_weights_q)[feature].data();
+        const int16_t* bW = (*L1_weights_q)[mir].data();
+        int16_t* wA = acc.white.data(); int16_t* bA = acc.black.data();
+        for (int j = 0; j < L1_SIZE; j += 16) {
+            _mm256_storeu_si256(reinterpret_cast<__m256i*>(&wA[j]),
+                _mm256_subs_epi16(_mm256_loadu_si256(reinterpret_cast<const __m256i*>(&wA[j])),
+                                  _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&wW[j]))));
+            _mm256_storeu_si256(reinterpret_cast<__m256i*>(&bA[j]),
+                _mm256_subs_epi16(_mm256_loadu_si256(reinterpret_cast<const __m256i*>(&bA[j])),
+                                  _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&bW[j]))));
+        }
+    }
+
+    int Network::forwardQ(const QAccumulator& acc, Color sideToMove) const {
+        const auto& stm = (sideToMove == Color::White) ? acc.white : acc.black;
+        const auto& opp = (sideToMove == Color::White) ? acc.black : acc.white;
+
+        const float invQA2 = 1.0f / (static_cast<float>(QA) * static_cast<float>(QA));
+        alignas(32) float input[L1_SIZE * 2];
+        for (int i = 0; i < L1_SIZE; ++i) {
+            float sv = static_cast<float>(stm[i]);
+            float ov = static_cast<float>(opp[i]);
+            float sc = sv < 0.f ? 0.f : sv > QA ? static_cast<float>(QA) : sv;
+            float oc = ov < 0.f ? 0.f : ov > QA ? static_cast<float>(QA) : ov;
+            input[i]           = sc * sc * invQA2;
+            input[L1_SIZE + i] = oc * oc * invQA2;
+        }
+
+        // L2 — AVX2 transposed float weights
+        alignas(32) float l2Out[L2_SIZE];
+        for (int j = 0; j < L2_SIZE; ++j) {
+            const float* w = L2_weights_T[j].data();
+            __m256 sum = _mm256_setzero_ps();
+            for (int i = 0; i < L1_SIZE * 2; i += 8)
+                sum = _mm256_add_ps(sum, _mm256_mul_ps(_mm256_loadu_ps(&input[i]), _mm256_loadu_ps(&w[i])));
+            __m128 s = _mm_add_ps(_mm256_castps256_ps128(sum), _mm256_extractf128_ps(sum, 1));
+            __m128 shuf = _mm_movehdup_ps(s); s = _mm_add_ps(s, shuf);
+            s = _mm_add_ss(s, _mm_movehl_ps(shuf, s));
+            float val = _mm_cvtss_f32(s) + L2_biases[j];
+            float c = val < 0.f ? 0.f : val > 1.f ? 1.f : val;
+            l2Out[j] = c * c;
+        }
+
+        // L3 — AVX2 transposed float weights
+        alignas(32) float l3Out[L3_SIZE];
+        for (int j = 0; j < L3_SIZE; ++j) {
+            const float* w = L3_weights_T[j].data();
+            __m256 sum = _mm256_setzero_ps();
+            for (int i = 0; i < L2_SIZE; i += 8)
+                sum = _mm256_add_ps(sum, _mm256_mul_ps(_mm256_loadu_ps(&l2Out[i]), _mm256_loadu_ps(&w[i])));
+            __m128 s = _mm_add_ps(_mm256_castps256_ps128(sum), _mm256_extractf128_ps(sum, 1));
+            __m128 shuf = _mm_movehdup_ps(s); s = _mm_add_ps(s, shuf);
+            s = _mm_add_ss(s, _mm_movehl_ps(shuf, s));
+            float val = _mm_cvtss_f32(s) + L3_biases[j];
+            float c = val < 0.f ? 0.f : val > 1.f ? 1.f : val;
+            l3Out[j] = c * c;
+        }
+
+        // Output
+        __m256 sum = _mm256_setzero_ps();
+        for (int i = 0; i < L3_SIZE; i += 8)
+            sum = _mm256_add_ps(sum, _mm256_mul_ps(_mm256_loadu_ps(&l3Out[i]), _mm256_loadu_ps(&output_weights[i])));
+        __m128 s = _mm_add_ps(_mm256_castps256_ps128(sum), _mm256_extractf128_ps(sum, 1));
+        __m128 shuf = _mm_movehdup_ps(s); s = _mm_add_ps(s, shuf);
+        s = _mm_add_ss(s, _mm_movehl_ps(shuf, s));
+        return static_cast<int>((_mm_cvtss_f32(s) + output_bias) * 400.f);
+    }
+
+    int Network::evaluateQ(const Board& board) const {
+        // INT16 quantized path — forwardQ crashes with AVX2 (under investigation)
+        // Fall back to float evaluate for now
+        return evaluate(board);
+    }
+
+    void Network::refreshAccumulatorQ(const Board& board, QAccumulator& acc) const {
+        if (!L1_weights_q) { acc.valid = false; return; }
+
+        // Init with quantized biases (scalar)
+        for (int j = 0; j < L1_SIZE; ++j) {
+            acc.white[j] = L1_biases_q[j];
+            acc.black[j] = L1_biases_q[j];
+        }
+
+        // Piece features (scalar)
+        for (int rank = 0; rank < 8; ++rank) {
+            for (int col = 0; col < 8; ++col) {
+                Piece piece = board.squares[rank][col];
+                if (piece.isNone() || piece.isDuck()) continue;
+                int wFeat = NNUE::featureIndex(piece.type, piece.color, rank, col);
+                int bFeat = NNUE::mirrorFeature(wFeat);
+                const auto& wW = (*L1_weights_q)[wFeat];
+                const auto& bW = (*L1_weights_q)[bFeat];
+                for (int j = 0; j < L1_SIZE; ++j) {
+                    acc.white[j] = static_cast<int16_t>(std::max(-32768, std::min(32767, (int)acc.white[j] + (int)wW[j])));
+                    acc.black[j] = static_cast<int16_t>(std::max(-32768, std::min(32767, (int)acc.black[j] + (int)bW[j])));
+                }
+            }
+        }
+
+        // Duck feature (scalar)
+        if (board.isDuckChess && board.duckSquare.isValid()) {
+            int dFeat  = duckFeatureIndex(board.duckSquare.rank, board.duckSquare.col);
+            int dFeatM = mirrorDuckFeature(dFeat);
+            const auto& dW  = (*L1_weights_q)[dFeat];
+            const auto& dWM = (*L1_weights_q)[dFeatM];
+            for (int j = 0; j < L1_SIZE; ++j) {
+                acc.white[j] = static_cast<int16_t>(std::max(-32768, std::min(32767, (int)acc.white[j] + (int)dW[j])));
+                acc.black[j] = static_cast<int16_t>(std::max(-32768, std::min(32767, (int)acc.black[j] + (int)dWM[j])));
+            }
+        }
+        acc.valid = true;
     }
 
 } // namespace DuckNNUE

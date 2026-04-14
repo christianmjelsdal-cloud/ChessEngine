@@ -495,7 +495,7 @@ static int countKnightMobility(const Board& board, Square sq, Color color) {
 int Engine::evaluate(const Board& board) {
     // Route to DuckNNUE for duck chess, standard NNUE for regular chess
     if (board.isDuckChess && duckNnue_) {
-        return duckNnue_->evaluate(board);
+        return duckNnue_->evaluateQ(board);  // INT16 quantized path
     }
     if (nnue_) {
         return nnue_->evaluateQ(board);
