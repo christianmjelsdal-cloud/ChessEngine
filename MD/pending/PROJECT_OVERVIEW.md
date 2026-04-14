@@ -96,7 +96,7 @@ Shared core: Board → MoveGen → Engine → NNUE/DuckNNUE
 | makeMove undo | Full board snapshot (correct but ~150 bytes vs ~20 bytes incremental) |
 | Duck chess training | No accuracy/phase loss metrics (C++ trainer limitation) |
 | Automate Chess | Setup UI done; self-play and training not implemented |
-| Lazy SMP | Not implemented — single-threaded search |
+| Lazy SMP | Implemented — `setThreadCount(N)` spawns N-1 helper threads sharing the TT |
 | Bitboard move gen | Bitboards maintained but move gen still uses mailbox scan |
 
 ---

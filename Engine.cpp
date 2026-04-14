@@ -824,16 +824,16 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
 
     if (board.halfMoveClock >= 100) return drawScore();
 
-    size_t ttIdx = hash % tt_.size();
-    TTEntry& tte = tt_[ttIdx];
+    size_t ttIdx = hash % activeTT().size();
+    TTEntry& tte = activeTT()[ttIdx];
     Move hashMove{};
 
     if (tte.key == hash) {
         hashMove = tte.best;
         if (tte.depth >= depth && !isPV) {
-            if (tte.flag == TT_EXACT) return tte.score;
-            if (tte.flag == TT_LOWER && tte.score >= beta)  return tte.score;
-            if (tte.flag == TT_UPPER && tte.score <= alpha) return tte.score;
+            if (tte.flag == 0) return tte.score;
+            if (tte.flag == 1 && tte.score >= beta)  return tte.score;
+            if (tte.flag == 2 && tte.score <= alpha) return tte.score;
         }
     }
 
@@ -881,8 +881,8 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
 
     if (isPV && !(hashMove.from.isValid() && hashMove.to.isValid()) && depth >= 4) {
         search(board, depth - 2, alpha, beta, ply, false, true);
-        if (tt_[ttIdx].key == hash)
-            hashMove = tt_[ttIdx].best;
+        if (activeTT()[ttIdx].key == hash)
+            hashMove = activeTT()[ttIdx].best;
     }
 
     orderMoves(moves, board, ply, hashMove);
@@ -892,7 +892,7 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
                        staticEval + FUTILITY_MARGIN[depth] <= alpha;
 
     Move bestMove = moves[0];
-    TTFlag ttFlag = TT_UPPER;
+    uint8_t ttFlag = 2;
     int bestScore = -INF;
     int quietsSearched = 0;
 
@@ -969,7 +969,7 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
 
             if (score > alpha) {
                 alpha  = score;
-                ttFlag = TT_EXACT;
+                ttFlag = 0;
 
                 pvTable_[ply][ply] = m;
                 for (int j = ply + 1; j < pvLength_[ply + 1]; j++)
@@ -977,7 +977,7 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
                 pvLength_[ply] = pvLength_[ply + 1];
 
                 if (alpha >= beta) {
-                    ttFlag = TT_LOWER;
+                    ttFlag = 1;
 
                     if (isQuiet && ply < MAX_PLY) {
                         killers_[ply][1] = killers_[ply][0];
@@ -1173,6 +1173,37 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
                 history_[c][f][t] /= 2;
 
     // =========================================================
+    //  LAZY SMP — spawn helper threads sharing our TT
+    // =========================================================
+    std::vector<std::unique_ptr<Engine>> helpers;
+    std::vector<std::thread> helperThreads;
+    if (numThreads_ > 1) {
+        int numHelpers = numThreads_ - 1;
+        helpers.reserve(numHelpers);
+        helperThreads.reserve(numHelpers);
+        for (int i = 0; i < numHelpers; ++i) {
+            auto h = std::make_unique<Engine>(1);  // tiny own TT (unused)
+            h->setNNUE(nnue_);
+            h->setDuckNNUE(duckNnue_);
+            h->setSharedTT(&activeTT());           // share main thread's TT
+            h->setTimeLimits(softLimitMs_, hardLimitMs_);
+            h->setPositionHistory(gameHistory_);
+            h->stop_.store(false, std::memory_order_relaxed);
+            h->searchStart_ = searchStart_;
+            h->ttGen_ = ttGen_;
+            // Helpers search at slightly different depths to avoid duplication
+            int helperDepth = maxDepth + (i % 2 == 0 ? 1 : -1);
+            helperDepth = std::max(1, helperDepth);
+            Engine* hPtr = h.get();
+            Board boardCopy = board;
+            helperThreads.emplace_back([hPtr, boardCopy, helperDepth]() mutable {
+                hPtr->getBestMove(boardCopy, helperDepth);
+            });
+            helpers.push_back(std::move(h));
+        }
+    }
+
+    // =========================================================
     //  DUCK CHESS — completely separate root search
     // =========================================================
 #ifdef DUCK_CHESS
@@ -1329,8 +1360,8 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
 
         MoveList moves; MoveGen::getLegalMoves(board, moves);
         uint64_t hash = computeHash(board);
-        size_t ttIdx = hash % tt_.size();
-        Move hashMove = (tt_[ttIdx].key == hash) ? tt_[ttIdx].best : Move{};
+        size_t ttIdx = hash % activeTT().size();
+        Move hashMove = (activeTT()[ttIdx].key == hash) ? activeTT()[ttIdx].best : Move{};
         orderMoves(moves, board, 0, hashMove);
 
         int bestScoreIter = -INF;
@@ -1434,6 +1465,16 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
                 onInfoCallback(depth, whiteEval, nodes_, nps, elapsed, pvStr, 1);
             }
         }
+    }
+
+    // Stop helpers and join threads, aggregate node counts
+    if (!helperThreads.empty()) {
+        for (auto& h : helpers) h->stop_.store(true, std::memory_order_relaxed);
+        for (auto& t : helperThreads) if (t.joinable()) t.join();
+        for (auto& h : helpers) nodes_ += h->nodes_;
+        cumulativeNodes_ += nodes_;
+    } else {
+        cumulativeNodes_ += nodes_;
     }
 
     return bestMove;

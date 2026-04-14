@@ -8,6 +8,7 @@
 #include <atomic>
 #include <chrono>
 #include <mutex>
+#include <thread>
 #include <functional>
 
 class Engine {
@@ -56,7 +57,7 @@ public:
     // Optional features
     // ----------------------------------------------------------------
     void resizeTT(size_t entries)     { tt_.resize(entries); }
-    void setThreadCount(int)          {}   // stub — Lazy SMP not yet implemented
+    void setThreadCount(int n)        { numThreads_ = std::max(1, n); }
     void setMultiPV(int n)            { multiPV_ = n; }
     void setContempt(int cp)          { contempt_ = cp; }
     void clearSearchState();
@@ -67,6 +68,17 @@ public:
     int      getMultiPV()     const   { return multiPV_; }
     uint64_t getTBHits()      const   { return tbHits_; }
     Move     getPonderMove()  const   { return ponderMove_; }
+
+    /// Lazy SMP: point this engine at an external shared TT (used by helper threads)
+    struct TTEntry {
+        uint64_t key   = 0;
+        int32_t  score = 0;
+        int16_t  depth = -1;
+        uint8_t  flag  = 2;  // TT_UPPER=2
+        Move     best{};
+        uint8_t  gen   = 0;
+    };
+    void setSharedTT(std::vector<TTEntry>* sharedTT) { sharedTT_ = sharedTT; }
 
 private:
     /* ---------- constants ---------- */
@@ -79,6 +91,7 @@ private:
     int      contempt_   = 0;
     uint64_t tbHits_     = 0;
     Move     ponderMove_ = {};
+    int      numThreads_ = 1;   // Lazy SMP thread count
 
     /* ---------- search ---------- */
     int search(Board& board, int depth, int alpha, int beta,
@@ -120,16 +133,13 @@ private:
 
     /* ---------- transposition table ---------- */
     enum TTFlag : uint8_t { TT_EXACT, TT_LOWER, TT_UPPER };
-    struct TTEntry {
-        uint64_t key   = 0;
-        int32_t  score = 0;
-        int16_t  depth = -1;
-        TTFlag   flag  = TT_UPPER;
-        Move     best{};
-        uint8_t  gen   = 0;
-    };
+    // TTEntry is public (defined above)
     std::vector<TTEntry> tt_;
+    std::vector<TTEntry>* sharedTT_ = nullptr;  // Lazy SMP: shared with helper threads
     uint8_t ttGen_ = 0;
+
+    // Helper: get the active TT (shared if set, own otherwise)
+    std::vector<TTEntry>& activeTT() { return sharedTT_ ? *sharedTT_ : tt_; }
 
     /* ---------- killer / history / countermove ---------- */
     Move killers_[MAX_PLY][2]{};
