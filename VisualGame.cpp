@@ -113,8 +113,8 @@ void VisualGame::run() {
         if (engineThinking && engineDone.load())
             checkEngineResult();
 
-        // Bot vs Bot: after engine finishes + delay, apply the pending move
-        if (botVsBot && botHasPendingMove_ && !botPaused && !gameOver) {
+        // Bot vs Bot / Bot vs NNUE: after engine finishes + delay, apply the pending move
+        if ((botVsBot || botVsNNUE_) && botHasPendingMove_ && !botPaused && !gameOver) {
             float elapsed = static_cast<float>(botDelayClock.getElapsedTime().asMilliseconds());
             int delayNeeded = fastMode ? 0 : botDelayMs;
             if (elapsed >= delayNeeded) {
@@ -177,8 +177,8 @@ void VisualGame::resetGame() {
     positionHistory_.clear();
     positionHistory_.push_back(Engine::computeHash(board));
 
-    // If in bot-vs-bot mode, restart
-    if (botVsBot && !botPaused) {
+    // If in bot-vs-bot or bot-vs-NNUE mode, restart
+    if ((botVsBot || botVsNNUE_) && !botPaused) {
         startEngineThinking();
     }
 
@@ -309,8 +309,8 @@ void VisualGame::finishMove(const Move& move) {
     updateStatus();
 
     if (!gameOver) {
-        if (botVsBot) {
-            // In bot vs bot, start thinking immediately (delay comes after)
+        if (botVsBot || botVsNNUE_) {
+            // In bot vs bot / bot vs NNUE, start thinking immediately (delay comes after for botVsBot)
             startEngineThinking();
         }
         else if (engineEnabled && board.turn == engineColor) {
@@ -332,9 +332,21 @@ void VisualGame::startEngineThinking() {
         engineThread.join();
 
     Board boardCopy = board;
-    // Use engine2_ for black in bot-vs-bot so each side has its own TT/history
-    Engine* eng = (botVsBot && board.turn == Color::Black) ? &engine2_ : &engine_;
-    eng->setTimeLimit(botVsBot ? botThinkMs : engineTimeMs);
+    // Select the correct engine for the current side:
+    // - botVsBot: engine_ for White, engine2_ for Black
+    // - botVsNNUE_: engine_ and engine2_ assigned by resolveSides() (NNUE vs Classical)
+    //   nnueOnWhite_=true  → engine_=NNUE(White), engine2_=Classical(Black)
+    //   nnueOnWhite_=false → engine_=Classical(White), engine2_=NNUE(Black)
+    Engine* eng;
+    if (botVsBot) {
+        eng = (board.turn == Color::Black) ? &engine2_ : &engine_;
+    } else if (botVsNNUE_) {
+        // engine2_ plays Black, engine_ plays White (regardless of NNUE assignment)
+        eng = (board.turn == Color::Black) ? &engine2_ : &engine_;
+    } else {
+        eng = &engine_;
+    }
+    eng->setTimeLimit((botVsBot || botVsNNUE_) ? botThinkMs : engineTimeMs);
 
     // Pass position history for repetition detection
     eng->setPositionHistory(positionHistory_);
@@ -377,12 +389,18 @@ void VisualGame::checkEngineResult() {
 
     Piece p = board.getPiece(move.from);
 
-    // Save last eval for eval bar (engine already stores from White's perspective)
+    // Save last eval for eval bar
     if (activeEngine_) {
-        lastEval_ = activeEngine_->getLiveEval();
+        int liveVal = activeEngine_->getLiveEval();
+        lastEval_ = liveVal;
+        // For botVsNNUE_, also track engine2_ eval separately for dual eval bar
+        if (botVsNNUE_ && activeEngine_ == &engine2_)
+            lastEval2_ = liveVal;
+        else if (botVsNNUE_)
+            lastEval_ = liveVal;
     }
 
-    if (botVsBot && !fastMode) {
+    if ((botVsBot || botVsNNUE_) && !fastMode) {
         // Think-then-pause: engine is done, now wait for delay before applying
         botPendingMove_ = move;
         botPendingPiece_ = p;
