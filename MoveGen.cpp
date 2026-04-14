@@ -19,55 +19,75 @@ static bool canLandOn(const Board& board, int r, int c, Color myColor) {
 }
 
 // -------------------------------------------------------
-// PAWN
+// PAWN (bitboard-based)
 // -------------------------------------------------------
 void MoveGen::generatePawnMoves(const Board& board, Square sq, MoveList& moves) {
     Piece p = board.getPiece(sq);
-    int dir = (p.color == Color::White) ? 1 : -1;
-    int startRank = (p.color == Color::White) ? 1 : 6;
-    int promoRank = (p.color == Color::White) ? 7 : 0;
+    const Color color    = p.color;
+    const int   sqIdx    = BB::toSquareIndex(sq);
+    const int   promoRank = (color == Color::White) ? 7 : 0;
+    const int   startRank = (color == Color::White) ? 1 : 6;
 
-    // One square forward
-    int nr = sq.rank + dir;
-    if (inBounds(nr, sq.col) && board.squares[nr][sq.col].isNone() && !isDuck(board, nr, sq.col)) {
-        if (nr == promoRank) {
-            // INFO [8.13]: All 4 promotions generated (Q/R/B/N). Queen-first optimal for search.
+    // Occupancy (empty squares = ~occupied, duck blocks pushes)
+    Bitboard occ = board.occupied();
+#ifdef DUCK_CHESS
+    if (board.isDuckChess && board.duckSquare.isValid())
+        occ |= BB::squareBB(board.duckSquare);
+#endif
+    Bitboard empty = ~occ;
+
+    // ── Pushes ──────────────────────────────────────────────────────────────
+    // Single push: shift one rank in pawn direction
+    Bitboard single;
+    if (color == Color::White)
+        single = (BB::squareBB(sqIdx) << 8) & empty;
+    else
+        single = (BB::squareBB(sqIdx) >> 8) & empty;
+
+    if (single) {
+        int toSq = BB::lsb(single);
+        Square to = BB::toSquare(toSq);
+        if (to.rank == promoRank) {
             for (auto pt : { PieceType::Queen, PieceType::Rook,
                              PieceType::Bishop, PieceType::Knight })
-                moves.push_back({ sq, {nr, sq.col}, pt });
-        }
-        else {
-            moves.push_back({ sq, {nr, sq.col} });
-
-            // Two squares forward from starting rank
-            int nr2 = nr + dir;
-            if (sq.rank == startRank && nr2 >= 0 && nr2 < 8 && board.squares[nr2][sq.col].isNone() && !isDuck(board, nr2, sq.col))
-                moves.push_back({ sq, {nr2, sq.col} });
+                moves.push_back({ sq, to, pt });
+        } else {
+            moves.push_back({ sq, to });
+            // Double push from starting rank
+            if (sq.rank == startRank) {
+                Bitboard dbl;
+                if (color == Color::White)
+                    dbl = (single << 8) & empty;
+                else
+                    dbl = (single >> 8) & empty;
+                if (dbl)
+                    moves.push_back({ sq, BB::toSquare(BB::lsb(dbl)) });
+            }
         }
     }
 
-    // Captures
-    for (int dc : {-1, 1}) {
-        int nc = sq.col + dc;
-        if (!inBounds(nr, nc)) continue;
+    // ── Captures ────────────────────────────────────────────────────────────
+    Bitboard enemies = board.pieces(color == Color::White ? Color::Black : Color::White);
+#ifdef DUCK_CHESS
+    if (board.isDuckChess && board.duckSquare.isValid())
+        enemies &= ~BB::squareBB(board.duckSquare); // can't capture duck
+#endif
 
-        // Can't capture the duck
-        if (isDuck(board, nr, nc)) continue;
+    // En passant target
+    Bitboard epBB = 0;
+    if (board.enPassantTarget.isValid())
+        epBB = BB::squareBB(board.enPassantTarget);
 
-        Piece target = board.squares[nr][nc];
-        // INFO [8.12]: EP pins handled correctly by getLegalMoves (make+check).
-        bool isEnPassant = (board.enPassantTarget.rank == nr &&
-            board.enPassantTarget.col == nc);
-
-        if ((!target.isNone() && target.color != p.color && !target.isDuck()) || isEnPassant) {
-            if (nr == promoRank) {
-                for (auto pt : { PieceType::Queen, PieceType::Rook,
-                                 PieceType::Bishop, PieceType::Knight })
-                    moves.push_back({ sq, {nr, nc}, pt });
-            }
-            else {
-                moves.push_back({ sq, {nr, nc} });
-            }
+    Bitboard captureTargets = BB::pawnAttacks(color, sqIdx) & (enemies | epBB);
+    while (captureTargets) {
+        int toSq = BB::popLsb(captureTargets);
+        Square to = BB::toSquare(toSq);
+        if (to.rank == promoRank) {
+            for (auto pt : { PieceType::Queen, PieceType::Rook,
+                             PieceType::Bishop, PieceType::Knight })
+                moves.push_back({ sq, to, pt });
+        } else {
+            moves.push_back({ sq, to });
         }
     }
 }
@@ -342,11 +362,18 @@ void MoveGen::getDuckChessMoves(const Board& board, MoveList& out) {
 // Returns all empty squares where the duck can be placed
 // -------------------------------------------------------
 void MoveGen::getDuckPlacements(const Board& board, SquareList& out) {
-    for (int r = 0; r < 8; r++)
-        for (int c = 0; c < 8; c++) {
-            if (board.squares[r][c].isNone())
-                out.add({ r, c });
-        }
+    // All empty squares — use bitboard complement of occupied
+    Bitboard empty = ~board.occupied();
+#ifdef DUCK_CHESS
+    // Also exclude the current duck square (it's already in occupied via squares[][])
+    // but include it as a valid placement target (duck can stay put or move)
+    if (board.duckSquare.isValid())
+        empty |= BB::squareBB(board.duckSquare);
+#endif
+    while (empty) {
+        int sq = BB::popLsb(empty);
+        out.add(BB::toSquare(sq));
+    }
 }
 
 
