@@ -785,9 +785,10 @@ int Engine::qsearch(Board& board, int alpha, int beta, int ply) {
             delta += SEE_VAL[(int)m.promotion] - SEE_VAL[(int)PieceType::Pawn];
         if (standPat + delta + 200 < alpha) continue;
 
-        Board temp = board;
-        temp.applyMove(m);
-        int score = -qsearch(temp, -beta, -alpha, ply + 1);
+        Board::UndoInfo undo;
+        board.makeMove(m, undo);
+        int score = -qsearch(board, -beta, -alpha, ply + 1);
+        board.unmakeMove(m, undo);
 
         if (score >= beta) return beta;
         if (score > alpha) alpha = score;
@@ -925,13 +926,13 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
             continue;
         }
 
-        Board temp = board;
-        temp.applyMove(m);
+        Board::UndoInfo undo;
+        board.makeMove(m, undo);
 
         int score;
 
         if (i == 0) {
-            score = -search(temp, depth - 1, -beta, -alpha, ply + 1, true, isPV);
+            score = -search(board, depth - 1, -beta, -alpha, ply + 1, true, isPV);
         } else {
             int reduction = 0;
             if (depth >= 3 && i >= 3 && isQuiet && !inCheck) {
@@ -951,17 +952,19 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
                 reduction = std::max(reduction, 0);
             }
 
-            score = -search(temp, depth - 1 - reduction, -alpha - 1, -alpha,
+            score = -search(board, depth - 1 - reduction, -alpha - 1, -alpha,
                             ply + 1, true, false);
 
             if (reduction > 0 && score > alpha)
-                score = -search(temp, depth - 1, -alpha - 1, -alpha,
+                score = -search(board, depth - 1, -alpha - 1, -alpha,
                                 ply + 1, true, false);
 
             if (score > alpha && score < beta)
-                score = -search(temp, depth - 1, -beta, -alpha,
+                score = -search(board, depth - 1, -beta, -alpha,
                                 ply + 1, true, true);
         }
+
+        board.unmakeMove(m, undo);
 
         if (score > bestScore) {
             bestScore = score;
@@ -1370,19 +1373,20 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
         for (int i = 0; i < (int)moves.size(); i++) {
             if (stop_.load(std::memory_order_relaxed)) break;
 
-            Board temp = board;
-            temp.applyMove(moves[i]);
-
+            Board::UndoInfo undo;
+            board.makeMove(moves[i], undo);
             previousMove_ = moves[i];
 
             int score;
             if (i == 0) {
-                score = -search(temp, depth - 1, -beta, -alpha, 1, true, true);
+                score = -search(board, depth - 1, -beta, -alpha, 1, true, true);
             } else {
-                score = -search(temp, depth - 1, -alpha - 1, -alpha, 1, true, false);
+                score = -search(board, depth - 1, -alpha - 1, -alpha, 1, true, false);
                 if (score > alpha && score < beta)
-                    score = -search(temp, depth - 1, -beta, -alpha, 1, true, true);
+                    score = -search(board, depth - 1, -beta, -alpha, 1, true, true);
             }
+
+            board.unmakeMove(moves[i], undo);
 
             if (score > bestScoreIter) {
                 bestScoreIter = score;
@@ -1406,18 +1410,20 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
             for (int i = 0; i < (int)moves2.size(); i++) {
                 if (stop_.load(std::memory_order_relaxed)) break;
 
-                Board temp = board;
-                temp.applyMove(moves2[i]);
+                Board::UndoInfo undo2;
+                board.makeMove(moves2[i], undo2);
                 previousMove_ = moves2[i];
 
                 int score;
                 if (i == 0) {
-                    score = -search(temp, depth - 1, -beta, -alpha, 1, true, true);
+                    score = -search(board, depth - 1, -beta, -alpha, 1, true, true);
                 } else {
-                    score = -search(temp, depth - 1, -alpha - 1, -alpha, 1, true, false);
+                    score = -search(board, depth - 1, -alpha - 1, -alpha, 1, true, false);
                     if (score > alpha && score < beta)
-                        score = -search(temp, depth - 1, -beta, -alpha, 1, true, true);
+                        score = -search(board, depth - 1, -beta, -alpha, 1, true, true);
                 }
+
+                board.unmakeMove(moves2[i], undo2);
 
                 if (score > bestScoreIter) {
                     bestScoreIter = score;

@@ -270,15 +270,15 @@ void MoveGen::getLegalMoves(Board& board, MoveList& out) {
         return;
     }
 #endif
-    // AUDIT FIX 8: Use makeMove/unmakeMove instead of Board copies (~3-5x faster).
     MoveList pseudo;
     getPseudoLegalMoves(board, pseudo);
     for (int i = 0; i < pseudo.count; i++) {
         Color sideToMove = board.turn;
-        Board temp = board;
-        temp.applyMove(pseudo[i]);
-        if (!isInCheck(temp, sideToMove))
-            out.add(pseudo[i]);
+        Board::UndoInfo undo;
+        board.makeMove(pseudo[i], undo);
+        bool legal = !isInCheck(board, sideToMove);
+        board.unmakeMove(pseudo[i], undo);
+        if (legal) out.add(pseudo[i]);
     }
 }
 
@@ -306,16 +306,18 @@ void MoveGen::getLegalCaptures(Board& board, MoveList& out) {
         if (!isCapture && !isPromotion) continue;
 
         Color sideToMove = board.turn;
-        Board temp = board;
-        temp.applyMove(m);
+        Board::UndoInfo undo;
+        board.makeMove(m, undo);
 #ifdef DUCK_CHESS
         if (board.isDuckChess) {
+            board.unmakeMove(m, undo);
             out.add(m);
         } else
 #endif
         {
-            if (!MoveGen::isInCheck(temp, sideToMove))
-                out.add(m);
+            bool legal = !MoveGen::isInCheck(board, sideToMove);
+            board.unmakeMove(m, undo);
+            if (legal) out.add(m);
         }
     }
 }
