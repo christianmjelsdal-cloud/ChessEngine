@@ -72,5 +72,12 @@ namespace DuckNNUE {
         // Output: L3_SIZE -> 1
         alignas(16) std::array<float, L3_SIZE> output_weights{};
         float output_bias = 0.0f;
-    };
-}
+
+        // Transposed weight caches for cache-friendly forward pass
+        // L2_T[j][i] = L2_weights[i][j] — inner loop over i is now contiguous
+        alignas(16) std::array<std::array<float, L1_SIZE * 2>, L2_SIZE> L2_weights_T{};
+        alignas(16) std::array<std::array<float, L2_SIZE>, L3_SIZE>     L3_weights_T{};
+
+        void transposeWeights();
+    };  // class Network
+}  // namespace DuckNNUE

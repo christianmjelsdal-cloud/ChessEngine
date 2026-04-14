@@ -23,6 +23,16 @@ namespace DuckNNUE {
 
     Network::Network() {
         randomizeWeights();
+        transposeWeights();
+    }
+
+    void Network::transposeWeights() {
+        for (int j = 0; j < L2_SIZE; ++j)
+            for (int i = 0; i < L1_SIZE * 2; ++i)
+                L2_weights_T[j][i] = L2_weights[i][j];
+        for (int j = 0; j < L3_SIZE; ++j)
+            for (int i = 0; i < L2_SIZE; ++i)
+                L3_weights_T[j][i] = L3_weights[i][j];
     }
 
     int Network::evaluate(const Board& board) {
@@ -136,85 +146,57 @@ namespace DuckNNUE {
     }
 
     int Network::forward(const Accumulator& acc, Color sideToMove) {
-        // Build input with SCReLU — identical to standard NNUE forward pass
+        // Build input with SCReLU
         alignas(16) float input[L1_SIZE * 2];
-
         const auto& stmAcc = (sideToMove == Color::White) ? acc.white : acc.black;
         const auto& oppAcc = (sideToMove == Color::White) ? acc.black : acc.white;
-
         for (int i = 0; i < L1_SIZE; i += 4) {
-            __m128 val = _mm_loadu_ps(&stmAcc[i]);
-            _mm_storeu_ps(&input[i], screlu_sse(val));
-        }
-        for (int i = 0; i < L1_SIZE; i += 4) {
-            __m128 val = _mm_loadu_ps(&oppAcc[i]);
-            _mm_storeu_ps(&input[L1_SIZE + i], screlu_sse(val));
+            _mm_storeu_ps(&input[i],           screlu_sse(_mm_loadu_ps(&stmAcc[i])));
+            _mm_storeu_ps(&input[L1_SIZE + i], screlu_sse(_mm_loadu_ps(&oppAcc[i])));
         }
 
-        // L2
+        // L2 — use transposed weights for cache-friendly access
         alignas(16) float l2Out[L2_SIZE];
         for (int j = 0; j < L2_SIZE; ++j) {
+            const float* w = L2_weights_T[j].data();
             __m128 sum = _mm_setzero_ps();
-            for (int i = 0; i < L1_SIZE * 2; i += 4) {
-                __m128 inp = _mm_loadu_ps(&input[i]);
-                __m128 w = _mm_set_ps(
-                    L2_weights[i + 3][j],
-                    L2_weights[i + 2][j],
-                    L2_weights[i + 1][j],
-                    L2_weights[i + 0][j]
-                );
-                sum = _mm_add_ps(sum, _mm_mul_ps(inp, w));
-            }
+            for (int i = 0; i < L1_SIZE * 2; i += 4)
+                sum = _mm_add_ps(sum, _mm_mul_ps(_mm_loadu_ps(&input[i]), _mm_loadu_ps(&w[i])));
+            // horizontal sum
             __m128 shuf = _mm_movehdup_ps(sum);
-            __m128 sums = _mm_add_ps(sum, shuf);
-            shuf = _mm_movehl_ps(shuf, sums);
-            sums = _mm_add_ss(sums, shuf);
-            float dotProduct = _mm_cvtss_f32(sums);
-
-            float val = dotProduct + L2_biases[j];
-            float clamped = std::max(0.0f, std::min(val, 1.0f));
-            l2Out[j] = clamped * clamped;
+            sum = _mm_add_ps(sum, shuf);
+            shuf = _mm_movehl_ps(shuf, sum);
+            sum = _mm_add_ss(sum, shuf);
+            float val = _mm_cvtss_f32(sum) + L2_biases[j];
+            float c = val < 0.f ? 0.f : val > 1.f ? 1.f : val;
+            l2Out[j] = c * c;
         }
 
-        // L3
+        // L3 — use transposed weights
         alignas(16) float l3Out[L3_SIZE];
         for (int j = 0; j < L3_SIZE; ++j) {
+            const float* w = L3_weights_T[j].data();
             __m128 sum = _mm_setzero_ps();
-            for (int i = 0; i < L2_SIZE; i += 4) {
-                __m128 inp = _mm_loadu_ps(&l2Out[i]);
-                __m128 w = _mm_set_ps(
-                    L3_weights[i + 3][j],
-                    L3_weights[i + 2][j],
-                    L3_weights[i + 1][j],
-                    L3_weights[i + 0][j]
-                );
-                sum = _mm_add_ps(sum, _mm_mul_ps(inp, w));
-            }
+            for (int i = 0; i < L2_SIZE; i += 4)
+                sum = _mm_add_ps(sum, _mm_mul_ps(_mm_loadu_ps(&l2Out[i]), _mm_loadu_ps(&w[i])));
             __m128 shuf = _mm_movehdup_ps(sum);
-            __m128 sums = _mm_add_ps(sum, shuf);
-            shuf = _mm_movehl_ps(shuf, sums);
-            sums = _mm_add_ss(sums, shuf);
-            float dotProduct = _mm_cvtss_f32(sums);
-
-            float val = dotProduct + L3_biases[j];
-            float clamped = std::max(0.0f, std::min(val, 1.0f));
-            l3Out[j] = clamped * clamped;
+            sum = _mm_add_ps(sum, shuf);
+            shuf = _mm_movehl_ps(shuf, sum);
+            sum = _mm_add_ss(sum, shuf);
+            float val = _mm_cvtss_f32(sum) + L3_biases[j];
+            float c = val < 0.f ? 0.f : val > 1.f ? 1.f : val;
+            l3Out[j] = c * c;
         }
 
         // Output
-        __m128 outputSum = _mm_setzero_ps();
-        for (int i = 0; i < L3_SIZE; i += 4) {
-            __m128 inp = _mm_loadu_ps(&l3Out[i]);
-            __m128 w = _mm_loadu_ps(&output_weights[i]);
-            outputSum = _mm_add_ps(outputSum, _mm_mul_ps(inp, w));
-        }
-        __m128 shuf = _mm_movehdup_ps(outputSum);
-        __m128 sums = _mm_add_ps(outputSum, shuf);
-        shuf = _mm_movehl_ps(shuf, sums);
-        sums = _mm_add_ss(sums, shuf);
-        float output = _mm_cvtss_f32(sums) + output_bias;
-
-        return static_cast<int>(output * 400.0f);
+        __m128 sum = _mm_setzero_ps();
+        for (int i = 0; i < L3_SIZE; i += 4)
+            sum = _mm_add_ps(sum, _mm_mul_ps(_mm_loadu_ps(&l3Out[i]), _mm_loadu_ps(&output_weights[i])));
+        __m128 shuf = _mm_movehdup_ps(sum);
+        sum = _mm_add_ps(sum, shuf);
+        shuf = _mm_movehl_ps(shuf, sum);
+        sum = _mm_add_ss(sum, shuf);
+        return static_cast<int>((_mm_cvtss_f32(sum) + output_bias) * 400.f);
     }
 
     bool Network::loadWeights(const std::string& filename) {
@@ -230,6 +212,7 @@ namespace DuckNNUE {
         file.read(reinterpret_cast<char*>(output_weights.data()), sizeof(output_weights));
         file.read(reinterpret_cast<char*>(&output_bias), sizeof(output_bias));
 
+        if (file.good()) transposeWeights();
         return file.good();
     }
 
