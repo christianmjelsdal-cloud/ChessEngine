@@ -49,6 +49,12 @@ void Engine::initZobrist() {
 }
 
 uint64_t Engine::computeHash(const Board& board) {
+    // board.hash is maintained incrementally by applyMove (via Zobrist namespace).
+    // Use it directly when available — avoids a full 64-square scan every node.
+    if (Zobrist::ready && board.hash != 0)
+        return board.hash;
+
+    // Fallback: full recompute (used at root before any move, or if hash is 0)
     uint64_t h = 0;
     for (int r = 0; r < 8; r++)
         for (int c = 0; c < 8; c++) {
@@ -259,14 +265,16 @@ std::string Engine::pvToUCI(const std::vector<Move>& pv) const {
 // =============================================================
 //  CONSTRUCTORS
 // =============================================================
-Engine::Engine() : tt_(TT_SIZE), nodes_(0) {
+Engine::Engine() : tt_(TT_SIZE), nodes_(0),
+    duckAccStack_(std::make_unique<DuckNNUE::QAccumulator[]>(MAX_PLY * 2)) {
     initZobrist();
     std::memset(killers_, 0, sizeof(killers_));
     std::memset(history_, 0, sizeof(history_));
     std::memset(countermoves_, 0, sizeof(countermoves_));
 }
 
-Engine::Engine(size_t ttSize) : tt_(ttSize), nodes_(0) {
+Engine::Engine(size_t ttSize) : tt_(ttSize), nodes_(0),
+    duckAccStack_(std::make_unique<DuckNNUE::QAccumulator[]>(MAX_PLY * 2)) {
     initZobrist();
     std::memset(killers_, 0, sizeof(killers_));
     std::memset(history_, 0, sizeof(history_));
@@ -1094,14 +1102,28 @@ void Engine::orderDuckPlacements(SquareList& placements, const Board& board, Col
 
 #ifdef DUCK_CHESS
 // =============================================================
-//  DUCK CHESS SEARCH
+//  DUCK CHESS SEARCH — incremental accumulator updates
+//
+//  accStack layout (absolute, always duckAccStack_):
+//    acc[ply] = post-duck-placement accumulator at this ply
+//               (set by this function before recursing)
+//    acc[0]   = root pre-move state (refreshed by getBestMove)
+//
+//  Each ply copies acc[ply-1] (parent post-duck), applies the
+//  chess move incrementally into a local, then applies duck
+//  remove/add into acc[ply] before recursing.
 // =============================================================
-int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply) {
+int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply,
+                       DuckNNUE::QAccumulator* accStack) {
     if (shouldStop()) return 0;
     nodes_++;
 
-    if (ply >= MAX_PLY) return evaluate(board);
-    if (depth <= 0) return evaluate(board);
+    if (ply >= MAX_PLY || depth <= 0) {
+        // Use the accumulator that was set by our caller (acc[ply-1] post-duck)
+        if (duckNnue_ && accStack && ply > 0 && accStack[ply - 1].valid)
+            return duckNnue_->forwardQ(accStack[ply - 1], board.turn);
+        return evaluate(board);
+    }
 
     Color us = board.turn;
     Color them = (us == Color::White) ? Color::Black : Color::White;
@@ -1115,30 +1137,101 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply) {
     Move noMove{};
     orderMoves(chessMoves, board, ply, noMove);
 
+    // Parent's post-duck accumulator (what was set before we were called)
+    DuckNNUE::QAccumulator* parentAcc = (accStack && ply > 0) ? &accStack[ply - 1] : nullptr;
+    // This ply's post-duck slot (written before recursing)
+    DuckNNUE::QAccumulator* myAcc = accStack ? &accStack[ply] : nullptr;
+
     int bestScore = -INF;
 
     for (int i = 0; i < (int)chessMoves.size(); i++) {
         if (shouldStop()) return 0;
 
-        Board temp = board;
-        temp.applyMove(chessMoves[i]);
+        const Move& cm = chessMoves[i];
+        Piece moving   = board.getPiece(cm.from);
+        Piece captured = board.getPiece(cm.to);
 
-        if (MoveGen::isKingCaptured(temp, them))
+        bool canInc = duckNnue_ && parentAcc && parentAcc->valid
+                      && myAcc && !moving.isNone() && !moving.isDuck()
+                      && moving.type != PieceType::None
+                      && static_cast<int>(moving.type) >= 1
+                      && static_cast<int>(moving.type) <= 6;
+
+        // Post-chess accumulator: use heap slot (MAX_PLY + ply) to avoid stack alignment issues
+        // duckAccStack_ has MAX_PLY*2 slots; slots [0..MAX_PLY-1] = post-duck per ply,
+        // slots [MAX_PLY..MAX_PLY*2-1] = post-chess scratch per ply
+        DuckNNUE::QAccumulator& postChess = duckAccStack_[MAX_PLY + ply];
+        if (canInc) {
+            postChess = *parentAcc;
+            // Remove moving piece from source
+            duckNnue_->removeFeatureQ(NNUE::featureIndex(moving.type, moving.color, cm.from.rank, cm.from.col), postChess);
+            // Remove captured piece
+            if (!captured.isNone() && !captured.isDuck())
+                duckNnue_->removeFeatureQ(NNUE::featureIndex(captured.type, captured.color, cm.to.rank, cm.to.col), postChess);
+            // Add moving piece at destination (promotion-aware)
+            PieceType finalType = (cm.promotion != PieceType::None) ? cm.promotion : moving.type;
+            duckNnue_->addFeatureQ(NNUE::featureIndex(finalType, moving.color, cm.to.rank, cm.to.col), postChess);
+            // Castling rook
+            if (moving.type == PieceType::King) {
+                int br = cm.from.rank;
+                if (cm.to.col - cm.from.col == 2) {
+                    duckNnue_->removeFeatureQ(NNUE::featureIndex(PieceType::Rook, moving.color, br, 7), postChess);
+                    duckNnue_->addFeatureQ(NNUE::featureIndex(PieceType::Rook, moving.color, br, 5), postChess);
+                } else if (cm.from.col - cm.to.col == 2) {
+                    duckNnue_->removeFeatureQ(NNUE::featureIndex(PieceType::Rook, moving.color, br, 0), postChess);
+                    duckNnue_->addFeatureQ(NNUE::featureIndex(PieceType::Rook, moving.color, br, 3), postChess);
+                }
+            }
+            // En-passant captured pawn
+            if (moving.type == PieceType::Pawn && cm.to.col != cm.from.col && captured.isNone()) {
+                Color opp = (moving.color == Color::White) ? Color::Black : Color::White;
+                duckNnue_->removeFeatureQ(NNUE::featureIndex(PieceType::Pawn, opp, cm.from.rank, cm.to.col), postChess);
+            }
+            postChess.valid = true;
+        }
+
+        Board::UndoInfo undo;
+        board.makeMove(cm, undo);
+
+        if (MoveGen::isKingCaptured(board, them)) {
+            board.unmakeMove(cm, undo);
             return MATE_SCORE - ply;
+        }
 
-        SquareList duckSquares; MoveGen::getDuckPlacements(temp, duckSquares);
-        orderDuckPlacements(duckSquares, temp, us);
+        SquareList duckSquares; MoveGen::getDuckPlacements(board, duckSquares);
+        orderDuckPlacements(duckSquares, board, us);
 
-        int maxDucks = (depth <= 1) ? 12 : (depth <= 2) ? 18 : (int)duckSquares.size();
+        int maxDucks = (depth <= 1) ? 6 : (depth <= 2) ? 10 : (depth <= 3) ? 16 : 24;
         maxDucks = std::min(maxDucks, (int)duckSquares.size());
 
+        Square oldDuck = board.duckSquare;  // duck position after chess move (before duck placement)
+
         for (int d = 0; d < maxDucks; d++) {
-            if (shouldStop()) return 0;
+            if (shouldStop()) break;
 
-            Board duckBoard = temp;
-            duckBoard.placeDuck(duckSquares[d]);
+            Square newDuck = duckSquares[d];
 
-            int score = -searchDuck(duckBoard, depth - 1, -beta, -alpha, ply + 1);
+            // Build post-duck accumulator into myAcc (acc[ply])
+            if (canInc) {
+                *myAcc = postChess;
+                if (oldDuck.isValid())
+                    duckNnue_->removeFeatureQ(DuckNNUE::duckFeatureIndex(oldDuck.rank, oldDuck.col), *myAcc);
+                duckNnue_->addFeatureQ(DuckNNUE::duckFeatureIndex(newDuck.rank, newDuck.col), *myAcc);
+                myAcc->valid = true;
+            }
+
+            board.placeDuck(newDuck);
+
+            int score = -searchDuck(board, depth - 1, -beta, -alpha, ply + 1, accStack);
+
+            // Undo duck placement
+            board.squares[newDuck.rank][newDuck.col] = Piece{};
+            if (oldDuck.isValid()) {
+                board.squares[oldDuck.rank][oldDuck.col] = Piece{PieceType::Duck, Color::White};
+                board.duckSquare = oldDuck;
+            } else {
+                board.duckSquare = {-1, -1};
+            }
 
             if (score > bestScore) {
                 bestScore = score;
@@ -1149,6 +1242,7 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply) {
             }
         }
         nextChessMove:;
+        board.unmakeMove(cm, undo);
         if (alpha >= beta) break;
     }
 
@@ -1168,6 +1262,11 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
     nodes_ = 0;
     searchStart_ = std::chrono::steady_clock::now();
     ttGen_++;
+
+    // Ensure root board has a valid incremental hash before search.
+    // After this, makeMove/unmakeMove maintain it via applyMove.
+    if (board.hash == 0)
+        board.hash = computeHash(board);
 
     std::memset(killers_, 0, sizeof(killers_));
     for (int c = 0; c < 2; c++)
@@ -1232,6 +1331,13 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
                 if (elapsedMs() > softLimitMs_) break;
             }
 
+            // Seed acc[0] with root position; searchDuck at ply=1 reads acc[0] as parent
+            DuckNNUE::QAccumulator* accBase = nullptr;
+            if (duckNnue_) {
+                duckNnue_->refreshAccumulatorQ(board, duckAccStack_[0]);
+                accBase = duckAccStack_.get();
+            }
+
             int alpha = -INF, beta = INF;
             int bestScoreIter = -INF;
             Move bestMoveIter = chessMoves[0];
@@ -1239,36 +1345,55 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
             for (int i = 0; i < (int)chessMoves.size(); i++) {
                 if (stop_.load()) break;
 
-                Board temp = board;
-                temp.applyMove(chessMoves[i]);
+                const Move& cm = chessMoves[i];
+                Color us = board.turn;
+
+                Board::UndoInfo undo;
+                board.makeMove(cm, undo);
 
                 Color opponent = (board.turn == Color::White) ? Color::Black : Color::White;
-                if (MoveGen::isKingCaptured(temp, opponent)) {
-                    SquareList ducks; MoveGen::getDuckPlacements(temp, ducks);
-                    Move winMove = chessMoves[i];
+                if (MoveGen::isKingCaptured(board, opponent)) {
+                    board.unmakeMove(cm, undo);
+                    SquareList ducks; MoveGen::getDuckPlacements(board, ducks);
+                    Move winMove = cm;
                     winMove.duckTo = ducks.empty() ? Square{0,0} : ducks[0];
                     return winMove;
                 }
 
-                SquareList duckSquares; MoveGen::getDuckPlacements(temp, duckSquares);
-                orderDuckPlacements(duckSquares, temp, board.turn);
+                SquareList duckSquares; MoveGen::getDuckPlacements(board, duckSquares);
+                orderDuckPlacements(duckSquares, board, us);
 
-                for (int d = 0; d < (int)duckSquares.size(); d++) {
+                Square oldDuck = board.duckSquare;
+                // Cap root duck placements — ordering puts best squares first
+                int rootMaxDucks = std::min((int)duckSquares.size(), 24);
+
+                for (int d = 0; d < rootMaxDucks; d++) {
                     if (stop_.load()) break;
 
-                    Board duckBoard = temp;
-                    duckBoard.placeDuck(duckSquares[d]);
+                    Square newDuck = duckSquares[d];
+                    board.placeDuck(newDuck);
 
-                    int score = -searchDuck(duckBoard, depth - 1, -beta, -alpha, 1);
+                    int score = -searchDuck(board, depth - 1, -beta, -alpha, 1, accBase);
+
+                    // Undo duck
+                    board.squares[newDuck.rank][newDuck.col] = Piece{};
+                    if (oldDuck.isValid()) {
+                        board.squares[oldDuck.rank][oldDuck.col] = Piece{PieceType::Duck, Color::White};
+                        board.duckSquare = oldDuck;
+                    } else {
+                        board.duckSquare = {-1, -1};
+                    }
 
                     if (score > bestScoreIter) {
                         bestScoreIter = score;
-                        bestMoveIter = chessMoves[i];
-                        bestMoveIter.duckTo = duckSquares[d];
+                        bestMoveIter = cm;
+                        bestMoveIter.duckTo = newDuck;
                         if (score > alpha) alpha = score;
                         if (alpha >= beta) break;
                     }
                 }
+
+                board.unmakeMove(cm, undo);
                 if (alpha >= beta) break;
             }
 

@@ -42,9 +42,9 @@ Shared core: Board → MoveGen → Engine → NNUE/DuckNNUE
 
 ### Board Representation ✅
 - 8×8 mailbox + full bitboard redundancy (occupiedBB, colorBB, pieceBBs)
-- makeMove/unmakeMove (full snapshot undo — correct but not incremental)
+- makeMove/unmakeMove (minimal undo struct — ~80 bytes, no squares[][] copy)
 - applyMove (permanent, used by self-play and GUI)
-- Zobrist hashing (computed per-position, not incremental)
+- Zobrist hashing (incremental via applyMove; computeHash uses board.hash directly)
 - FEN import/export
 
 ### Self-Play Generation ✅
@@ -79,7 +79,7 @@ Shared core: Board → MoveGen → Engine → NNUE/DuckNNUE
 - Self-play generates 832-feature positions
 - C++ trainer trains DuckNNUE end-to-end
 - Weights feed back into next gen's self-play
-- Graph shows train/val loss and LR (no accuracy/phase — C++ trainer limitation)
+- Graph shows train/val loss, accuracy, LR, and phase loss (Opening/Middlegame/Endgame) ✅
 
 ### Visual Game (ChessEngine.exe GUI) ✅
 - SFML 3, piece drag-and-drop, engine vs human/engine
@@ -93,9 +93,9 @@ Shared core: Board → MoveGen → Engine → NNUE/DuckNNUE
 
 | Area | Status |
 |------|--------|
-| makeMove undo | Full board snapshot (correct but ~150 bytes vs ~20 bytes incremental) |
-| Duck chess training | No accuracy/phase loss metrics (C++ trainer limitation) |
-| Duck chess NPS | ~4-8K nps with DuckNNUE (float32, no INT16 quantization) — **needs audit** |
+| makeMove undo | Minimal undo struct (~80 bytes: bitboards + 4 piece slots) ✅ |
+| Duck chess training | Accuracy, phase loss (op/mg/eg) now computed on val set each epoch ✅ |
+| Duck chess NPS | INT16 quantized path enabled; searchDuck uses incremental accumulator updates (no board copies) ✅ |
 | Automate Chess | Setup UI done; self-play and training not implemented |
 | Lazy SMP | Implemented — `setThreadCount(N)` spawns N-1 helper threads sharing the TT |
 | Bitboard move gen | All piece generators now bitboard-based ✅ |

@@ -22,6 +22,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4018)  // signed/unsigned mismatch (third-party code)
+#endif
+
 #include <assert.h>
 #ifdef __cplusplus
 #include <atomic>
@@ -2713,3 +2718,7 @@ uint64_t tb_pawn_attacks(unsigned sq, bool color)
 }
 
 #endif      /* TB_NO_HELPER_API */
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif

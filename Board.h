@@ -56,22 +56,27 @@ public:
     // Undo information for makeMove / unmakeMove
     // ----------------------------------------------------------------
     struct UndoInfo {
-        Piece    captured;
-        Piece    capturedEP;         // captured pawn in en-passant
+        // Scalar state that changes every move
         Square   enPassantTarget;
         bool     castlingRights[2][2];
         int      halfMoveClock;
         int      fullMoveNumber;
         uint64_t hash;
-        // Full board snapshot for unmake (simple but correct)
-        Piece    squares[8][8];
         Square   duckSquare;
+        // Piece state: what was on the from/to squares (and EP capture square)
+        Piece    movedPiece;
+        Piece    capturedPiece;
+        Piece    capturedEP;
+        Square   capturedEPSq;
+        // Bitboard snapshot
         Bitboard occupiedBB;
         Bitboard colorBB[2];
         Bitboard pieceBBs[7];
         Square   whiteKingSq;
         Square   blackKingSq;
         int      phase;
+        // Full squares[][] snapshot — guarantees correct unmake for all edge cases
+        Piece    squares[8][8];
     };
 
     // Constructor

@@ -556,11 +556,11 @@ void Board::recomputeBitboards() {
 }
 
 // ============================================================
-// makeMove / unmakeMove (reversible — saves full snapshot)
+// makeMove / unmakeMove (reversible — minimal undo struct)
 // ============================================================
 
 void Board::makeMove(const Move& m, UndoInfo& undo) {
-    // Save entire state for simple-but-correct unmake
+    // Save minimal state needed for unmake
     undo.enPassantTarget = enPassantTarget;
     for (int i = 0; i < 2; i++)
         for (int j = 0; j < 2; j++)
@@ -568,24 +568,35 @@ void Board::makeMove(const Move& m, UndoInfo& undo) {
     undo.halfMoveClock  = halfMoveClock;
     undo.fullMoveNumber = fullMoveNumber;
     undo.hash           = hash;
+    undo.duckSquare     = duckSquare;
     undo.occupiedBB     = occupiedBB;
     undo.colorBB[0]     = colorBB[0];
     undo.colorBB[1]     = colorBB[1];
     for (int i = 0; i < 7; i++) undo.pieceBBs[i] = pieceBBs[i];
-    undo.whiteKingSq = whiteKingSq;
-    undo.blackKingSq = blackKingSq;
-    undo.phase       = phase;
-    undo.duckSquare  = duckSquare;
+    undo.whiteKingSq   = whiteKingSq;
+    undo.blackKingSq   = blackKingSq;
+    undo.phase         = phase;
+    undo.movedPiece    = getPiece(m.from);
+    undo.capturedPiece = getPiece(m.to);
+    // En-passant capture square
+    undo.capturedEP   = Piece{};
+    undo.capturedEPSq = {-1, -1};
+    if (undo.movedPiece.type == PieceType::Pawn &&
+        m.to.col != m.from.col && undo.capturedPiece.isNone()) {
+        undo.capturedEPSq = {m.from.rank, m.to.col};
+        undo.capturedEP   = getPiece(undo.capturedEPSq);
+    }
+
+    // Full squares[][] snapshot for reliable unmake
     for (int r = 0; r < 8; r++)
         for (int c = 0; c < 8; c++)
             undo.squares[r][c] = squares[r][c];
 
-    // Apply the move (applyMove now updates squares[][] AND bitboards incrementally)
     applyMove(m);
 }
 
 void Board::unmakeMove(const Move& /*m*/, const UndoInfo& undo) {
-    // Restore full state from snapshot
+    // Restore all state from snapshots
     enPassantTarget = undo.enPassantTarget;
     for (int i = 0; i < 2; i++)
         for (int j = 0; j < 2; j++)
@@ -593,18 +604,18 @@ void Board::unmakeMove(const Move& /*m*/, const UndoInfo& undo) {
     halfMoveClock  = undo.halfMoveClock;
     fullMoveNumber = undo.fullMoveNumber;
     hash           = undo.hash;
+    duckSquare     = undo.duckSquare;
     occupiedBB     = undo.occupiedBB;
     colorBB[0]     = undo.colorBB[0];
     colorBB[1]     = undo.colorBB[1];
     for (int i = 0; i < 7; i++) pieceBBs[i] = undo.pieceBBs[i];
-    whiteKingSq = undo.whiteKingSq;
-    blackKingSq = undo.blackKingSq;
-    phase       = undo.phase;
-    duckSquare  = undo.duckSquare;
+    whiteKingSq    = undo.whiteKingSq;
+    blackKingSq    = undo.blackKingSq;
+    phase          = undo.phase;
+    turn           = (turn == Color::White) ? Color::Black : Color::White;
     for (int r = 0; r < 8; r++)
         for (int c = 0; c < 8; c++)
             squares[r][c] = undo.squares[r][c];
-    turn = (turn == Color::White) ? Color::Black : Color::White;
 }
 
 // ============================================================

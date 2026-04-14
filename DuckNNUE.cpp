@@ -323,8 +323,9 @@ namespace DuckNNUE {
     }
 
     void Network::addFeatureQ(int feature, QAccumulator& acc) const {
-        if (!L1_weights_q) return;
+        if (!L1_weights_q || feature < 0 || feature >= NUM_FEATURES) return;
         int mir = mirrorDuckFeature(feature);
+        if (mir < 0 || mir >= NUM_FEATURES) return;
         const int16_t* wW = (*L1_weights_q)[feature].data();
         const int16_t* bW = (*L1_weights_q)[mir].data();
         int16_t* wA = acc.white.data(); int16_t* bA = acc.black.data();
@@ -339,8 +340,9 @@ namespace DuckNNUE {
     }
 
     void Network::removeFeatureQ(int feature, QAccumulator& acc) const {
-        if (!L1_weights_q) return;
+        if (!L1_weights_q || feature < 0 || feature >= NUM_FEATURES) return;
         int mir = mirrorDuckFeature(feature);
+        if (mir < 0 || mir >= NUM_FEATURES) return;
         const int16_t* wW = (*L1_weights_q)[feature].data();
         const int16_t* bW = (*L1_weights_q)[mir].data();
         int16_t* wA = acc.white.data(); int16_t* bA = acc.black.data();
@@ -358,19 +360,23 @@ namespace DuckNNUE {
         const auto& stm = (sideToMove == Color::White) ? acc.white : acc.black;
         const auto& opp = (sideToMove == Color::White) ? acc.black : acc.white;
 
+        // Dequantize INT16 accumulator → float SCReLU
+        // Use thread_local to avoid stack alignment issues in worker threads
+        static thread_local float input[L1_SIZE * 2];
+        static thread_local float l2Out[L2_SIZE];
+        static thread_local float l3Out[L3_SIZE];
+
         const float invQA2 = 1.0f / (static_cast<float>(QA) * static_cast<float>(QA));
-        alignas(32) float input[L1_SIZE * 2];
         for (int i = 0; i < L1_SIZE; ++i) {
             float sv = static_cast<float>(stm[i]);
             float ov = static_cast<float>(opp[i]);
-            float sc = sv < 0.f ? 0.f : sv > QA ? static_cast<float>(QA) : sv;
-            float oc = ov < 0.f ? 0.f : ov > QA ? static_cast<float>(QA) : ov;
+            float sc = sv < 0.f ? 0.f : sv > static_cast<float>(QA) ? static_cast<float>(QA) : sv;
+            float oc = ov < 0.f ? 0.f : ov > static_cast<float>(QA) ? static_cast<float>(QA) : ov;
             input[i]           = sc * sc * invQA2;
             input[L1_SIZE + i] = oc * oc * invQA2;
         }
 
         // L2 — AVX2 transposed float weights
-        alignas(32) float l2Out[L2_SIZE];
         for (int j = 0; j < L2_SIZE; ++j) {
             const float* w = L2_weights_T[j].data();
             __m256 sum = _mm256_setzero_ps();
@@ -385,7 +391,6 @@ namespace DuckNNUE {
         }
 
         // L3 — AVX2 transposed float weights
-        alignas(32) float l3Out[L3_SIZE];
         for (int j = 0; j < L3_SIZE; ++j) {
             const float* w = L3_weights_T[j].data();
             __m256 sum = _mm256_setzero_ps();
@@ -410,9 +415,10 @@ namespace DuckNNUE {
     }
 
     int Network::evaluateQ(const Board& board) const {
-        // INT16 quantized path — forwardQ crashes with AVX2 (under investigation)
-        // Fall back to float evaluate for now
-        return evaluate(board);
+        // INT16 quantized path — refreshAccumulatorQ (scalar) + forwardQ (AVX2 float)
+        static thread_local QAccumulator acc;
+        refreshAccumulatorQ(board, acc);
+        return forwardQ(acc, board.turn);
     }
 
     void Network::refreshAccumulatorQ(const Board& board, QAccumulator& acc) const {
@@ -430,7 +436,9 @@ namespace DuckNNUE {
                 Piece piece = board.squares[rank][col];
                 if (piece.isNone() || piece.isDuck()) continue;
                 int wFeat = NNUE::featureIndex(piece.type, piece.color, rank, col);
+                if (wFeat < 0 || wFeat >= NUM_FEATURES) continue;
                 int bFeat = NNUE::mirrorFeature(wFeat);
+                if (bFeat < 0 || bFeat >= NUM_FEATURES) continue;
                 const auto& wW = (*L1_weights_q)[wFeat];
                 const auto& bW = (*L1_weights_q)[bFeat];
                 for (int j = 0; j < L1_SIZE; ++j) {

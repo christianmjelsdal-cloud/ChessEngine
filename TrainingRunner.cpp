@@ -230,7 +230,20 @@ struct AppState {
     void setPhase (const std::string& s) { std::lock_guard<std::mutex> lk(mtx); phase  = s; }
     void pushPt(TrainPoint p) {
         std::lock_guard<std::mutex> lk(mtx);
-        pts.push_back(p);
+        // Replace existing point with same gen+step, or append
+        bool replaced = false;
+        for (auto& existing : pts) {
+            if (existing.gen == p.gen && existing.step == p.step) {
+                existing = p;
+                replaced = true;
+                break;
+            }
+        }
+        if (!replaced) pts.push_back(p);
+        // Keep sorted by (gen, step) so graph always renders in order
+        std::sort(pts.begin(), pts.end(), [](const TrainPoint& a, const TrainPoint& b) {
+            return a.gen != b.gen ? a.gen < b.gen : a.step < b.step;
+        });
         lastTrain = p.train;
         if (p.hasVal) lastVal = p.val;
     }
@@ -551,12 +564,13 @@ static void LoadGraphCsv(ChessVariant variant) {
             if (!std::getline(ss, tok, ',')) continue; p.gen  = std::stoi(tok);
             if (!std::getline(ss, tok, ',')) continue; p.step = std::stoi(tok);
             if (!std::getline(ss, tok, ',')) continue; p.train = std::stod(tok);
-            if (std::getline(ss, tok, ',') && tok != "nan") { p.val = std::stod(tok); p.hasVal = true; }
-            if (std::getline(ss, tok, ',') && tok != "nan") { p.lr  = std::stod(tok); p.hasLR  = true; }
-            if (std::getline(ss, tok, ',') && tok != "nan") { p.accuracy = std::stod(tok); p.hasAcc = true; }
+            if (std::getline(ss, tok, ',') && tok != "nan" && !tok.empty()) { p.val = std::stod(tok); p.hasVal = true; }
+            if (std::getline(ss, tok, ',') && tok != "nan" && !tok.empty()) { p.lr  = std::stod(tok); p.hasLR  = true; }
+            if (std::getline(ss, tok, ',') && tok != "nan" && !tok.empty()) { p.accuracy = std::stod(tok); p.hasAcc = true; }
             std::string opTok, mgTok, egTok;
             if (std::getline(ss, opTok, ',') && std::getline(ss, mgTok, ',') && std::getline(ss, egTok, ',')) {
-                if (opTok != "nan" && mgTok != "nan" && egTok != "nan") {
+                if (opTok != "nan" && mgTok != "nan" && egTok != "nan" &&
+                    !opTok.empty() && !mgTok.empty() && !egTok.empty()) {
                     p.openingLoss    = std::stod(opTok);
                     p.middlegameLoss = std::stod(mgTok);
                     p.endgameLoss    = std::stod(egTok);
@@ -566,6 +580,15 @@ static void LoadGraphCsv(ChessVariant variant) {
             g_st.pts.push_back(p);
         } catch (...) {}
     }
+    // Sort by (gen, step) and deduplicate — handles replayed gens in old CSV files
+    std::sort(g_st.pts.begin(), g_st.pts.end(), [](const TrainPoint& a, const TrainPoint& b) {
+        return a.gen != b.gen ? a.gen < b.gen : a.step < b.step;
+    });
+    // Remove duplicate (gen, step) pairs — keep last occurrence (most recent run)
+    auto it = std::unique(g_st.pts.begin(), g_st.pts.end(), [](const TrainPoint& a, const TrainPoint& b) {
+        return a.gen == b.gen && a.step == b.step;
+    });
+    g_st.pts.erase(it, g_st.pts.end());
 }
 
 static int findLatestGen(const std::string& dataDir, ChessVariant variant = ChessVariant::Standard) {
@@ -969,7 +992,7 @@ static bool RunProc(const std::wstring& cmd, const std::string& dir,
         g_activePi = pi;
     }
 
-    std::string buf; char ch[4096]; DWORD br = 0;
+    std::string buf; char ch[4096] = {}; DWORD br = 0;
     while (ReadFile(hR, ch, (DWORD)(sizeof(ch)-1), &br, nullptr) && br > 0) {
         ch[br] = '\0'; buf += ch;
         size_t p;
@@ -1063,12 +1086,17 @@ static bool ParseLoss(const std::string& line, TrainPoint& pt) {
     pt.lr    = pt.hasLR ? lrv : 0.0;
     double acc = findNum("Acc");
     if (acc < 0) acc = findNum("accuracy");
+    if (acc < 0) acc = findNum("acc=");
     pt.hasAcc = acc >= 0;
     pt.accuracy = pt.hasAcc ? acc : 0.0;
     // Phase losses: "Phase loss -> Opening: X  Middlegame: Y  Endgame: Z"
+    // or duck chess compact: "op=X mg=Y eg=Z"
     double op = findNum("Opening:");
+    if (op < 0) op = findNum("op=");
     double mg = findNum("Middlegame:");
+    if (mg < 0) mg = findNum("mg=");
     double eg = findNum("Endgame:");
+    if (eg < 0) eg = findNum("eg=");
     pt.hasPhase = (op >= 0 && mg >= 0 && eg >= 0);
     if (pt.hasPhase) {
         pt.openingLoss    = op;
@@ -1099,10 +1127,10 @@ static bool SelfPlay(const Config& cfg, int gen) {
         " --workers " + std::to_string(cfg.workers) +
         " --output \"" + outFile.string() + "\"" +
         weightsArg + cfg.variantFlag() +
-        // Adjudication
+        // Adjudication — for duck chess use higher draw threshold (evals near 0 with random weights)
         " --resign-cp " + std::to_string(cfg.resignCp) +
         " --resign-count " + std::to_string(cfg.resignCount) +
-        " --draw-cp " + std::to_string(cfg.drawCp) +
+        " --draw-cp " + std::to_string(cfg.variant == ChessVariant::DuckChess ? std::max(cfg.drawCp, 50) : cfg.drawCp) +
         " --draw-count " + std::to_string(cfg.drawCount) +
         " --draw-min-ply " + std::to_string(cfg.drawMinPly) +
         " --draw-adj-moves " + std::to_string(cfg.drawAdjMoves) +
@@ -1474,7 +1502,7 @@ static bool Training(const Config& cfg, int gen) {
             g_log.write("ERROR", "training", gen, cleaned);
 
         TrainPoint pt; pt.gen = gen;
-        if (ParseLoss(ln, pt)) {
+        if (ParseLoss(ln, pt) && pt.train < 10.0 && pt.train >= 0.0) {
             g_st.pushPt(pt);
             g_log.metric(gen, pt.step, pt.train, pt.val, pt.hasVal, pt.lr, pt.hasLR);
             if (pt.hasPhase) {
@@ -1607,6 +1635,7 @@ static void PipelineThread(Config cfg) {
 
     g_st.pushLog("=== Pipeline start: "+variantName+" | "+std::to_string(cfg.generations)+" generations (gen "+std::to_string(firstGen)+" to "+std::to_string(lastGen)+") ===");
 
+    bool crashed = false;
     for (int gen=firstGen; gen<=lastGen && !g_st.stopFlag.load(); gen++) {
         { std::lock_guard<std::mutex> lk(g_st.mtx); g_st.curGen=gen-firstGen; }
         g_st.pushLog("--- Generation "+std::to_string(gen)+" ---");
@@ -1615,8 +1644,11 @@ static void PipelineThread(Config cfg) {
         if (!SelfPlay(cfg, gen)) {
             if (g_st.stopFlag.load())
                 g_st.pushLog("[STOP] Self-play stopped by user (gen " + std::to_string(gen) + ")");
-            else
+            else {
                 g_st.pushLog("[ERR] Self-play CRASHED gen " + std::to_string(gen) + " — check output above for details");
+                PlayMp3("snd_crash", cfg.dataDir, "fuck-crash.mp3");
+                crashed = true;
+            }
             g_log.error("selfplay", gen, g_st.stopFlag.load() ? "Self-play stopped by user" : "Self-play CRASHED");
             break;
         }
@@ -1625,8 +1657,11 @@ static void PipelineThread(Config cfg) {
         if (!Training(cfg, gen)) {
             if (g_st.stopFlag.load())
                 g_st.pushLog("[STOP] Training stopped by user (gen " + std::to_string(gen) + ")");
-            else
+            else {
                 g_st.pushLog("[ERR] Training CRASHED gen " + std::to_string(gen) + " — check output above for details");
+                PlayMp3("snd_crash", cfg.dataDir, "fuck-crash.mp3");
+                crashed = true;
+            }
             g_log.error("training", gen, g_st.stopFlag.load() ? "Training stopped by user" : "Training CRASHED");
             break;
         }
@@ -1637,8 +1672,10 @@ static void PipelineThread(Config cfg) {
           std::ostringstream ss; ss<<std::fixed<<std::setprecision(5);
           ss<<"Gen "<<gen<<" done | train="<<g_st.lastTrain<<" val="<<g_st.lastVal<<" ELO="<<g_st.lastElo;
           g_st.log.push_back(ss.str()); g_st.completedGens++;
+        }
 
-          // Log gen summary with weights file size
+        // Log gen summary with weights file size (outside lock — g_log has its own sync)
+        {
           fs::path weightsFile = fs::path(exeDir())/cfg.dataDir/(cfg.weightsBaseName()+".bin");
           std::string wSize = "unknown";
           if (fs::exists(weightsFile)) {
@@ -1649,7 +1686,8 @@ static void PipelineThread(Config cfg) {
                       + " train_loss=" + dbl2s(g_st.lastTrain, 8)
                       + " val_loss=" + dbl2s(g_st.lastVal, 8)
                       + " elo=" + std::to_string(g_st.lastElo)
-                      + " weights_size=" + wSize); }
+                      + " weights_size=" + wSize);
+        }
         PlayMp3("snd_gen", cfg.dataDir, "ding_gen_complete.mp3");
 
         // Persist graph data to CSV after each gen so it survives restarts
@@ -1675,13 +1713,14 @@ static void PipelineThread(Config cfg) {
             }
         }
     }
-    { std::lock_guard<std::mutex> lk(g_st.mtx); g_st.running=false; }
+    int finalGens = 0;
+    { std::lock_guard<std::mutex> lk(g_st.mtx); g_st.running=false; finalGens = g_st.completedGens; }
     bool stopped = g_st.stopFlag.load();
-    g_st.setStatus(stopped ? "Stopped by user." : "Pipeline complete!");
-    g_st.pushLog("=== Pipeline " + std::string(stopped ? "STOPPED BY USER" : "complete") + " ===");
-    if (!stopped) PlayMp3("snd_pipe", cfg.dataDir, "ding_gen_complete.mp3");
-    g_log.event("pipeline", 0, std::string("PIPELINE_END reason=") + (stopped ? "user_stop" : "complete")
-                + " completed_gens=" + std::to_string(g_st.completedGens));
+    g_st.setStatus(crashed ? "Crashed." : stopped ? "Stopped by user." : "Pipeline complete!");
+    g_st.pushLog("=== Pipeline " + std::string(crashed ? "CRASHED" : stopped ? "STOPPED BY USER" : "complete") + " ===");
+    if (!stopped && !crashed) PlayMp3("snd_pipe", cfg.dataDir, "ding_gen_complete.mp3");
+    g_log.event("pipeline", 0, std::string("PIPELINE_END reason=") + (crashed ? "crash" : stopped ? "user_stop" : "complete")
+                + " completed_gens=" + std::to_string(finalGens));
     g_log.close();
     PostMessage(g_hWnd, WM_USER+1, 0, 0);
 }

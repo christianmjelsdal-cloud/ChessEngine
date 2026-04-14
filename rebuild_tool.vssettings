@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserSettings>
+  <ApplicationIdentity version="18.0"/>
+  <ToolsOptions>
+    <ToolsOptionsCategory name="Environment" RegisteredName="Environment">
+      <ToolsOptionsSubCategory name="External Tools" RegisteredName="External Tools" PackageName="Environment Package">
+        <PropertyValue name="ToolNumKeys">1</PropertyValue>
+        <PropertyValue name="ToolTitle0">Rebuild to build.txt</PropertyValue>
+        <PropertyValue name="ToolCmd0">cmd.exe</PropertyValue>
+        <PropertyValue name="ToolArg0">/c "$(SolutionDir)build.bat"</PropertyValue>
+        <PropertyValue name="ToolDir0">$(SolutionDir)</PropertyValue>
+        <PropertyValue name="ToolOpt0">17</PropertyValue>
+      </ToolsOptionsSubCategory>
+    </ToolsOptionsCategory>
+  </ToolsOptions>
+</UserSettings>

@@ -458,11 +458,16 @@ int main(int argc, char* argv[]) {
 
         trainer.trainDuck(*net, allData, tcfg,
             [&](int ep, float loss) {
-                // Compute val loss using the same sigmoid MSE as trainDuck
-                float valLoss = 0.0f;
                 auto sigmoid = [](float x) { return 1.0f / (1.0f + std::exp(-x)); };
                 auto screlu  = [](float x) { float c = x < 0.f ? 0.f : x > 1.f ? 1.f : x; return c*c; };
+
+                float valLoss = 0.0f;
+                float opLoss = 0.0f, mgLoss = 0.0f, egLoss = 0.0f;
+                int opCnt = 0, mgCnt = 0, egCnt = 0;
+                int correct = 0;
+
                 for (const auto& pos : valData) {
+                    // Forward pass
                     std::array<float, DuckNNUE::L1_SIZE> wAcc, bAcc;
                     for (int j = 0; j < DuckNNUE::L1_SIZE; ++j) { wAcc[j] = bAcc[j] = net->L1_biases[j]; }
                     for (int feat : pos.activeFeatures) {
@@ -491,17 +496,45 @@ int main(int argc, char* argv[]) {
                     float raw = net->output_bias;
                     for (int i = 0; i < DuckNNUE::L3_SIZE; ++i) raw += l3[i] * net->output_weights[i];
                     float whitePred = (pos.sideToMove == Color::White) ? raw * 400.f : -raw * 400.f;
+
                     float sp = sigmoid(whitePred / tcfg.evalScale);
                     float st = sigmoid(pos.searchEval / tcfg.evalScale);
                     float el = (sp - st) * (sp - st);
                     float rl = (sp - pos.gameResult) * (sp - pos.gameResult);
-                    valLoss += tcfg.lambda * el + (1.f - tcfg.lambda) * rl;
+                    float posLoss = tcfg.lambda * el + (1.f - tcfg.lambda) * rl;
+                    valLoss += posLoss;
+
+                    // Accuracy: sign of predicted cp vs sign of target eval
+                    // Only count non-zero targets to avoid noise near zero
+                    if (std::abs(pos.searchEval) > 10.f) {
+                        bool predWinning = whitePred > 0.f;
+                        bool targetWinning = pos.searchEval > 0.f;
+                        if (predWinning == targetWinning) ++correct;
+                    }
+
+                    // Phase loss
+                    NNUE::Trainer::GamePhase phase = NNUE::Trainer::classifyPhase(pos.activeFeatures);
+                    switch (phase) {
+                        case NNUE::Trainer::GamePhase::Opening:    opLoss += posLoss; ++opCnt; break;
+                        case NNUE::Trainer::GamePhase::Middlegame: mgLoss += posLoss; ++mgCnt; break;
+                        case NNUE::Trainer::GamePhase::Endgame:    egLoss += posLoss; ++egCnt; break;
+                    }
                 }
-                valLoss /= static_cast<float>(valData.size());
+
+                int valN = static_cast<int>(valData.size());
+                valLoss /= static_cast<float>(valN);
+                float accuracy = (valN > 0) ? static_cast<float>(correct) / static_cast<float>(valN) : 0.f;
+                if (opCnt > 0) opLoss /= static_cast<float>(opCnt);
+                if (mgCnt > 0) mgLoss /= static_cast<float>(mgCnt);
+                if (egCnt > 0) egLoss /= static_cast<float>(egCnt);
 
                 std::cout << "Epoch " << ep << "/" << tcfg.epochs
                           << " loss=" << std::fixed << std::setprecision(8) << loss
                           << " val_loss=" << std::fixed << std::setprecision(8) << valLoss
+                          << " acc=" << std::fixed << std::setprecision(4) << accuracy
+                          << " op=" << std::fixed << std::setprecision(8) << opLoss
+                          << " mg=" << std::fixed << std::setprecision(8) << mgLoss
+                          << " eg=" << std::fixed << std::setprecision(8) << egLoss
                           << " lr=" << std::scientific << std::setprecision(6) << currentLr
                           << "\n";
                 std::cout.flush();

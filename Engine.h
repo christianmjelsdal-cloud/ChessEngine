@@ -127,9 +127,14 @@ private:
     static uint64_t zDuck_[64];
 
     /* ---------- Duck Chess search ---------- */
-    int searchDuck(Board& board, int depth, int alpha, int beta, int ply);
+    int searchDuck(Board& board, int depth, int alpha, int beta, int ply,
+                   DuckNNUE::QAccumulator* accStack);
     int scoreDuckPlacement(const Board& board, Square duckSq, Color myColor) const;
     void orderDuckPlacements(SquareList& placements, const Board& board, Color myColor) const;
+
+    // Accumulator stack for duck chess incremental updates
+    // Slot [ply] = post-duck; slot [MAX_PLY+ply] = post-chess scratch
+    std::unique_ptr<DuckNNUE::QAccumulator[]> duckAccStack_;
 
     /* ---------- transposition table ---------- */
     enum TTFlag : uint8_t { TT_EXACT, TT_LOWER, TT_UPPER };
