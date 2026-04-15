@@ -905,12 +905,14 @@ int SelfPlayGen::generate(const Config& cfg) {
                 // gets dragged down as games get longer over the course of a run.
                 {
                     double intSec = wallElapsed - lastReportTime;
-                    uint64_t nodeDelta = tn - lastReportNodes;
-                    if (intSec > 0.001 && nodeDelta > 0) {
+                    uint64_t nodeDelta = (tn >= lastReportNodes) ? (tn - lastReportNodes) : 0;
+                    if (ewmaSamples == 0) {
+                        // First sample: use cumulative rate to avoid inflated burst
+                        ewmaNps = (elapsed > 0.001) ? static_cast<double>(tn) / elapsed : 0.0;
+                    } else if (intSec > 0.1 && nodeDelta > 0) {
                         double intervalNps = static_cast<double>(nodeDelta) / intSec;
-                        if (ewmaSamples == 0)
-                            ewmaNps = intervalNps;
-                        else
+                        // Sanity clamp: reject samples >10x the current EWMA (burst artifact)
+                        if (ewmaNps < 1.0 || intervalNps < ewmaNps * 10.0)
                             ewmaNps = EWMA_ALPHA * intervalNps + (1.0 - EWMA_ALPHA) * ewmaNps;
                     }
                 }
