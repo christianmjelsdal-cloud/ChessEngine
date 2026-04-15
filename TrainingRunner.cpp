@@ -157,6 +157,8 @@ struct TrainPoint {
     double middlegameLoss = 0.0;
     double endgameLoss    = 0.0;
     bool   hasPhase = false;
+    double nps    = 0.0;
+    bool   hasNps = false;
 };
 
 struct AppState {
@@ -349,6 +351,7 @@ enum {
     ID_CHK_GRAPH_ACC    = 1051,
     ID_CHK_GRAPH_LR     = 1052,
     ID_CHK_GRAPH_PHASE  = 1053,
+    ID_CHK_GRAPH_NPS    = 1063,
     ID_EDIT_MIXDEPTH_PCT = 1054,
     ID_EDIT_MIXDEPTH_LOW = 1055,
     ID_EDIT_RESIGNCP     = 1056,
@@ -2157,7 +2160,7 @@ static void DrawGraph(HWND hw) {
                     g.DrawLine(&npsPen,px5,py5,cx,py5);
                     g.DrawLine(&npsPen,cx,py5,cx,cy);
                 }
-                if (pts[i].gen!=lastGen) g.FillEllipse(&dotBr,cx-3,cy-3,6,6);
+                if (pts[i].gen!=lastGen) g.FillEllipse(&dotBr,cx-3.0f,cy-3.0f,6.0f,6.0f);
                 px5=cx; py5=cy; started=true; lastGen=pts[i].gen;
             }
         }
