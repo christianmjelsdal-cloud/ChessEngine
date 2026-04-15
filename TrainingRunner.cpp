@@ -1202,6 +1202,29 @@ static bool SelfPlay(const Config& cfg, int gen) {
                 std::lock_guard<std::mutex> lk(g_st.mtx); g_st.curEpoch=g2; }
             catch(...) {}
 
+            // Parse NPS from every progress line for live graph (not just milestones)
+            {
+                auto npsPos2 = ln.find(" nps");
+                if (npsPos2 != std::string::npos && npsPos2 > 0) {
+                    try {
+                        size_t start2 = ln.rfind(' ', npsPos2 - 1);
+                        if (start2 == std::string::npos) start2 = 0; else start2++;
+                        std::string numStr = ln.substr(start2, npsPos2 - start2);
+                        double npsVal = 0.0;
+                        if (!numStr.empty() && (numStr.back()=='K'||numStr.back()=='k'))
+                            npsVal = std::stod(numStr.substr(0,numStr.size()-1)) * 1000.0;
+                        else if (!numStr.empty() && (numStr.back()=='M'||numStr.back()=='m'))
+                            npsVal = std::stod(numStr.substr(0,numStr.size()-1)) * 1000000.0;
+                        else
+                            npsVal = std::stod(numStr);
+                        if (npsVal > 0.0 && npsVal < 50000000.0) {
+                            std::lock_guard<std::mutex> lk(g_st.mtx);
+                            g_st.curNps = npsVal;
+                        }
+                    } catch(...) {}
+                }
+            }
+
             // Log progress snapshots at 25%, 50%, 75%, 100%
             auto pctPos = ln.find("(");
             auto pctEnd = ln.find("%)");
@@ -1234,23 +1257,6 @@ static bool SelfPlay(const Config& cfg, int gen) {
                             size_t start = ln.rfind(' ', npsPos-2)+1;
                             size_t end = ln.find(' ', npsPos+3); if (end==std::string::npos) end=ln.size();
                             stats += ln.substr(start, end-start);
-                            // Parse and store curNps for live graph
-                            try {
-                                std::string numStr = ln.substr(start, npsPos - start);
-                                // trim trailing space
-                                while (!numStr.empty() && numStr.back() == ' ') numStr.pop_back();
-                                double npsVal = 0.0;
-                                if (!numStr.empty() && (numStr.back()=='K'||numStr.back()=='k'))
-                                    npsVal = std::stod(numStr.substr(0,numStr.size()-1)) * 1000.0;
-                                else if (!numStr.empty() && (numStr.back()=='M'||numStr.back()=='m'))
-                                    npsVal = std::stod(numStr.substr(0,numStr.size()-1)) * 1000000.0;
-                                else
-                                    npsVal = std::stod(numStr);
-                                if (npsVal > 0.0 && npsVal < 50000000.0) {
-                                    std::lock_guard<std::mutex> lk(g_st.mtx);
-                                    g_st.curNps = npsVal;
-                                }
-                            } catch(...) {}
                         }
                         g_log.write("STATS", "selfplay", gen,
                             "PROGRESS pct=" + std::to_string(pct) + "% " + stats);
