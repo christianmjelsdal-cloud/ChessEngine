@@ -1336,14 +1336,19 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply,
 
             Square newDuck = (*duckSquares)[d];
 
-            // OPT: Fused post-chess + duck delta into myAcc in one pass.
-            // Avoids a separate full copy of postChess into myAcc.
+            // OPT: Apply duck delta directly onto postChess in-place, recurse,
+            // then undo — eliminates the 2KB copy into myAcc per duck placement.
             if (canInc) {
-                *myAcc = postChess;
                 if (oldDuck.isValid())
-                    duckNnue_->removeFeatureQ(DuckNNUE::duckFeatureIndex(oldDuck.rank, oldDuck.col), *myAcc);
-                duckNnue_->addFeatureQ(DuckNNUE::duckFeatureIndex(newDuck.rank, newDuck.col), *myAcc);
-                myAcc->valid = true;
+                    duckNnue_->removeFeatureQ(DuckNNUE::duckFeatureIndex(oldDuck.rank, oldDuck.col), postChess);
+                duckNnue_->addFeatureQ(DuckNNUE::duckFeatureIndex(newDuck.rank, newDuck.col), postChess);
+                postChess.valid = true;
+                // Point myAcc at postChess so searchDuck reads the right state
+                *myAcc = postChess;
+                // Undo duck delta on postChess for next iteration
+                duckNnue_->removeFeatureQ(DuckNNUE::duckFeatureIndex(newDuck.rank, newDuck.col), postChess);
+                if (oldDuck.isValid())
+                    duckNnue_->addFeatureQ(DuckNNUE::duckFeatureIndex(oldDuck.rank, oldDuck.col), postChess);
             }
 
             board.placeDuck(newDuck);

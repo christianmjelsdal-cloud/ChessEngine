@@ -435,13 +435,17 @@ namespace DuckNNUE {
     void Network::refreshAccumulatorQ(const Board& board, QAccumulator& acc) const {
         if (!L1_weights_q) { acc.valid = false; return; }
 
-        // Init with quantized biases (scalar)
-        for (int j = 0; j < L1_SIZE; ++j) {
-            acc.white[j] = L1_biases_q[j];
-            acc.black[j] = L1_biases_q[j];
+        // Init with quantized biases (AVX2: 16 int16 per op)
+        const int16_t* bias = L1_biases_q.data();
+        int16_t* wA = acc.white.data();
+        int16_t* bA = acc.black.data();
+        for (int j = 0; j < L1_SIZE; j += 16) {
+            __m256i b = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&bias[j]));
+            _mm256_storeu_si256(reinterpret_cast<__m256i*>(&wA[j]), b);
+            _mm256_storeu_si256(reinterpret_cast<__m256i*>(&bA[j]), b);
         }
 
-        // Piece features (scalar)
+        // Piece features (AVX2)
         for (int rank = 0; rank < 8; ++rank) {
             for (int col = 0; col < 8; ++col) {
                 Piece piece = board.squares[rank][col];
@@ -450,24 +454,32 @@ namespace DuckNNUE {
                 if (wFeat < 0 || wFeat >= NUM_FEATURES) continue;
                 int bFeat = NNUE::mirrorFeature(wFeat);
                 if (bFeat < 0 || bFeat >= NUM_FEATURES) continue;
-                const auto& wW = (*L1_weights_q)[wFeat];
-                const auto& bW = (*L1_weights_q)[bFeat];
-                for (int j = 0; j < L1_SIZE; ++j) {
-                    acc.white[j] = static_cast<int16_t>(std::max(-32768, std::min(32767, (int)acc.white[j] + (int)wW[j])));
-                    acc.black[j] = static_cast<int16_t>(std::max(-32768, std::min(32767, (int)acc.black[j] + (int)bW[j])));
+                const int16_t* wW = (*L1_weights_q)[wFeat].data();
+                const int16_t* bW = (*L1_weights_q)[bFeat].data();
+                for (int j = 0; j < L1_SIZE; j += 16) {
+                    _mm256_storeu_si256(reinterpret_cast<__m256i*>(&wA[j]),
+                        _mm256_adds_epi16(_mm256_loadu_si256(reinterpret_cast<const __m256i*>(&wA[j])),
+                                          _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&wW[j]))));
+                    _mm256_storeu_si256(reinterpret_cast<__m256i*>(&bA[j]),
+                        _mm256_adds_epi16(_mm256_loadu_si256(reinterpret_cast<const __m256i*>(&bA[j])),
+                                          _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&bW[j]))));
                 }
             }
         }
 
-        // Duck feature (scalar)
+        // Duck feature (AVX2)
         if (board.isDuckChess && board.duckSquare.isValid()) {
             int dFeat  = duckFeatureIndex(board.duckSquare.rank, board.duckSquare.col);
             int dFeatM = mirrorDuckFeature(dFeat);
-            const auto& dW  = (*L1_weights_q)[dFeat];
-            const auto& dWM = (*L1_weights_q)[dFeatM];
-            for (int j = 0; j < L1_SIZE; ++j) {
-                acc.white[j] = static_cast<int16_t>(std::max(-32768, std::min(32767, (int)acc.white[j] + (int)dW[j])));
-                acc.black[j] = static_cast<int16_t>(std::max(-32768, std::min(32767, (int)acc.black[j] + (int)dWM[j])));
+            const int16_t* dW  = (*L1_weights_q)[dFeat].data();
+            const int16_t* dWM = (*L1_weights_q)[dFeatM].data();
+            for (int j = 0; j < L1_SIZE; j += 16) {
+                _mm256_storeu_si256(reinterpret_cast<__m256i*>(&wA[j]),
+                    _mm256_adds_epi16(_mm256_loadu_si256(reinterpret_cast<const __m256i*>(&wA[j])),
+                                      _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&dW[j]))));
+                _mm256_storeu_si256(reinterpret_cast<__m256i*>(&bA[j]),
+                    _mm256_adds_epi16(_mm256_loadu_si256(reinterpret_cast<const __m256i*>(&bA[j])),
+                                      _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&dWM[j]))));
             }
         }
         acc.valid = true;

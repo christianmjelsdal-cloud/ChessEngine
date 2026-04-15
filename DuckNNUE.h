@@ -42,9 +42,9 @@ namespace DuckNNUE {
     };
 
     // INT16 quantized accumulator (used by evaluateQ)
-    struct QAccumulator {
-        std::array<int16_t, L1_SIZE> white{};
-        std::array<int16_t, L1_SIZE> black{};
+    struct alignas(32) QAccumulator {
+        alignas(32) std::array<int16_t, L1_SIZE> white{};
+        alignas(32) std::array<int16_t, L1_SIZE> black{};
         bool valid = false;
     };
 
