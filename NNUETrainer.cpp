@@ -1121,7 +1121,8 @@ namespace NNUE {
         const std::vector<TrainingPosition>& data,
         const TrainingConfig& config,
         std::function<void(int, float)> progressCallback,
-        std::atomic<bool>* cancelFlag)
+        std::atomic<bool>* cancelFlag,
+        std::function<void(int, int, float)> batchCallback)
     {
         if (data.empty()) {
             std::cerr << "No duck training data provided." << std::endl;
@@ -1510,6 +1511,13 @@ namespace NNUE {
                 }
 
                 if (cancelFlag && (numBatches % 50 == 0) && cancelFlag->load()) break;
+
+                // Batch progress callback
+                if (batchCallback) {
+                    int totalBatches = ((int)indices.size() + config.batchSize - 1) / config.batchSize;
+                    float curBatchLoss = batchLoss / static_cast<float>(batchActualSize);
+                    batchCallback(numBatches, totalBatches, curBatchLoss);
+                }
 
             } // end batch loop
 

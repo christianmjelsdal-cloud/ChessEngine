@@ -87,7 +87,8 @@ namespace NNUE {
         void trainDuck(DuckNNUE::Network& net, const std::vector<TrainingPosition>& data,
             const TrainingConfig& config,
             std::function<void(int epoch, float loss)> progressCallback = nullptr,
-            std::atomic<bool>* cancelFlag = nullptr);
+            std::atomic<bool>* cancelFlag = nullptr,
+            std::function<void(int batch, int totalBatches, float batchLoss)> batchCallback = nullptr);
 
         // Save/load training data
         void saveTrainingData(const std::vector<TrainingPosition>& data, const std::string& filename);

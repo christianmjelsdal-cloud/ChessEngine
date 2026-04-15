@@ -472,8 +472,22 @@ int main(int argc, char* argv[]) {
         // Track LR across epochs (mirrors trainDuck's decay)
         float currentLr = tcfg.learningRate;
 
+        // Timing state for epoch ETA
+        using Clock = std::chrono::steady_clock;
+        auto epochStart = Clock::now();
+        double lastEpochSecs = 0.0;
+
         trainer.trainDuck(*net, allData, tcfg,
             [&](int ep, float loss) {
+                // Compute epoch duration and ETA
+                auto now = Clock::now();
+                lastEpochSecs = std::chrono::duration<double>(now - epochStart).count();
+                epochStart = now;
+                int remaining = tcfg.epochs - ep;
+                double etaSecs = lastEpochSecs * remaining;
+                int etaMin = (int)(etaSecs / 60);
+                int etaSec = (int)(etaSecs) % 60;
+
                 auto sigmoid = [](float x) { return 1.0f / (1.0f + std::exp(-x)); };
                 auto screlu  = [](float x) { float c = x < 0.f ? 0.f : x > 1.f ? 1.f : x; return c*c; };
 
@@ -552,9 +566,27 @@ int main(int argc, char* argv[]) {
                           << " mg=" << std::fixed << std::setprecision(8) << mgLoss
                           << " eg=" << std::fixed << std::setprecision(8) << egLoss
                           << " lr=" << std::scientific << std::setprecision(6) << currentLr
+                          << " epoch_time=" << std::fixed << std::setprecision(1) << lastEpochSecs << "s"
+                          << " eta=" << etaMin << "m" << etaSec << "s"
                           << "\n";
                 std::cout.flush();
                 currentLr *= tcfg.lrDecay;
+            },
+            nullptr,  // cancelFlag passed separately below
+            [&](int batch, int totalBatches, float batchLoss) {
+                // Overwrite the same line with batch progress
+                // Format: "  batch 12/97 loss=0.01234  ETA 1m23s"
+                double elapsed = std::chrono::duration<double>(Clock::now() - epochStart).count();
+                double batchesPerSec = (elapsed > 0.0) ? batch / elapsed : 0.0;
+                double etaBatch = (batchesPerSec > 0.0) ? (totalBatches - batch) / batchesPerSec : 0.0;
+                int etaMin2 = (int)(etaBatch / 60);
+                int etaSec2 = (int)(etaBatch) % 60;
+                char buf[128];
+                std::snprintf(buf, sizeof(buf),
+                    "\r  batch %d/%d  loss=%.5f  %.1f b/s  ETA %dm%02ds   ",
+                    batch, totalBatches, batchLoss, batchesPerSec, etaMin2, etaSec2);
+                std::cout << buf;
+                std::cout.flush();
             });
 
         net->saveWeights(outputPath);
