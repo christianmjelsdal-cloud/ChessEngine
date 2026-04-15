@@ -168,6 +168,15 @@ private:
     Move countermoves_[2][64][64]{};
     Move previousMove_{};
 
+    // 1-ply continuation history: indexed by [prev_piece_type][prev_to_sq][curr_piece_type][curr_to_sq]
+    // Tracks how well a move follows a specific previous move — strong ordering signal
+    // Compressed to [7][64][7][64] = ~200KB (fits in L2 cache)
+    int  contHist_[7][64][7][64]{};
+
+    // Search stack: stores the move played at each ply for continuation history lookup
+    Move moveStack_[MAX_PLY]{};
+    int  pieceStack_[MAX_PLY]{};  // piece type (int) of the move played at each ply
+
     /* ---------- principal variation ---------- */
     Move pvTable_[MAX_PLY][MAX_PLY]{};
     int  pvLength_[MAX_PLY]{};

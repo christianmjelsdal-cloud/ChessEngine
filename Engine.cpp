@@ -285,6 +285,9 @@ void Engine::clearSearchState() {
     std::memset(killers_, 0, sizeof(killers_));
     std::memset(history_, 0, sizeof(history_));
     std::memset(countermoves_, 0, sizeof(countermoves_));
+    std::memset(contHist_, 0, sizeof(contHist_));
+    std::memset(moveStack_, 0, sizeof(moveStack_));
+    std::memset(pieceStack_, 0, sizeof(pieceStack_));
     for (auto& e : tt_) e = TTEntry{};
     ttGen_ = 0;
     nodes_ = 0;
@@ -755,7 +758,19 @@ int Engine::scoreMove(const Move& m, const Board& board,
     int ci = (board.turn == Color::White) ? 0 : 1;
     int fromSq = m.from.rank * 8 + m.from.col;
     int toSq   = m.to.rank * 8 + m.to.col;
-    return history_[ci][fromSq][toSq];
+    int histScore = history_[ci][fromSq][toSq];
+
+    // Add 1-ply continuation history bonus
+    if (ply > 0 && moveStack_[ply - 1].from.isValid()) {
+        int prevPt  = pieceStack_[ply - 1];
+        int prevTo  = moveStack_[ply - 1].to.rank * 8 + moveStack_[ply - 1].to.col;
+        Piece moving = board.getPiece(m.from);
+        int currPt  = (int)moving.type;
+        if (prevPt >= 0 && prevPt < 7 && currPt >= 0 && currPt < 7)
+            histScore += contHist_[prevPt][prevTo][currPt][toSq];
+    }
+
+    return histScore;
 }
 
 void Engine::orderMoves(MoveList& moves, const Board& board,
@@ -975,6 +990,13 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
             accStack_[ply + 1].valid = false;
         }
 
+        // Record this move in the search stack for continuation history
+        if (ply < MAX_PLY) {
+            moveStack_[ply]  = m;
+            Piece moving = board.getPiece(m.from);
+            pieceStack_[ply] = (int)moving.type;
+        }
+
         board.makeMove(m, undo);
 
         int score;
@@ -984,7 +1006,7 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
         } else {
             int reduction = 0;
             if (depth >= 3 && i >= 3 && isQuiet && !inCheck) {
-                reduction = 1 + (int)(std::log(depth) * std::log(i + 1) / 2.5);
+                reduction = 1 + (int)(std::log(depth) * std::log(i + 1) / 2.2);
 
                 if (ply < MAX_PLY &&
                     (m == killers_[ply][0] || m == killers_[ply][1]))
@@ -995,6 +1017,19 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
                 int tSq = m.to.rank * 8 + m.to.col;
                 if (history_[ci2][fSq][tSq] > 5000)
                     reduction = std::max(0, reduction - 1);
+
+                // Continuation history: reduce more for moves with bad cont-hist
+                if (ply > 0 && moveStack_[ply - 1].from.isValid()) {
+                    int prevPt = pieceStack_[ply - 1];
+                    int prevTo = moveStack_[ply - 1].to.rank * 8 + moveStack_[ply - 1].to.col;
+                    Piece moving = board.getPiece(m.from);
+                    int currPt  = (int)moving.type;
+                    if (prevPt >= 0 && prevPt < 7 && currPt >= 0 && currPt < 7) {
+                        int ch = contHist_[prevPt][prevTo][currPt][tSq];
+                        if (ch > 5000)       reduction = std::max(0, reduction - 1);
+                        else if (ch < -5000) reduction++;
+                    }
+                }
 
                 reduction = std::min(reduction, depth - 2);
                 reduction = std::max(reduction, 0);
@@ -1049,6 +1084,30 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
                             history_[ci3][qf][qt] -= bonus;
                             if (history_[ci3][qf][qt] < -1000000)
                                 history_[ci3][qf][qt] = -1000000;
+                        }
+
+                        // Update 1-ply continuation history
+                        if (ply > 0 && moveStack_[ply - 1].from.isValid()) {
+                            int prevPt = pieceStack_[ply - 1];
+                            int prevTo = moveStack_[ply - 1].to.rank * 8 + moveStack_[ply - 1].to.col;
+                            Piece moving = board.getPiece(m.from);
+                            int currPt  = (int)moving.type;
+                            if (prevPt >= 0 && prevPt < 7 && currPt >= 0 && currPt < 7) {
+                                contHist_[prevPt][prevTo][currPt][tSq] += bonus;
+                                if (contHist_[prevPt][prevTo][currPt][tSq] > 1000000)
+                                    contHist_[prevPt][prevTo][currPt][tSq] = 1000000;
+                                // Penalize quiets that didn't cause cutoff
+                                for (int q = 0; q < quietsTriedCnt; q++) {
+                                    Piece qp = board.getPiece(quietsTriedArr[q].from);
+                                    int qpt = (int)qp.type;
+                                    int qt2 = quietsTriedArr[q].to.rank * 8 + quietsTriedArr[q].to.col;
+                                    if (qpt >= 0 && qpt < 7) {
+                                        contHist_[prevPt][prevTo][qpt][qt2] -= bonus;
+                                        if (contHist_[prevPt][prevTo][qpt][qt2] < -1000000)
+                                            contHist_[prevPt][prevTo][qpt][qt2] = -1000000;
+                                    }
+                                }
+                            }
                         }
 
                         if (previousMove_.from.isValid()) {
@@ -1336,6 +1395,13 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
             for (int t = 0; t < 64; t++)
                 history_[c][f][t] /= 2;
 
+    // Age continuation history (halve to preserve useful signal across searches)
+    for (int p1 = 0; p1 < 7; p1++)
+        for (int s1 = 0; s1 < 64; s1++)
+            for (int p2 = 0; p2 < 7; p2++)
+                for (int s2 = 0; s2 < 64; s2++)
+                    contHist_[p1][s1][p2][s2] /= 2;
+
     // =========================================================
     //  LAZY SMP — spawn helper threads sharing our TT
     // =========================================================
@@ -1552,6 +1618,18 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
         for (int i = 0; i < (int)moves.size(); i++) {
             if (stop_.load(std::memory_order_relaxed)) break;
 
+            // Seed accStack_[1] from root accumulator before descending into search at ply=1
+            if (nnue_ && !board.isDuckChess && accStack_[0].valid) {
+                Piece moving   = board.getPiece(moves[i].from);
+                Piece captured = board.getPiece(moves[i].to);
+                nnue_->fusedCopyAndUpdateQ(board, accStack_[0], accStack_[1],
+                    moves[i].from.rank, moves[i].from.col,
+                    moves[i].to.rank,   moves[i].to.col,
+                    moving.type, moving.color, captured.type, captured.color);
+            } else {
+                accStack_[1].valid = false;
+            }
+
             Board::UndoInfo undo;
             board.makeMove(moves[i], undo);
             previousMove_ = moves[i];
@@ -1597,6 +1675,18 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
 
             for (int i = 0; i < (int)moves2.size(); i++) {
                 if (stop_.load(std::memory_order_relaxed)) break;
+
+                // Seed accStack_[1] for aspiration re-search as well
+                if (nnue_ && !board.isDuckChess && accStack_[0].valid) {
+                    Piece moving   = board.getPiece(moves2[i].from);
+                    Piece captured = board.getPiece(moves2[i].to);
+                    nnue_->fusedCopyAndUpdateQ(board, accStack_[0], accStack_[1],
+                        moves2[i].from.rank, moves2[i].from.col,
+                        moves2[i].to.rank,   moves2[i].to.col,
+                        moving.type, moving.color, captured.type, captured.color);
+                } else {
+                    accStack_[1].valid = false;
+                }
 
                 Board::UndoInfo undo2;
                 board.makeMove(moves2[i], undo2);
