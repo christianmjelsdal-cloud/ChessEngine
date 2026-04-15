@@ -729,6 +729,8 @@ int SelfPlayGen::generate(const Config& cfg) {
     double lastReportTime  = 0.0;   // elapsed seconds at last progress report
     int    lastReportDone  = 0;     // games completed at last progress report
     int    ewmaSamples     = 0;     // number of EWMA updates so far
+    uint64_t lastReportNodes = 0;   // totalNodes at last progress report (for interval NPS)
+    double ewmaNps         = 0.0;   // EWMA of interval NPS
     double pauseAdjustSec  = 0.0;   // accumulated dead time from OS thread suspension (pause/resume)
     static constexpr double EWMA_ALPHA = 0.15; // smoothing factor (lower = more stable ETA)
 
@@ -896,6 +898,24 @@ int SelfPlayGen::generate(const Config& cfg) {
                 // (every worker batch ends with a slow tail game). The cumulative average
                 // naturally accounts for all stalls and gives honest predictions.
                 // EWMA is still displayed as "games/s" for real-time throughput feedback.
+                uint64_t tn = totalNodes.load(std::memory_order_relaxed);
+
+                // Interval NPS: nodes since last report / wall time since last report.
+                // Reflects current search speed rather than a cumulative average that
+                // gets dragged down as games get longer over the course of a run.
+                {
+                    double intSec = wallElapsed - lastReportTime;
+                    uint64_t nodeDelta = tn - lastReportNodes;
+                    if (intSec > 0.001 && nodeDelta > 0) {
+                        double intervalNps = static_cast<double>(nodeDelta) / intSec;
+                        if (ewmaSamples == 0)
+                            ewmaNps = intervalNps;
+                        else
+                            ewmaNps = EWMA_ALPHA * intervalNps + (1.0 - EWMA_ALPHA) * ewmaNps;
+                    }
+                }
+                lastReportNodes = tn;
+
                 lastReportTime = wallElapsed;  // always track wall time for interval detection
                 lastReportDone = done;
                 ewmaSamples++;
@@ -912,8 +932,10 @@ int SelfPlayGen::generate(const Config& cfg) {
                 int drawPct = (done > 0) ? (100 * dr / done) : 0;
                 int lossPct = (done > 0) ? (100 * bw / done) : 0;
                 int donePct = (cfg.games > 0) ? (100 * done / cfg.games) : 0;
-                uint64_t tn = totalNodes.load(std::memory_order_relaxed);
-                uint64_t nps = (elapsed > 0.001) ? static_cast<uint64_t>(tn / elapsed) : 0;
+
+                // Use EWMA interval NPS (falls back to cumulative for first sample)
+                uint64_t nps = (ewmaNps > 0.0) ? static_cast<uint64_t>(ewmaNps)
+                             : (elapsed > 0.001 ? static_cast<uint64_t>(tn / elapsed) : 0);
 
                 // Format NPS with K/M suffix for readability
                 char npsBuf[32];
