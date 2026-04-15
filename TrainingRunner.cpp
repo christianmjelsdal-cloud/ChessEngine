@@ -3477,6 +3477,10 @@ static LRESULT CALLBACK WndProc(HWND hw, UINT msg, WPARAM wp, LPARAM lp) {
             g_showPhase = (Button_GetCheck(g_hChkGPhase) == BST_CHECKED);
             InvalidateRect(g_hGraph, nullptr, FALSE);
         }
+        else if (id == ID_CHK_GRAPH_NPS) {
+            g_graph.showNPS = (Button_GetCheck(g_ui.hChkGNPS) == BST_CHECKED);
+            InvalidateRect(g_hGraph, nullptr, FALSE);
+        }
         else if (id == ID_CHK_MUTE_SOUNDS) {
             g_muteSounds = (Button_GetCheck(g_hChkMute) == BST_CHECKED);
         }
