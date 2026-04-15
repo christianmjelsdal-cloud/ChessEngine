@@ -366,14 +366,25 @@ namespace DuckNNUE {
         static thread_local float l2Out[L2_SIZE];
         static thread_local float l3Out[L3_SIZE];
 
+        // AVX2 SCReLU dequantize: int16 -> float, clamp [0,QA], square, scale by 1/QA^2
         const float invQA2 = 1.0f / (static_cast<float>(QA) * static_cast<float>(QA));
-        for (int i = 0; i < L1_SIZE; ++i) {
-            float sv = static_cast<float>(stm[i]);
-            float ov = static_cast<float>(opp[i]);
-            float sc = sv < 0.f ? 0.f : sv > static_cast<float>(QA) ? static_cast<float>(QA) : sv;
-            float oc = ov < 0.f ? 0.f : ov > static_cast<float>(QA) ? static_cast<float>(QA) : ov;
-            input[i]           = sc * sc * invQA2;
-            input[L1_SIZE + i] = oc * oc * invQA2;
+        const __m256 vZero   = _mm256_setzero_ps();
+        const __m256 vQA     = _mm256_set1_ps(static_cast<float>(QA));
+        const __m256 vInvQA2 = _mm256_set1_ps(invQA2);
+        for (int i = 0; i < L1_SIZE; i += 8) {
+            // Load 8 int16 -> int32 -> float for stm
+            __m128i si16s = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&stm[i]));
+            __m256  sf    = _mm256_cvtepi32_ps(_mm256_cvtepi16_epi32(si16s));
+            sf = _mm256_min_ps(_mm256_max_ps(sf, vZero), vQA);
+            sf = _mm256_mul_ps(_mm256_mul_ps(sf, sf), vInvQA2);
+            _mm256_storeu_ps(&input[i], sf);
+
+            // Load 8 int16 -> int32 -> float for opp
+            __m128i oi16s = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&opp[i]));
+            __m256  of    = _mm256_cvtepi32_ps(_mm256_cvtepi16_epi32(oi16s));
+            of = _mm256_min_ps(_mm256_max_ps(of, vZero), vQA);
+            of = _mm256_mul_ps(_mm256_mul_ps(of, of), vInvQA2);
+            _mm256_storeu_ps(&input[L1_SIZE + i], of);
         }
 
         // L2 — AVX2 transposed float weights
