@@ -184,6 +184,7 @@ struct AppState {
     std::chrono::steady_clock::time_point nextEpochStamp;
     bool   running   = false;
     std::atomic<bool> stopFlag{false};
+    double curNps    = 0.0;  // latest NPS parsed from self-play output
 
     static const size_t MAX_LOG = 800;
 
@@ -1233,6 +1234,23 @@ static bool SelfPlay(const Config& cfg, int gen) {
                             size_t start = ln.rfind(' ', npsPos-2)+1;
                             size_t end = ln.find(' ', npsPos+3); if (end==std::string::npos) end=ln.size();
                             stats += ln.substr(start, end-start);
+                            // Parse and store curNps for live graph
+                            try {
+                                std::string numStr = ln.substr(start, npsPos - start);
+                                // trim trailing space
+                                while (!numStr.empty() && numStr.back() == ' ') numStr.pop_back();
+                                double npsVal = 0.0;
+                                if (!numStr.empty() && (numStr.back()=='K'||numStr.back()=='k'))
+                                    npsVal = std::stod(numStr.substr(0,numStr.size()-1)) * 1000.0;
+                                else if (!numStr.empty() && (numStr.back()=='M'||numStr.back()=='m'))
+                                    npsVal = std::stod(numStr.substr(0,numStr.size()-1)) * 1000000.0;
+                                else
+                                    npsVal = std::stod(numStr);
+                                if (npsVal > 0.0 && npsVal < 50000000.0) {
+                                    std::lock_guard<std::mutex> lk(g_st.mtx);
+                                    g_st.curNps = npsVal;
+                                }
+                            } catch(...) {}
                         }
                         g_log.write("STATS", "selfplay", gen,
                             "PROGRESS pct=" + std::to_string(pct) + "% " + stats);
