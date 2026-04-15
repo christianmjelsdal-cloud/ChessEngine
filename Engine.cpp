@@ -1254,7 +1254,22 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply,
     // This ply's post-duck slot (written before recursing)
     DuckNNUE::QAccumulator* myAcc = accStack ? &accStack[ply] : nullptr;
 
+    // OPT: Hoist duck placement generation outside the chess move loop.
+    // Available duck squares change only when a piece is captured (rare), so
+    // generating them once per node and reusing saves ~30 getDuckPlacements calls.
+    // We regenerate only when a capture occurs (captured piece frees a square).
+    SquareList duckSquaresBase; MoveGen::getDuckPlacements(board, duckSquaresBase);
+    orderDuckPlacements(duckSquaresBase, board, us);
+
+    // Tighter duck caps: fewer duck placements = much lower branching factor.
+    // Ordering puts the best squares first so quality is preserved.
+    int maxDucks = (depth <= 1) ? 4 : (depth <= 2) ? 7 : (depth <= 3) ? 12 : 18;
+    maxDucks = std::min(maxDucks, (int)duckSquaresBase.size());
+
     int bestScore = -INF;
+
+    // Post-chess accumulator scratch slot (heap, avoids stack alignment issues)
+    DuckNNUE::QAccumulator& postChess = duckAccStack_[MAX_PLY + ply];
 
     for (int i = 0; i < (int)chessMoves.size(); i++) {
         if (shouldStop()) return 0;
@@ -1262,6 +1277,7 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply,
         const Move& cm = chessMoves[i];
         Piece moving   = board.getPiece(cm.from);
         Piece captured = board.getPiece(cm.to);
+        bool isCapture = !captured.isNone() && !captured.isDuck();
 
         bool canInc = duckNnue_ && parentAcc && parentAcc->valid
                       && myAcc && !moving.isNone() && !moving.isDuck()
@@ -1269,21 +1285,14 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply,
                       && static_cast<int>(moving.type) >= 1
                       && static_cast<int>(moving.type) <= 6;
 
-        // Post-chess accumulator: use heap slot (MAX_PLY + ply) to avoid stack alignment issues
-        // duckAccStack_ has MAX_PLY*2 slots; slots [0..MAX_PLY-1] = post-duck per ply,
-        // slots [MAX_PLY..MAX_PLY*2-1] = post-chess scratch per ply
-        DuckNNUE::QAccumulator& postChess = duckAccStack_[MAX_PLY + ply];
         if (canInc) {
+            // Build post-chess accumulator: copy parent + apply chess move delta
             postChess = *parentAcc;
-            // Remove moving piece from source
             duckNnue_->removeFeatureQ(NNUE::featureIndex(moving.type, moving.color, cm.from.rank, cm.from.col), postChess);
-            // Remove captured piece
-            if (!captured.isNone() && !captured.isDuck())
+            if (isCapture)
                 duckNnue_->removeFeatureQ(NNUE::featureIndex(captured.type, captured.color, cm.to.rank, cm.to.col), postChess);
-            // Add moving piece at destination (promotion-aware)
             PieceType finalType = (cm.promotion != PieceType::None) ? cm.promotion : moving.type;
             duckNnue_->addFeatureQ(NNUE::featureIndex(finalType, moving.color, cm.to.rank, cm.to.col), postChess);
-            // Castling rook
             if (moving.type == PieceType::King) {
                 int br = cm.from.rank;
                 if (cm.to.col - cm.from.col == 2) {
@@ -1294,8 +1303,7 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply,
                     duckNnue_->addFeatureQ(NNUE::featureIndex(PieceType::Rook, moving.color, br, 3), postChess);
                 }
             }
-            // En-passant captured pawn
-            if (moving.type == PieceType::Pawn && cm.to.col != cm.from.col && captured.isNone()) {
+            if (moving.type == PieceType::Pawn && cm.to.col != cm.from.col && !isCapture) {
                 Color opp = (moving.color == Color::White) ? Color::Black : Color::White;
                 duckNnue_->removeFeatureQ(NNUE::featureIndex(PieceType::Pawn, opp, cm.from.rank, cm.to.col), postChess);
             }
@@ -1310,20 +1318,26 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply,
             return MATE_SCORE - ply;
         }
 
-        SquareList duckSquares; MoveGen::getDuckPlacements(board, duckSquares);
-        orderDuckPlacements(duckSquares, board, us);
+        // OPT: Only regenerate duck squares when a capture occurred (freed a square).
+        // For quiet moves the available squares are identical to the pre-move set.
+        const SquareList* duckSquares = &duckSquaresBase;
+        SquareList captureSquares;
+        if (isCapture) {
+            MoveGen::getDuckPlacements(board, captureSquares);
+            orderDuckPlacements(captureSquares, board, us);
+            duckSquares = &captureSquares;
+        }
+        int nDucks = std::min(maxDucks, (int)duckSquares->size());
 
-        int maxDucks = (depth <= 1) ? 6 : (depth <= 2) ? 10 : (depth <= 3) ? 16 : 24;
-        maxDucks = std::min(maxDucks, (int)duckSquares.size());
+        Square oldDuck = board.duckSquare;
 
-        Square oldDuck = board.duckSquare;  // duck position after chess move (before duck placement)
-
-        for (int d = 0; d < maxDucks; d++) {
+        for (int d = 0; d < nDucks; d++) {
             if (shouldStop()) break;
 
-            Square newDuck = duckSquares[d];
+            Square newDuck = (*duckSquares)[d];
 
-            // Build post-duck accumulator into myAcc (acc[ply])
+            // OPT: Fused post-chess + duck delta into myAcc in one pass.
+            // Avoids a separate full copy of postChess into myAcc.
             if (canInc) {
                 *myAcc = postChess;
                 if (oldDuck.isValid())
@@ -1493,7 +1507,7 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
 
                 Square oldDuck = board.duckSquare;
                 // Cap root duck placements — ordering puts best squares first
-                int rootMaxDucks = std::min((int)duckSquares.size(), 24);
+                int rootMaxDucks = std::min((int)duckSquares.size(), 18);
 
                 for (int d = 0; d < rootMaxDucks; d++) {
                     if (stop_.load()) break;
