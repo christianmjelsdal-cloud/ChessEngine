@@ -729,8 +729,9 @@ int SelfPlayGen::generate(const Config& cfg) {
     double lastReportTime  = 0.0;   // elapsed seconds at last progress report
     int    lastReportDone  = 0;     // games completed at last progress report
     int    ewmaSamples     = 0;     // number of EWMA updates so far
-    uint64_t lastReportNodes = 0;   // totalNodes at last progress report (for interval NPS)
+    uint64_t lastReportNodes = 0;   // totalNodes at last NPS snapshot
     double ewmaNps         = 0.0;   // EWMA of interval NPS
+    double lastNpsSnapTime = 0.0;   // wallElapsed at last NPS snapshot (independent of report timer)
     double pauseAdjustSec  = 0.0;   // accumulated dead time from OS thread suspension (pause/resume)
     static constexpr double EWMA_ALPHA = 0.15; // smoothing factor (lower = more stable ETA)
 
@@ -900,23 +901,31 @@ int SelfPlayGen::generate(const Config& cfg) {
                 // EWMA is still displayed as "games/s" for real-time throughput feedback.
                 uint64_t tn = totalNodes.load(std::memory_order_relaxed);
 
-                // Interval NPS: nodes since last report / wall time since last report.
-                // Reflects current search speed rather than a cumulative average that
-                // gets dragged down as games get longer over the course of a run.
+                // NPS: independent 3-second snapshot window, decoupled from per-game report rate.
+                // lastNpsSnapTime tracks its own timer so near-simultaneous game completions
+                // (multiple workers finishing at once) don't produce near-zero intSec.
                 {
-                    double intSec = wallElapsed - lastReportTime;
+                    double snapInterval = wallElapsed - lastNpsSnapTime;
                     uint64_t nodeDelta = (tn >= lastReportNodes) ? (tn - lastReportNodes) : 0;
-                    if (ewmaSamples == 0) {
-                        // First sample: use cumulative rate to avoid inflated burst
+                    if (lastNpsSnapTime < 0.001) {
+                        // Very first call: seed with cumulative rate
                         ewmaNps = (elapsed > 0.001) ? static_cast<double>(tn) / elapsed : 0.0;
-                    } else if (intSec > 0.1 && nodeDelta > 0) {
-                        double intervalNps = static_cast<double>(nodeDelta) / intSec;
-                        // Sanity clamp: reject samples >10x the current EWMA (burst artifact)
-                        if (ewmaNps < 1.0 || intervalNps < ewmaNps * 10.0)
-                            ewmaNps = EWMA_ALPHA * intervalNps + (1.0 - EWMA_ALPHA) * ewmaNps;
+                        lastNpsSnapTime = wallElapsed;
+                        lastReportNodes = tn;
+                    } else if (snapInterval >= 3.0) {
+                        // Only update every 3 seconds — guarantees a meaningful interval
+                        if (nodeDelta > 0) {
+                            double intervalNps = static_cast<double>(nodeDelta) / snapInterval;
+                            // Hard clamp at 50M NPS (far above any realistic duck chess value)
+                            intervalNps = std::min(intervalNps, 50000000.0);
+                            ewmaNps = (ewmaNps < 1.0) ? intervalNps
+                                                      : 0.25 * intervalNps + 0.75 * ewmaNps;
+                        }
+                        lastNpsSnapTime = wallElapsed;
+                        lastReportNodes = tn;
                     }
+                    // Between snapshots: keep previous ewmaNps unchanged
                 }
-                lastReportNodes = tn;
 
                 lastReportTime = wallElapsed;  // always track wall time for interval detection
                 lastReportDone = done;
