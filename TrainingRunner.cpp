@@ -283,7 +283,8 @@ static bool g_showLoss = true;
 static bool g_showAcc  = true;
 static bool g_showLR   = true;
 static bool g_showPhase = true;
-static HWND g_hChkGLoss = nullptr, g_hChkGAcc = nullptr, g_hChkGLR = nullptr, g_hChkGPhase = nullptr;
+static bool g_showNPS  = true;
+static HWND g_hChkGLoss = nullptr, g_hChkGAcc = nullptr, g_hChkGLR = nullptr, g_hChkGPhase = nullptr, g_hChkGNPS = nullptr;
 static HWND g_hChkMute = nullptr;
 static int   g_graphHoverIdx = -1;
 static POINT g_graphMousePt  = {-1, -1};
@@ -1802,21 +1803,23 @@ static void DrawGraph(HWND hw) {
     }
 
     // Weighted panel sizing: Loss gets 3 shares, Acc and LR get 1 share each
-    float lossWeight = g_showLoss ? 3.0f : 0.0f;
-    float accWeight  = g_showAcc  ? 1.0f : 0.0f;
-    float lrWeight   = g_showLR   ? 1.0f : 0.0f;
+    float lossWeight  = g_showLoss  ? 3.0f : 0.0f;
+    float accWeight   = g_showAcc   ? 1.0f : 0.0f;
+    float lrWeight    = g_showLR    ? 1.0f : 0.0f;
     float phaseWeight = g_showPhase ? 1.5f : 0.0f;
-    float totalWeight = lossWeight + accWeight + lrWeight + phaseWeight;
+    float npsWeight   = g_showNPS   ? 1.0f : 0.0f;
+    float totalWeight = lossWeight + accWeight + lrWeight + phaseWeight + npsWeight;
     if (totalWeight < 0.01f) { lossWeight = 1.0f; totalWeight = 1.0f; }
 
-    int numPanels = (g_showLoss?1:0) + (g_showAcc?1:0) + (g_showLR?1:0) + (g_showPhase?1:0);
+    int numPanels = (g_showLoss?1:0) + (g_showAcc?1:0) + (g_showLR?1:0) + (g_showPhase?1:0) + (g_showNPS?1:0);
     if (numPanels == 0) numPanels = 1;
 
     float ml = 52, mr = 16;
     float panelGap = 4.0f;
     float availH = (float)H2 - panelGap * (numPanels - 1);
-    float lossH = availH * (lossWeight / totalWeight);
-    float accH  = availH * (accWeight  / totalWeight);
+    float lossH  = availH * (lossWeight  / totalWeight);
+    float accH   = availH * (accWeight   / totalWeight);
+    float npsH   = availH * (npsWeight   / totalWeight);
     float lrH   = availH * (lrWeight   / totalWeight);
     float phaseH = availH * (phaseWeight / totalWeight);
     float curY = 0;
@@ -2096,6 +2099,67 @@ static void DrawGraph(HWND hw) {
             SolidBrush b3(Color(255,180,80,220)); Pen lp3(Color(255,180,80,220),2);
             g.DrawLine(&lp3,lx+152,ly+5,lx+164,ly+5);
             g.DrawString(L"Endgame",-1,&lf,PointF(lx+166,ly-1),&b3);
+        }
+        curY += pt_h + panelGap;
+    }
+
+    // ---- NPS panel ----
+    if (g_showNPS) {
+        float pt_top = curY, pt_h = npsH;
+        float mt2 = pt_top + 18, mb2 = pt_top + pt_h - 14;
+        float gh2 = mb2 - mt2; if (gh2 < 10) gh2 = 10;
+
+        SolidBrush panelBg(Color(255,18,22,28));
+        g.FillRectangle(&panelBg, 0.0f, pt_top, (float)W2, pt_h);
+        Font titleFnt(L"Segoe UI", 8.0f, FontStyleBold);
+        SolidBrush titleBr(Color(255,100,100,120));
+        g.DrawString(L"NPS (Self-Play)", -1, &titleFnt, PointF(ml, pt_top+2), &titleBr);
+
+        bool hasAnyNps = false;
+        for (auto& p2 : pts) if (p2.hasNps) { hasAnyNps = true; break; }
+
+        if (!hasAnyNps) {
+            Font nf(L"Segoe UI", 9.0f); SolidBrush nb(Color(255,80,80,100));
+            g.DrawString(L"No NPS data", -1, &nf, PointF(ml+gw/2-35, mt2+gh2/2-6), &nb);
+        } else {
+            double minN=1e9, maxN=-1e9;
+            for (auto& p2 : pts) {
+                if (!p2.hasNps) continue;
+                minN=(std::min)(minN,p2.nps); maxN=(std::max)(maxN,p2.nps);
+            }
+            if (maxN<=minN) maxN=minN+1.0;
+            double rng=maxN-minN; minN=std::max(0.0,minN-rng*0.1); maxN+=rng*0.1; rng=maxN-minN;
+            auto yf=[&](double v)->float{return mt2+(float)((maxN-v)/rng)*gh2;};
+
+            Pen gridPen(Color(40,60,60,80),1.0f); Font gridFnt(L"Consolas",7.0f);
+            SolidBrush gridBr(Color(255,80,80,100));
+            for (int i=0;i<=4;i++){
+                float y2=mt2+gh2*i/4;
+                g.DrawLine(&gridPen,ml,y2,ml+gw,y2);
+                double val=maxN-rng*i/4;
+                std::wostringstream ss;
+                if (val>=1000000) ss<<std::fixed<<std::setprecision(2)<<val/1000000.0<<L"M";
+                else if (val>=1000) ss<<std::fixed<<std::setprecision(1)<<val/1000.0<<L"K";
+                else ss<<std::fixed<<std::setprecision(0)<<val;
+                g.DrawString(ss.str().c_str(),-1,&gridFnt,PointF(2,y2-6),&gridBr);
+            }
+
+            // Step line: flat within gen, step at gen boundary
+            Pen npsPen(Color(255,80,220,180),1.8f);
+            SolidBrush dotBr(Color(255,80,220,180));
+            bool started=false; float px5=0,py5=0; int lastGen=-1;
+            for (size_t i=0;i<pts.size();i++){
+                if (!pts[i].hasNps) continue;
+                float cx=xf((int)i), cy=yf(pts[i].nps);
+                if (started && pts[i].gen==lastGen) {
+                    g.DrawLine(&npsPen,px5,py5,cx,cy);
+                } else if (started) {
+                    g.DrawLine(&npsPen,px5,py5,cx,py5);
+                    g.DrawLine(&npsPen,cx,py5,cx,cy);
+                }
+                if (pts[i].gen!=lastGen) g.FillEllipse(&dotBr,cx-3,cy-3,6,6);
+                px5=cx; py5=cy; started=true; lastGen=pts[i].gen;
+            }
         }
         curY += pt_h + panelGap;
     }
@@ -2401,11 +2465,12 @@ static void BuildConfigPane(HWND pane, int PW) {
                                    lx,y,PW-16,16,pane,nullptr,g_hInst,nullptr);
         SendMessageW(sep,WM_SETFONT,(WPARAM)g_fUI,TRUE);
         y += 20;
-        int chkW = (PW - 24) / 4;
+        int chkW = (PW - 24) / 5;
         g_hChkGLoss = mkCheck(pane, ID_CHK_GRAPH_LOSS, L"Loss", lx, y, chkW, 20, true);
         g_hChkGAcc  = mkCheck(pane, ID_CHK_GRAPH_ACC,  L"Accuracy", lx+chkW, y, chkW, 20, true);
         g_hChkGLR    = mkCheck(pane, ID_CHK_GRAPH_LR,    L"LR",     lx+chkW*2, y, chkW, 20, true);
         g_hChkGPhase = mkCheck(pane, ID_CHK_GRAPH_PHASE, L"Phases", lx+chkW*3, y, chkW, 20, true);
+        g_hChkGNPS   = mkCheck(pane, ID_CHK_GRAPH_NPS,   L"NPS",   lx+chkW*4, y, chkW, 20, true);
         AddTooltip(g_hChkGLoss,  L"WHAT: Shows or hides the Loss curve panel, which plots training loss and validation loss across epochs. Best-achieved values are highlighted with diamond markers.\n\nWHY: The loss curves are your primary diagnostic tool. A healthy run shows both curves declining together. If training loss drops but validation loss rises, the model is overfitting. If both plateau early, try increasing the learning rate or adding more data.");
         AddTooltip(g_hChkGAcc,   L"WHAT: Shows or hides the Accuracy panel, which plots move prediction accuracy across epochs when reported by the training script.\n\nWHY: Accuracy measures how often the model's top move matches the best move from the training data. It provides a complementary view to loss -- a model can have low loss but poor accuracy if it spreads probability too evenly. Rising accuracy confirms the model is learning meaningful patterns.");
         AddTooltip(g_hChkGLR,    L"WHAT: Shows or hides the Learning Rate schedule panel, which plots the effective learning rate at each epoch or step.\n\nWHY: Visualizing the LR schedule helps verify that cosine annealing, warm restarts, and warmup are working as expected. Unexpected LR behavior (flat when it should decay, or spikes) often explains sudden training instability.");
@@ -3478,7 +3543,7 @@ static LRESULT CALLBACK WndProc(HWND hw, UINT msg, WPARAM wp, LPARAM lp) {
             InvalidateRect(g_hGraph, nullptr, FALSE);
         }
         else if (id == ID_CHK_GRAPH_NPS) {
-            g_graph.showNPS = (Button_GetCheck(g_ui.hChkGNPS) == BST_CHECKED);
+            g_showNPS = (Button_GetCheck(g_hChkGNPS) == BST_CHECKED);
             InvalidateRect(g_hGraph, nullptr, FALSE);
         }
         else if (id == ID_CHK_MUTE_SOUNDS) {
