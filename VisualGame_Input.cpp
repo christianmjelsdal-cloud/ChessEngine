@@ -324,6 +324,20 @@ void VisualGame::startTraining() {
 // KEY PRESS HANDLER
 // -------------------------------------------------------
 void VisualGame::handleKeyPress(sf::Keyboard::Key key) {
+    // ── Analysis navigation: ← back, → forward, Escape exits analysis mode ──
+    if (key == sf::Keyboard::Key::Left) {
+        navigateHistory(-1);
+        return;
+    }
+    if (key == sf::Keyboard::Key::Right) {
+        navigateHistory(+1);
+        return;
+    }
+    if (key == sf::Keyboard::Key::Escape && analysisMode_) {
+        exitAnalysisMode();
+        return;
+    }
+
     if (key == sf::Keyboard::Key::B) {
         // Toggle bot vs bot mode
         if (!botVsBot) {
@@ -362,14 +376,16 @@ void VisualGame::handleKeyPress(sf::Keyboard::Key key) {
         if (botVsBot || botVsNNUE_) {
             botPaused = !botPaused;
             if (botPaused) {
-                // ISSUE-4: Stop the engine on pause to save CPU
-                if (engineThinking && activeEngine_) {
+                // Stop the engine on pause to save CPU
+                if (engineThinking && activeEngine_)
                     activeEngine_->stop();
-                }
             }
-            if (!botPaused && !engineThinking && !isAnimating && !botHasPendingMove_ && !gameOver) {
-                // Resume: start thinking if idle
-                startEngineThinking();
+            if (!botPaused) {
+                // Unpausing — if in analysis mode, jump to latest move first
+                if (analysisMode_)
+                    exitAnalysisMode();  // selects latest move, stops analysis engine
+                if (!engineThinking && !isAnimating && !botHasPendingMove_ && !gameOver)
+                    startEngineThinking();
             }
             updateStatus();
         }
@@ -565,6 +581,37 @@ void VisualGame::handleKeyPress(sf::Keyboard::Key key) {
             { std::lock_guard<std::mutex> lk(nnueStatusMutex_); nnueStatus_ = "Sides: " + cfgName + " (no effect in Bot vs Bot)"; }
         }
         updateStatus();
+    }
+    else if (key == sf::Keyboard::Key::Z) {
+        // Z: toggle analysis engine on the currently viewed position
+        // Works in analysis mode OR on the live position
+        bool canAnalyse = analysisMode_ || !gameHistory_.empty();
+        if (canAnalyse) {
+            if (analysisThread_.joinable()) {
+                // Analysis running — stop it
+                analysisEngine_.stop();
+                analysisThread_.join();
+                analysisDepth_ = 0;
+                analysisNodes_ = 0;
+                { std::lock_guard<std::mutex> lk(nnueStatusMutex_); nnueStatus_ = "Analysis stopped"; }
+            } else {
+                // If not in analysis mode, enter it at the last move
+                if (!analysisMode_ && !gameHistory_.empty()) {
+                    viewIdx_      = int(gameHistory_.size()) - 1;
+                    analysisMode_ = true;
+                    Board tmp = gameHistory_[viewIdx_].board;
+                    MoveList ml; MoveGen::getLegalMoves(tmp, ml);
+                    legalMoves.assign(ml.begin(), ml.end());
+                    // Pause bot so it doesn't interfere
+                    if ((botVsBot || botVsNNUE_) && !botPaused) {
+                        botPaused = true;
+                        if (engineThinking && activeEngine_) activeEngine_->stop();
+                    }
+                }
+                startAnalysisEngine();
+                { std::lock_guard<std::mutex> lk(nnueStatusMutex_); nnueStatus_ = "Analysis started"; }
+            }
+        }
     }
 }
 

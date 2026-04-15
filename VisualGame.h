@@ -44,6 +44,72 @@ private:
     // Position history for repetition detection (Zobrist hashes)
     std::vector<uint64_t> positionHistory_;
 
+    // ── Analysis / Game History ──────────────────────────────────────────────
+    struct HistoryEntry {
+        Board       board;        // board state BEFORE the move
+        Move        move;         // move played from this position
+        std::string moveAlg;      // algebraic notation ("Nf3", "O-O", "exd5")
+        int         moveNumber;   // full move number at this position
+        Color       sideToMove;   // who moved
+        int         eval    = 0;  // engine eval at this position (white POV, cp)
+        int         cpLoss  = -1; // centipawn loss vs best move (-1 = unknown)
+    };
+    std::vector<HistoryEntry> gameHistory_;  // one entry per move played
+    int  viewIdx_      = -1;   // -1 = live (current game); ≥0 = viewing history
+    bool analysisMode_ = false; // true when viewIdx_ >= 0
+
+    // Returns the board to display (historical or live)
+    const Board& viewBoard() const {
+        if (analysisMode_ && viewIdx_ >= 0 && viewIdx_ < (int)gameHistory_.size())
+            return gameHistory_[viewIdx_].board;
+        return board;
+    }
+
+    void navigateHistory(int delta);  // +1 forward, -1 back
+    void exitAnalysisMode();
+    void drawMoveList();              // right-panel move list
+    bool handleMoveListClick(int x, int y);  // returns true if click was in panel
+
+    // Convert a move to Standard Algebraic Notation (e.g. "Nf3", "exd5", "O-O")
+    static std::string moveToAlgebraic(const Board& board, const Move& move);
+
+    // ── Analysis engine (runs on viewed position) ────────────────────────────
+    Engine            analysisEngine_;          // dedicated engine for analysis
+    std::thread       analysisThread_;
+    std::atomic<bool> analysisDone_{false};
+    std::atomic<bool> analysisStop_{false};
+    int               analysisEval_  = 0;       // current eval (white POV)
+    int               analysisDepth_ = 0;       // current depth
+    uint64_t          analysisNodes_ = 0;       // nodes searched
+    uint64_t          analysisNps_   = 0;       // nodes per second
+    struct AnalysisPVLine {
+        std::vector<Move> pv;
+        int eval = 0;
+        int depth = 0;
+    };
+    std::vector<AnalysisPVLine> analysisPVLines_;  // top N PV lines
+    std::mutex                  analysisMtx_;
+    int                         analysisViewIdx_ = -1;  // which position is being analysed
+
+    void startAnalysisEngine();   // launch analysis on viewBoard()
+    void stopAnalysisEngine();    // stop and join analysis thread
+    void updateAnalysisStats();   // poll engine for latest stats
+
+    // Opening name lookup
+    struct OpeningEntry { std::string eco; std::string name; std::string moves; };
+    std::vector<OpeningEntry> openingDb_;
+    std::string               currentOpening_;  // name of current opening (empty if unknown)
+    void loadOpeningDb();
+    void updateOpeningName();
+
+    // Debounce: delay analysis start until user stops scrolling
+    sf::Clock  analysisDebounce_;
+    bool       analysisPending_ = false;
+    static constexpr int ANALYSIS_DEBOUNCE_MS = 250;
+
+    // PV line expand state (which lines are expanded)
+    bool pvLineExpanded_[3] = {true, false, false};
+
     // Drag & Drop
     bool         isDragging = false;
     Square       dragFrom = { -1, -1 };
@@ -149,13 +215,18 @@ private:
     NNUE::EloResult lastEloResult_;
     bool            hasEloResult_ = false;
 
-    // Layout
+    // Layout — base constants (used for window creation)
     static const int SQ = 80;
     static const int EVAL_BAR_W = 28;   // eval bar width
     static const int OX = 100;          // board offset (room for eval bar + coords)
-    static const int OY = 40;
+    static const int OY = 62;           // increased: room for 2-line header
     static const int SETUP_PANEL_W = 140;  // extra width for setup palette
     static const int PALETTE_SQ = 48;       // palette cell size
+
+    // Dynamic layout (updated each frame in render())
+    int   dynSQ_  = SQ;   // effective square size
+    int   dynOX_  = OX;   // effective board X origin
+    float scale_  = 1.0f; // dynSQ_ / SQ — used to scale fonts, margins, bar widths
 
     // Setup
     void loadAssets();
@@ -224,4 +295,5 @@ private:
     void drawSingleEvalBar(float x, float y, float w, float h, int eval,
                            const std::string& label = "", sf::Color labelColor = sf::Color::White);
     void drawDualEvalBars();
+    void drawAnalysisOverlay();
 };

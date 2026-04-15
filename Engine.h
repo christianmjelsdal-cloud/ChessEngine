@@ -34,6 +34,14 @@ public:
     int getLiveDepth() const { return liveDepth_.load(std::memory_order_relaxed); }
     int getLiveEval()  const { return liveEval_.load(std::memory_order_relaxed); }
 
+    // Top N root moves from the last completed depth (for multi-PV display)
+    struct RootMove { Move move; int score = 0; std::vector<Move> pv; };
+    std::vector<RootMove> getTopRootMoves(int n = 3) const {
+        std::lock_guard<std::mutex> lock(topRootMtx_);
+        int cnt = std::min(n, (int)topRootMoves_.size());
+        return std::vector<RootMove>(topRootMoves_.begin(), topRootMoves_.begin() + cnt);
+    }
+
     void setNNUE(const NNUE::Network* net) { nnue_ = const_cast<NNUE::Network*>(net); }
     NNUE::Network* getNNUE() const { return nnue_; }
 
@@ -100,6 +108,7 @@ private:
 
     /* ---------- evaluation ---------- */
     int evaluate(const Board& board);
+    int evaluateWithAcc(const Board& board, int ply);  // uses accStack_[ply] if valid
 
     /* ---------- NNUE ---------- */
     NNUE::Network*     nnue_     = nullptr;
@@ -136,6 +145,13 @@ private:
     // Slot [ply] = post-duck; slot [MAX_PLY+ply] = post-chess scratch
     std::unique_ptr<DuckNNUE::QAccumulator[]> duckAccStack_;
 
+    // ---- Standard chess incremental NNUE accumulator ----
+    // accStack_[ply] holds the QAccumulator for the position at that ply.
+    // Seeded at ply=0 (root) and propagated via fusedCopyAndUpdateQ.
+    // FinnyTable handles king-move refreshes efficiently.
+    NNUE::QAccumulator  accStack_[MAX_PLY + 4];
+    NNUE::FinnyTable    finny_;
+
     /* ---------- transposition table ---------- */
     enum TTFlag : uint8_t { TT_EXACT, TT_LOWER, TT_UPPER };
     // TTEntry is public (defined above)
@@ -163,6 +179,10 @@ private:
     std::vector<Move> livePV_;
     std::atomic<int> liveDepth_{0};
     std::atomic<int> liveEval_{0};
+
+    /* ---------- top root moves (multi-PV display) ---------- */
+    mutable std::mutex       topRootMtx_;
+    std::vector<RootMove>    topRootMoves_;
 
     /* ---------- repetition detection ---------- */
     std::vector<uint64_t> gameHistory_;

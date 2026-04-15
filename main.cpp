@@ -394,9 +394,25 @@ int main(int argc, char* argv[]) {
 
         NNUE::TrainingConfig tcfg;
         tcfg.isDuckChess = true;
-        if (const char* v = flagValue(argc, argv, "--epochs"))    tcfg.epochs    = std::stoi(v);
-        if (const char* v = flagValue(argc, argv, "--batch-size")) tcfg.batchSize = std::stoi(v);
-        if (const char* v = flagValue(argc, argv, "--lr"))         tcfg.learningRate = std::stof(v);
+        if (const char* v = flagValue(argc, argv, "--epochs"))       tcfg.epochs            = std::stoi(v);
+        if (const char* v = flagValue(argc, argv, "--batch-size"))   tcfg.batchSize         = std::stoi(v);
+        if (const char* v = flagValue(argc, argv, "--lr"))           tcfg.learningRate      = std::stof(v);
+        if (const char* v = flagValue(argc, argv, "--early-stop"))   tcfg.earlyStopPatience = std::stoi(v);
+        if (const char* v = flagValue(argc, argv, "--lr-decay"))     tcfg.lrDecay           = std::stof(v);
+        if (const char* v = flagValue(argc, argv, "--weight-decay")) tcfg.weightDecay       = std::stof(v);
+        if (const char* v = flagValue(argc, argv, "--label-smoothing")) tcfg.labelSmoothing = std::stof(v);
+        if (const char* v = flagValue(argc, argv, "--grad-accum"))   tcfg.gradAccum         = std::stoi(v);
+        if (const char* v = flagValue(argc, argv, "--warmup-steps")) tcfg.warmupSteps       = std::stoi(v);
+        if (hasFlag(argc, argv, "--cosine-lr"))                      tcfg.cosineLr          = true;
+        if (const char* v = flagValue(argc, argv, "--cosine-t0"))    tcfg.cosineT0          = std::stoi(v);
+        if (hasFlag(argc, argv, "--swa")) {
+            tcfg.swa = true;
+            if (const char* v = flagValue(argc, argv, "--swa-start")) tcfg.swaStart = std::stoi(v);
+        }
+        // draw-weight: fraction of loss from game result (1-lambda = draw weight, lambda = eval weight)
+        if (const char* v = flagValue(argc, argv, "--draw-weight"))  tcfg.lambda = 1.0f - std::stof(v);
+        if (const char* v = flagValue(argc, argv, "--mate-boost"))   tcfg.mateBoost     = std::stof(v);
+        if (const char* v = flagValue(argc, argv, "--max-positions")) tcfg.maxPositions  = std::stoi(v);
         tcfg.outputPath = outputPath;
 
         // Collect all --data and --extra-data files

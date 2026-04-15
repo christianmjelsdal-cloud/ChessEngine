@@ -2,16 +2,28 @@
 #include <iostream>
 #include <cmath>
 #include <sstream>
+#include <fstream>
 #include <random>
 #include <chrono>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 // -------------------------------------------------------
 // CONSTRUCTOR / DESTRUCTOR
 // -------------------------------------------------------
 VisualGame::VisualGame()
-    : window(sf::VideoMode({static_cast<unsigned>(OX * 2 + SQ * 8 + SETUP_PANEL_W),
-                            static_cast<unsigned>(OY * 2 + SQ * 8 + 80)}), "Chess Engine")
 {
+    // Use desktop resolution to pick a sensible initial window size
+    sf::VideoMode desktop = sf::VideoMode::getDesktopMode();
+    unsigned int initW = static_cast<unsigned int>(desktop.size.x * 0.75f);
+    unsigned int initH = static_cast<unsigned int>(desktop.size.y * 0.75f);
+    // Clamp to a minimum usable size
+    initW = std::max(initW, static_cast<unsigned int>(OX * 2 + SQ * 8));
+    initH = std::max(initH, static_cast<unsigned int>(OY * 2 + SQ * 8 + 80));
+
+    window.create(sf::VideoMode({initW, initH}), "Chess Engine",
+                  sf::Style::Default);
     window.setFramerateLimit(60);
     loadAssets();
     { MoveList ml_; MoveGen::getLegalMoves(board, ml_); legalMoves.assign(ml_.begin(), ml_.end()); }
@@ -20,12 +32,15 @@ VisualGame::VisualGame()
     Engine::initZobrist();
     positionHistory_.push_back(Engine::computeHash(board));
 
+    loadOpeningDb();
     updateStatus();
 }
 
 VisualGame::~VisualGame() {
     engine_.stop();
     engine2_.stop();
+    analysisEngine_.stop();
+    // Don't join analysisThread_ — it may be detached
     if (engineThread.joinable())
         engineThread.join();
 }
@@ -75,25 +90,146 @@ void VisualGame::run() {
                 engine2_.stop();
                 window.close();
             }
+            else if (const auto* re = event->getIf<sf::Event::Resized>()) {
+                // Reset view to match new window size — prevents stretching on resize/maximize
+                sf::FloatRect visibleArea({0.f, 0.f},
+                    {float(re->size.x), float(re->size.y)});
+                window.setView(sf::View(visibleArea));
+            }
             else if (const auto* kp = event->getIf<sf::Event::KeyPressed>()) {
-                handleKeyPress(kp->code);
+                // Ctrl+C: copy current position FEN to clipboard
+                if (kp->code == sf::Keyboard::Key::C &&
+                    sf::Keyboard::isKeyPressed(sf::Keyboard::Key::LControl)) {
+                    const Board& b = viewBoard();
+                    std::string fen = b.toFEN();
+                    // Use Windows clipboard
+                    if (OpenClipboard(nullptr)) {
+                        EmptyClipboard();
+                        HGLOBAL hg = GlobalAlloc(GMEM_MOVEABLE, fen.size() + 1);
+                        if (hg) {
+                            memcpy(GlobalLock(hg), fen.c_str(), fen.size() + 1);
+                            GlobalUnlock(hg);
+                            SetClipboardData(CF_TEXT, hg);
+                        }
+                        CloseClipboard();
+                        { std::lock_guard<std::mutex> lk(nnueStatusMutex_);
+                          nnueStatus_ = "FEN copied: " + fen.substr(0, 40) + "..."; }
+                    }
+                }
+                // Ctrl+V: paste FEN and load position
+                else if (kp->code == sf::Keyboard::Key::V &&
+                         sf::Keyboard::isKeyPressed(sf::Keyboard::Key::LControl)) {
+                    if (OpenClipboard(nullptr)) {
+                        HANDLE hData = GetClipboardData(CF_TEXT);
+                        if (hData) {
+                            char* text = static_cast<char*>(GlobalLock(hData));
+                            if (text) {
+                                std::string fen(text);
+                                GlobalUnlock(hData);
+                                CloseClipboard();
+                                // Try to load the FEN
+                                Board tmp;
+                                if (tmp.fromFEN(fen)) {
+                                    engine_.stop(); engine2_.stop();
+                                    stopAnalysisEngine();
+                                    if (engineThread.joinable()) engineThread.join();
+                                    board = tmp;
+                                    board.hash = Engine::computeHash(board);
+                                    gameHistory_.clear();
+                                    viewIdx_ = -1; analysisMode_ = false;
+                                    positionHistory_.clear();
+                                    positionHistory_.push_back(board.hash);
+                                    MoveList ml; MoveGen::getLegalMoves(board, ml);
+                                    legalMoves.assign(ml.begin(), ml.end());
+                                    gameOver = false; moveNumber = 1;
+                                    pieceSelected = false; selectedMoves.clear();
+                                    { std::lock_guard<std::mutex> lk(nnueStatusMutex_);
+                                      nnueStatus_ = "FEN loaded"; }
+                                    updateStatus();
+                                } else {
+                                    { std::lock_guard<std::mutex> lk(nnueStatusMutex_);
+                                      nnueStatus_ = "Invalid FEN"; }
+                                }
+                            } else { CloseClipboard(); }
+                        } else { CloseClipboard(); }
+                    }
+                }
+                // Ctrl+S: export game as PGN
+                else if (kp->code == sf::Keyboard::Key::S &&
+                         sf::Keyboard::isKeyPressed(sf::Keyboard::Key::LControl)) {
+                    if (!gameHistory_.empty()) {
+                        // Build PGN string
+                        std::string pgn;
+                        pgn += "[Event \"ChessEngine Game\"]\n";
+                        pgn += "[Site \"ChessEngine\"]\n";
+                        pgn += "[Date \"" + std::string(__DATE__) + "\"]\n";
+                        pgn += "[White \"Engine\"]\n";
+                        pgn += "[Black \"Engine\"]\n";
+                        pgn += "[Result \"*\"]\n\n";
+
+                        for (int i = 0; i < (int)gameHistory_.size(); ++i) {
+                            if (gameHistory_[i].sideToMove == Color::White)
+                                pgn += std::to_string(gameHistory_[i].moveNumber) + ". ";
+                            pgn += gameHistory_[i].moveAlg;
+                            // Eval annotation
+                            if (gameHistory_[i].eval != 0) {
+                                float ev = gameHistory_[i].eval / 100.f;
+                                std::ostringstream oss;
+                                oss << std::fixed << std::setprecision(2);
+                                if (ev >= 0) oss << "+"; oss << ev;
+                                pgn += " {" + oss.str() + "}";
+                            }
+                            pgn += " ";
+                        }
+                        pgn += "*\n";
+
+                        // Save to file
+                        std::string path = "assets/game_export.pgn";
+                        std::ofstream f(path);
+                        if (f.is_open()) {
+                            f << pgn;
+                            f.close();
+                            { std::lock_guard<std::mutex> lk(nnueStatusMutex_);
+                              nnueStatus_ = "PGN saved: " + path; }
+                        } else {
+                            { std::lock_guard<std::mutex> lk(nnueStatusMutex_);
+                              nnueStatus_ = "PGN save failed"; }
+                        }
+                    }
+                }
+                else {
+                    handleKeyPress(kp->code);
+                }
+            }
+            else if (const auto* ws = event->getIf<sf::Event::MouseWheelScrolled>()) {
+                // Scroll wheel navigates game history
+                if (ws->delta < 0) navigateHistory(-1);  // scroll down = back
+                else               navigateHistory(+1);  // scroll up  = forward
             }
             else if (setupMode_) {
                 if (const auto* mb = event->getIf<sf::Event::MouseButtonPressed>()) {
-                    if (mb->button == sf::Mouse::Button::Left)
-                        handleSetupClick(mb->position.x, mb->position.y);
+                    if (mb->button == sf::Mouse::Button::Left) {
+                        // Check move list first, then setup panel
+                        if (!handleMoveListClick(mb->position.x, mb->position.y))
+                            handleSetupClick(mb->position.x, mb->position.y);
+                    }
                 }
             }
             else if (isPromoting) {
                 if (const auto* mb = event->getIf<sf::Event::MouseButtonPressed>()) {
-                    if (mb->button == sf::Mouse::Button::Left)
-                        handlePromotionClick(mb->position.x, mb->position.y);
+                    if (mb->button == sf::Mouse::Button::Left) {
+                        if (!handleMoveListClick(mb->position.x, mb->position.y))
+                            handlePromotionClick(mb->position.x, mb->position.y);
+                    }
                 }
             }
             else if (!botVsBot && !inputLocked() && !engineThinking) {
                 if (const auto* mb = event->getIf<sf::Event::MouseButtonPressed>()) {
-                    if (mb->button == sf::Mouse::Button::Left)
-                        handleMouseDown(mb->position.x, mb->position.y);
+                    if (mb->button == sf::Mouse::Button::Left) {
+                        // Check move list panel first — it's to the right of the board
+                        if (!handleMoveListClick(mb->position.x, mb->position.y))
+                            handleMouseDown(mb->position.x, mb->position.y);
+                    }
                 }
                 else if (const auto* mm = event->getIf<sf::Event::MouseMoved>()) {
                     handleMouseMove(mm->position.x, mm->position.y);
@@ -102,6 +238,11 @@ void VisualGame::run() {
                     if (mr->button == sf::Mouse::Button::Left)
                         handleMouseUp(mr->position.x, mr->position.y);
                 }
+            }
+            else if (const auto* mb = event->getIf<sf::Event::MouseButtonPressed>()) {
+                // Bot vs bot mode — still allow move list clicks
+                if (mb->button == sf::Mouse::Button::Left)
+                    handleMoveListClick(mb->position.x, mb->position.y);
             }
         }
 
@@ -112,6 +253,10 @@ void VisualGame::run() {
         // Check if engine finished thinking
         if (engineThinking && engineDone.load())
             checkEngineResult();
+
+        // Poll analysis engine stats
+        if (analysisMode_)
+            updateAnalysisStats();
 
         // Bot vs Bot / Bot vs NNUE: after engine finishes + delay, apply the pending move
         if ((botVsBot || botVsNNUE_) && botHasPendingMove_ && !botPaused && !gameOver) {
@@ -177,6 +322,12 @@ void VisualGame::resetGame() {
     positionHistory_.clear();
     positionHistory_.push_back(Engine::computeHash(board));
 
+    // Reset game history and analysis mode
+    gameHistory_.clear();
+    viewIdx_      = -1;
+    analysisMode_ = false;
+    stopAnalysisEngine();
+
     // If in bot-vs-bot or bot-vs-NNUE mode, restart
     if ((botVsBot || botVsNNUE_) && !botPaused) {
         startEngineThinking();
@@ -186,8 +337,338 @@ void VisualGame::resetGame() {
 }
 
 // -------------------------------------------------------
-// SELECT PIECE
+// ANALYSIS NAVIGATION
 // -------------------------------------------------------
+void VisualGame::exitAnalysisMode() {
+    analysisPending_ = false;
+    stopAnalysisEngine();
+    analysisMode_ = false;
+    viewIdx_      = -1;
+    // Restore live board's legal moves
+    MoveList ml; MoveGen::getLegalMoves(board, ml);
+    legalMoves.assign(ml.begin(), ml.end());
+    pieceSelected = false;
+    selectedMoves.clear();
+    // Unpause bot if it was paused by navigation
+    // Don't start thinking here if we're already in the middle of processing a move
+    if ((botVsBot || botVsNNUE_) && botPaused) {
+        botPaused = false;
+        if (!engineThinking && !isAnimating && !botHasPendingMove_ && !gameOver)
+            startEngineThinking();
+    }
+    updateStatus();
+}
+
+void VisualGame::navigateHistory(int delta) {
+    if (gameHistory_.empty()) return;
+
+    int newIdx;
+    if (!analysisMode_) {
+        // Currently live — going back enters analysis mode
+        if (delta < 0) {
+            newIdx = static_cast<int>(gameHistory_.size()) - 1;
+            newIdx += delta;  // step back from last entry
+        } else {
+            return;  // already at live, can't go forward
+        }
+    } else {
+        newIdx = viewIdx_ + delta;
+    }
+
+    if (newIdx < 0) newIdx = 0;
+
+    // Scrolling forward past the last entry = return to live
+    if (newIdx >= static_cast<int>(gameHistory_.size())) {
+        exitAnalysisMode();
+        // If in bot mode, unpause and resume
+        if ((botVsBot || botVsNNUE_) && botPaused) {
+            botPaused = false;
+            if (!engineThinking && !isAnimating && !botHasPendingMove_ && !gameOver)
+                startEngineThinking();
+            updateStatus();
+        }
+        return;
+    }
+
+    // Entering analysis mode for the first time — auto-pause bot if running
+    if (!analysisMode_ && (botVsBot || botVsNNUE_) && !botPaused) {
+        botPaused = true;
+        if (engineThinking && activeEngine_)
+            activeEngine_->stop();
+    }
+
+    viewIdx_      = newIdx;
+    analysisMode_ = true;
+    pieceSelected = false;
+    selectedMoves.clear();
+
+    // Compute legal moves for the viewed position
+    Board tmp = gameHistory_[viewIdx_].board;
+    MoveList ml; MoveGen::getLegalMoves(tmp, ml);
+    legalMoves.assign(ml.begin(), ml.end());
+
+    // Stop any running analysis — position changed
+    if (analysisThread_.joinable()) {
+        analysisEngine_.stop();
+        analysisThread_.join();
+    }
+    analysisDepth_ = 0;
+    analysisNodes_ = 0;
+    analysisPending_ = false;
+    updateStatus();
+}
+
+// -------------------------------------------------------
+// MOVE LIST CLICK — jump to position by clicking the panel
+// -------------------------------------------------------
+bool VisualGame::handleMoveListClick(int x, int y) {
+    if (gameHistory_.empty()) return false;
+
+    // Replicate the panel geometry from drawMoveList
+    float panelX = float(dynOX_ + dynSQ_ * 8 + 12);
+    float panelW = float(window.getSize().x) - panelX - 8.f;
+    if (panelW < 80.f) return false;
+
+    // Only handle clicks inside the panel
+    if (float(x) < panelX || float(x) > panelX + panelW) return false;
+
+    float boardH  = float(dynSQ_ * 8);
+    float listH   = boardH * 0.55f;
+    float panelY  = float(OY);
+
+    // Only handle clicks in the move list area (not stats/graph below)
+    if (float(y) < panelY || float(y) > panelY + listH) {
+        // Check if click is in the stats area (PV expand toggles)
+        if (float(y) > panelY + listH && float(y) < panelY + boardH &&
+            float(x) >= panelX && float(x) <= panelX + panelW) {
+            // Toggle expand for PV lines — approximate hit test
+            // Each PV line is ~(sfs2+4) px tall, starting at statsAreaY + some offset
+            // Simple approach: toggle line 0/1/2 based on click position
+            float statsAreaY2 = panelY + listH;
+            float relY = float(y) - statsAreaY2;
+            unsigned int sfs2 = std::max(9u, unsigned(11 * scale_));
+            float lineH2 = float(sfs2) + 6.f;
+            // Skip hint/opening/stats lines (~3 lines)
+            float pvStartY = float(sfs2) * 3.f + 20.f;
+            if (relY > pvStartY) {
+                int pvIdx = int((relY - pvStartY) / (lineH2 * 2.f));
+                if (pvIdx >= 0 && pvIdx < 3)
+                    pvLineExpanded_[pvIdx] = !pvLineExpanded_[pvIdx];
+            }
+            return true;
+        }
+        return false;
+    }
+
+    unsigned int fs = std::max(11u, unsigned(13 * scale_));
+    float lineH     = float(fs) + 5.f;
+    float headerH   = lineH + 2.f;
+
+    // ── Nav button hit test (header row) ────────────────────────────────────
+    float btnH    = headerH - 4.f;
+    float btnW    = btnH * 1.1f;
+    float btnY    = panelY + 2.f;
+    float PAD     = 4.f;
+    float btnBackX = panelX + PAD;
+    float btnFwdX  = btnBackX + btnW + 4.f;
+
+    if (float(y) >= btnY && float(y) <= btnY + btnH) {
+        // Click in header row — check nav buttons
+        if (float(x) >= btnBackX && float(x) <= btnBackX + btnW) {
+            // Back button
+            int total = int(gameHistory_.size());
+            bool canGoBack = total > 0 && (analysisMode_ ? viewIdx_ > 0 : total > 0);
+            if (canGoBack) navigateHistory(-1);
+            return true;
+        }
+        if (float(x) >= btnFwdX && float(x) <= btnFwdX + btnW) {
+            // Forward button
+            if (analysisMode_) navigateHistory(+1);
+            return true;
+        }
+        return true;  // click in header but not on a button — consume it
+    }
+
+    float contentH  = listH - headerH;
+    int   maxVisible = std::max(1, int(contentH / lineH));
+
+    int total        = int(gameHistory_.size());
+    int highlighted  = analysisMode_ ? viewIdx_ : total - 1;
+    int totalRows    = (total + 1) / 2;
+    int highlightedRow = highlighted / 2;
+    int scrollOffset   = std::max(0, highlightedRow - maxVisible / 2);
+    scrollOffset       = std::min(scrollOffset, std::max(0, totalRows - maxVisible));
+
+    // Which row was clicked?
+    float startY = panelY + headerH;
+    int clickedRow = int((float(y) - startY) / lineH) + scrollOffset;
+    if (clickedRow < 0 || clickedRow >= totalRows) return true;  // in panel but no row
+
+    // Which column — white (left half) or black (right half)?
+    float SB_W      = std::max(6.f, 8.f * scale_);
+    float colAreaW  = panelW - SB_W - 4.f - float(fs) * 2.2f - 4.f;
+    float moveStartX = panelX + 4.f + float(fs) * 2.2f;
+    float colW      = colAreaW / 2.f;
+
+    int moveIdx;
+    if (float(x) < moveStartX + colW)
+        moveIdx = clickedRow * 2;       // white's move
+    else
+        moveIdx = clickedRow * 2 + 1;  // black's move
+
+    if (moveIdx >= total) moveIdx = total - 1;
+    if (moveIdx < 0) return true;
+
+    // Navigate to the clicked position
+    // Compute delta from current position
+    int currentIdx = analysisMode_ ? viewIdx_ : total;  // total = "live" position
+    int delta = moveIdx - currentIdx;
+    if (delta == 0) return true;  // already there
+
+    // Jump directly rather than stepping — set viewIdx_ directly
+    if (moveIdx >= total - 1 && !analysisMode_) {
+        // Clicking the last move when already live — no-op
+        return true;
+    }
+
+    // Enter analysis mode at the clicked position
+    if (!analysisMode_ && (botVsBot || botVsNNUE_) && !botPaused) {
+        botPaused = true;
+        if (engineThinking && activeEngine_) activeEngine_->stop();
+    }
+
+    viewIdx_      = moveIdx;
+    analysisMode_ = true;
+    pieceSelected = false;
+    selectedMoves.clear();
+
+    Board tmp = gameHistory_[viewIdx_].board;
+    MoveList ml; MoveGen::getLegalMoves(tmp, ml);
+    legalMoves.assign(ml.begin(), ml.end());
+
+    if (analysisThread_.joinable()) {
+        analysisEngine_.stop();
+        analysisThread_.join();
+    }
+    analysisDepth_ = 0;
+    analysisNodes_ = 0;
+    analysisPending_ = false;
+    updateStatus();
+    return true;
+}
+
+// -------------------------------------------------------
+// OPENING DATABASE
+// -------------------------------------------------------
+void VisualGame::loadOpeningDb() {
+    static const char* files[] = {
+        "assets/eco_a.tsv", "assets/eco_b.tsv", "assets/eco_c.tsv",
+        "assets/eco_d.tsv", "assets/eco_e.tsv"
+    };
+    for (const char* path : files) {
+        std::ifstream f(path);
+        if (!f.is_open()) continue;
+        std::string line;
+        std::getline(f, line);  // skip header
+        while (std::getline(f, line)) {
+            if (line.empty()) continue;
+            // Parse TSV: eco \t name \t pgn
+            size_t t1 = line.find('\t');
+            if (t1 == std::string::npos) continue;
+            size_t t2 = line.find('\t', t1 + 1);
+            if (t2 == std::string::npos) continue;
+            std::string eco  = line.substr(0, t1);
+            std::string name = line.substr(t1 + 1, t2 - t1 - 1);
+            std::string pgn  = line.substr(t2 + 1);
+            // Strip move numbers: "1. e4 e5 2. Nf3" -> "e4 e5 Nf3"
+            std::string moves;
+            std::istringstream ss(pgn);
+            std::string tok;
+            while (ss >> tok) {
+                if (tok.back() == '.') continue;  // move number
+                if (!moves.empty()) moves += ' ';
+                moves += tok;
+            }
+            openingDb_.push_back({eco, name, moves});
+        }
+    }
+    // Sort by move sequence length descending — longest match wins
+    std::sort(openingDb_.begin(), openingDb_.end(),
+              [](const OpeningEntry& a, const OpeningEntry& b){
+                  return a.moves.size() > b.moves.size();
+              });
+}
+
+void VisualGame::updateOpeningName() {
+    if (openingDb_.empty() || gameHistory_.empty()) {
+        currentOpening_.clear();
+        return;
+    }
+    // Build move sequence from history (algebraic, space-separated)
+    std::string seq;
+    int limit = std::min(int(gameHistory_.size()), 30);  // only check first 30 moves
+    for (int i = 0; i < limit; ++i) {
+        if (!seq.empty()) seq += ' ';
+        seq += gameHistory_[i].moveAlg;
+    }
+    // Find longest opening that is a prefix of our move sequence
+    for (const auto& entry : openingDb_) {
+        if (entry.moves.empty()) continue;
+        // Check if entry.moves is a prefix of seq (or equal)
+        if (seq.size() >= entry.moves.size() &&
+            seq.substr(0, entry.moves.size()) == entry.moves &&
+            (seq.size() == entry.moves.size() || seq[entry.moves.size()] == ' ')) {
+            currentOpening_ = entry.eco + " " + entry.name;
+            return;
+        }
+    }
+    currentOpening_.clear();
+}
+
+// -------------------------------------------------------
+// ANALYSIS ENGINE
+// -------------------------------------------------------
+void VisualGame::stopAnalysisEngine() {
+    // Signal the engine to stop — it checks stop_ every 4096 nodes (~few ms)
+    analysisEngine_.stop();
+    // Join the thread to ensure the engine object is safe to reuse
+    if (analysisThread_.joinable())
+        analysisThread_.join();
+    analysisDepth_ = 0;
+    analysisNodes_ = 0;
+}
+
+void VisualGame::startAnalysisEngine() {
+    // Called after debounce — safe to join here since user has stopped scrolling
+    stopAnalysisEngine();
+    if (!analysisMode_ || viewIdx_ < 0 || viewIdx_ >= (int)gameHistory_.size()) return;
+
+    analysisViewIdx_ = viewIdx_;
+    analysisDone_.store(false);
+
+    analysisEngine_.setNNUE(nnueEnabled_ ? nnueNet_.get() : nullptr);
+    analysisEngine_.setMultiPV(1);
+    analysisEngine_.setTimeLimit(10000);  // 10s — user can navigate away
+
+    Board boardCopy = gameHistory_[viewIdx_].board;
+    boardCopy.hash  = Engine::computeHash(boardCopy);
+
+    analysisThread_ = std::thread([this, boardCopy]() mutable {
+        analysisEngine_.getBestMove(boardCopy, 64);
+        analysisDone_.store(true);
+    });
+}
+
+void VisualGame::updateAnalysisStats() {
+    if (!analysisMode_) return;
+    analysisDepth_ = analysisEngine_.getLiveDepth();
+    analysisEval_  = analysisEngine_.getLiveEval();
+    // Use live node count from the current search
+    analysisNodes_ = analysisEngine_.getNodes();
+    // Store latest eval back into the history entry so the graph updates
+    if (viewIdx_ >= 0 && viewIdx_ < (int)gameHistory_.size() && analysisDepth_ > 0)
+        gameHistory_[viewIdx_].eval = analysisEval_;
+}
 void VisualGame::selectPiece(Square sq) {
     pieceSelected = true;
     selectedSq    = sq;
@@ -239,11 +720,141 @@ void VisualGame::updateAnimation() {
 }
 
 // -------------------------------------------------------
+// MOVE TO ALGEBRAIC NOTATION
+// -------------------------------------------------------
+std::string VisualGame::moveToAlgebraic(const Board& board, const Move& move) {
+    auto sq2s = [](Square s) -> std::string {
+        return std::string(1, char('a' + s.col)) + std::string(1, char('1' + s.rank));
+    };
+
+    Piece moving   = board.getPiece(move.from);
+    Piece captured = board.getPiece(move.to);
+    bool  isCapture = !captured.isNone() && !captured.isDuck();
+
+    // En passant
+    bool isEP = (moving.type == PieceType::Pawn &&
+                 move.from.col != move.to.col && captured.isNone());
+    if (isEP) isCapture = true;
+
+    // Castling
+    if (moving.type == PieceType::King) {
+        int dc = move.to.col - move.from.col;
+        if (dc == 2)  return "O-O";
+        if (dc == -2) return "O-O-O";
+    }
+
+    std::string result;
+
+    // Piece letter (pawns have none)
+    if (moving.type != PieceType::Pawn) {
+        switch (moving.type) {
+            case PieceType::Knight: result += "N"; break;
+            case PieceType::Bishop: result += "B"; break;
+            case PieceType::Rook:   result += "R"; break;
+            case PieceType::Queen:  result += "Q"; break;
+            case PieceType::King:   result += "K"; break;
+            default: break;
+        }
+    }
+
+    // Disambiguation: find other pieces of the same type that can reach move.to
+    bool ambigFile = false, ambigRank = false;
+    if (moving.type != PieceType::Pawn) {
+        MoveList allMoves; MoveGen::getLegalMoves(const_cast<Board&>(board), allMoves);
+        for (const auto& m : allMoves) {
+            if (m == move) continue;
+            Piece other = board.getPiece(m.from);
+            if (other.type == moving.type && other.color == moving.color &&
+                m.to.rank == move.to.rank && m.to.col == move.to.col) {
+                if (m.from.col == move.from.col) ambigRank = true;
+                else                              ambigFile = true;
+            }
+        }
+    }
+
+    // Pawn captures always include the source file
+    if (moving.type == PieceType::Pawn && isCapture)
+        result += char('a' + move.from.col);
+    else if (ambigFile || (!ambigRank && ambigFile))
+        result += char('a' + move.from.col);
+    else if (ambigRank)
+        result += char('1' + move.from.rank);
+    else if (ambigFile && ambigRank)
+        result += sq2s(move.from);
+
+    if (isCapture) result += "x";
+    result += sq2s(move.to);
+
+    // Promotion
+    if (move.promotion != PieceType::None) {
+        result += "=";
+        switch (move.promotion) {
+            case PieceType::Queen:  result += "Q"; break;
+            case PieceType::Rook:   result += "R"; break;
+            case PieceType::Bishop: result += "B"; break;
+            case PieceType::Knight: result += "N"; break;
+            default: break;
+        }
+    }
+
+    // Check / checkmate suffix — apply the move to a copy and test
+    Board tmp = board;
+    tmp.applyMove(move);
+    MoveList responses; MoveGen::getLegalMoves(tmp, responses);
+    bool inCheck = MoveGen::isInCheck(tmp, tmp.turn);
+    if (inCheck) {
+        result += responses.empty() ? "#" : "+";
+    }
+
+    return result;
+}
+
+// -------------------------------------------------------
 // FINISH MOVE
 // -------------------------------------------------------
 void VisualGame::finishMove(const Move& move) {
     lastMove    = move;
     hasLastMove = true;
+
+    // ── Record history entry (pre-move board state) ──────────────────────────
+    {
+        HistoryEntry entry;
+        entry.board      = board;   // snapshot before the move
+        entry.move       = move;
+        entry.sideToMove = board.turn;
+        entry.moveNumber = moveNumber;
+        // Store the eval of this position (from the engine that just played)
+        // lastEval_ is always white POV — correct for the graph
+        entry.eval = lastEval_;
+        // Algebraic notation (e.g. "Nf3", "exd5", "O-O", "e8=Q+")
+        entry.moveAlg = moveToAlgebraic(board, move);
+        // Only truncate future history if a HUMAN makes a move while in analysis mode
+        // (bot moves always append to the live game — never branch from a viewed position)
+        bool isHumanMove = !botVsBot && !botVsNNUE_ && !engineThinking;
+        if (analysisMode_ && isHumanMove) {
+            gameHistory_.resize(viewIdx_ + 1);
+            exitAnalysisMode();
+        } else if (analysisMode_ && !isHumanMove) {
+            // Bot move during analysis — just exit analysis mode, keep full history
+            exitAnalysisMode();
+        }
+        gameHistory_.push_back(std::move(entry));
+
+        // Compute cpLoss for the previous move now that we have the eval after it
+        // cpLoss[N-1] = eval[N-1] (before move N-1) - eval[N] (before move N)
+        // Both from the perspective of the side that played move N-1
+        int n = (int)gameHistory_.size();
+        if (n >= 2) {
+            int prevEval = gameHistory_[n-2].eval;  // eval before move n-2
+            int currEval = gameHistory_[n-1].eval;  // eval before move n-1 = after move n-2
+            Color mover  = gameHistory_[n-2].sideToMove;
+            int prevPOV  = (mover == Color::White) ? prevEval : -prevEval;
+            int currPOV  = (mover == Color::White) ? currEval : -currEval;
+            int loss = prevPOV - currPOV;
+            gameHistory_[n-2].cpLoss = std::max(0, loss);
+        }
+    }
+    updateOpeningName();
 
     // Track move number (increments after black moves)
     if (board.turn == Color::Black)
@@ -433,7 +1044,7 @@ void VisualGame::updateStatus() {
     if (isAutomateChess_ && !board.automateSetupComplete) {
         std::string setupSide = (board.automateSetupTurn == Color::White) ? "White" : "Black";
         int ci = (int)board.automateSetupTurn;
-        statusMsg = "Automate Setup — " + setupSide + " to place | Budget: " +
+        statusMsg = "Automate Setup - " + setupSide + " to place | Budget: " +
                     std::to_string(board.automateBudget[ci]) + "pt | Pawns: " +
                     std::to_string(board.automatePawnsPlaced[ci]) + "/6";
         return;
@@ -477,16 +1088,23 @@ void VisualGame::updateStatus() {
     if (legalMoves.empty()) {
         gameOver = true;
         if (isDuckChess_) {
-            // In duck chess, no legal moves = the player loses (not stalemate)
             std::string winner = (board.turn == Color::White) ? "Black" : "White";
             statusMsg = winner + " wins! " + side + " has no legal moves!";
+            // Set terminal eval: winner gets +MATE, loser gets -MATE (white POV)
+            if (!gameHistory_.empty())
+                gameHistory_.back().eval = (board.turn == Color::White) ? -Engine::MATE_SCORE : Engine::MATE_SCORE;
         } else {
             if (MoveGen::isInCheck(board, board.turn)) {
                 std::string winner = (board.turn == Color::White) ? "Black" : "White";
                 statusMsg = "Checkmate! " + winner + " wins!";
+                // White's turn = black delivered checkmate = black wins = negative for white
+                if (!gameHistory_.empty())
+                    gameHistory_.back().eval = (board.turn == Color::White) ? -Engine::MATE_SCORE : Engine::MATE_SCORE;
             }
             else {
                 statusMsg = "Stalemate -- Draw!";
+                if (!gameHistory_.empty())
+                    gameHistory_.back().eval = 0;
             }
         }
     }
@@ -510,19 +1128,19 @@ void VisualGame::updateStatus() {
 // HELPER: screen <-> board coordinate conversions
 // -------------------------------------------------------
 Square VisualGame::screenToSquare(int x, int y) {
-    int col = (x - OX) / SQ;
-    int row = 7 - (y - OY) / SQ;
+    int col = (x - dynOX_) / dynSQ_;
+    int row = 7 - (y - OY) / dynSQ_;
     if (col < 0 || col > 7 || row < 0 || row > 7)
         return {-1, -1};
     return {row, col};
 }
 
 sf::Vector2f VisualGame::squareToScreen(Square sq) {
-    return {float(OX + sq.col * SQ), float(OY + (7 - sq.rank) * SQ)};
+    return {float(dynOX_ + sq.col * dynSQ_), float(OY + (7 - sq.rank) * dynSQ_)};
 }
 
 sf::Vector2f VisualGame::squareCenter(Square sq) {
-    return {float(OX + sq.col * SQ + SQ / 2), float(OY + (7 - sq.rank) * SQ + SQ / 2)};
+    return {float(dynOX_ + sq.col * dynSQ_ + dynSQ_ / 2), float(OY + (7 - sq.rank) * dynSQ_ + dynSQ_ / 2)};
 }
 
 bool VisualGame::isLegalTarget(Square sq) {
@@ -591,7 +1209,7 @@ void VisualGame::exitSetupMode(bool apply) {
 
 void VisualGame::handleSetupClick(int x, int y) {
     // Check if click is in the setup panel (right of board)
-    int boardRight = OX + SQ * 8;
+    int boardRight = dynOX_ + dynSQ_ * 8;
     if (x >= boardRight) {
         // Click in palette panel — select palette item
         int relY = y - OY;
@@ -692,7 +1310,7 @@ void VisualGame::handleAutomateSetupClick(int x, int y) {
     if (!humanTurn) return; // bot's turn — handled by automateSetupBotPlace()
 
     // Check if click is in the palette panel (right of board)
-    int boardRight = OX + SQ * 8;
+    int boardRight = dynOX_ + dynSQ_ * 8;
     if (x >= boardRight) {
         // Palette click — select piece type
         static const PieceType palette[] = {
@@ -700,7 +1318,7 @@ void VisualGame::handleAutomateSetupClick(int x, int y) {
             PieceType::Rook, PieceType::Queen, PieceType::King
         };
         int relY = y - OY;
-        int idx = relY / (PALETTE_SQ + 4);
+        int idx = relY / int(float(PALETTE_SQ + 4) * scale_);
         if (idx >= 0 && idx < 6)
             automatePaletteType_ = palette[idx];
         return;
@@ -820,9 +1438,10 @@ bool VisualGame::automateSetupBotPlace() {
 }
 
 void VisualGame::drawAutomateSetupPanel() {
-    // Draw a palette panel to the right of the board showing piece types + costs
-    float panelX = float(OX + SQ * 8 + 8);
+    float panelX = float(dynOX_ + dynSQ_ * 8 + 8);
     float panelY = float(OY);
+    float scaledPalSQ = float(PALETTE_SQ) * scale_;
+    float scaledPanW  = float(SETUP_PANEL_W) * scale_;
 
     static const PieceType palette[] = {
         PieceType::Pawn, PieceType::Knight, PieceType::Bishop,
@@ -838,10 +1457,9 @@ void VisualGame::drawAutomateSetupPanel() {
 
     for (int i = 0; i < 6; i++) {
         PieceType pt = palette[i];
-        float cellY = panelY + i * (PALETTE_SQ + 4);
+        float cellY = panelY + i * (scaledPalSQ + 4);
 
-        // Highlight selected
-        sf::RectangleShape cell(sf::Vector2f(SETUP_PANEL_W - 8, PALETTE_SQ));
+        sf::RectangleShape cell(sf::Vector2f(scaledPanW - 8, scaledPalSQ));
         cell.setPosition({panelX, cellY});
         bool selected = (automatePaletteType_ == pt);
         bool affordable = (Board::automatePieceCost(pt) <= board.automateBudget[ci]);
@@ -851,59 +1469,52 @@ void VisualGame::drawAutomateSetupPanel() {
         cell.setOutlineThickness(1);
         window.draw(cell);
 
-        // Label
-        sf::Text lbl(font, labels[i], 12);
+        unsigned int fs = std::max(8u, unsigned(12 * scale_));
+        sf::Text lbl(font, labels[i], fs);
         lbl.setFillColor(affordable ? sf::Color(200, 200, 220) : sf::Color(80, 80, 100));
         lbl.setPosition({panelX + 4, cellY + 4});
         window.draw(lbl);
     }
 
-    // Budget display
-    float budgetY = panelY + 6 * (PALETTE_SQ + 4) + 8;
-    sf::Text wBudget(font,
-        "White: " + std::to_string(board.automateBudget[0]) + "pt", 13);
+    float budgetY = panelY + 6 * (scaledPalSQ + 4) + 8;
+    unsigned int fs13 = std::max(8u, unsigned(13 * scale_));
+    unsigned int fs12 = std::max(8u, unsigned(12 * scale_));
+
+    sf::Text wBudget(font, "White: " + std::to_string(board.automateBudget[0]) + "pt", fs13);
     wBudget.setFillColor(sf::Color(220, 220, 255));
     wBudget.setPosition({panelX, budgetY});
     window.draw(wBudget);
 
-    sf::Text bBudget(font,
-        "Black: " + std::to_string(board.automateBudget[1]) + "pt", 13);
+    sf::Text bBudget(font, "Black: " + std::to_string(board.automateBudget[1]) + "pt", fs13);
     bBudget.setFillColor(sf::Color(180, 180, 220));
-    bBudget.setPosition({panelX, budgetY + 18});
+    bBudget.setPosition({panelX, budgetY + 18 * scale_});
     window.draw(bBudget);
 
-    // Pawn count
-    sf::Text wPawns(font,
-        "W pawns: " + std::to_string(board.automatePawnsPlaced[0]) + "/6", 12);
+    sf::Text wPawns(font, "W pawns: " + std::to_string(board.automatePawnsPlaced[0]) + "/6", fs12);
     wPawns.setFillColor(sf::Color(180, 220, 180));
-    wPawns.setPosition({panelX, budgetY + 40});
+    wPawns.setPosition({panelX, budgetY + 40 * scale_});
     window.draw(wPawns);
 
-    sf::Text bPawns(font,
-        "B pawns: " + std::to_string(board.automatePawnsPlaced[1]) + "/6", 12);
+    sf::Text bPawns(font, "B pawns: " + std::to_string(board.automatePawnsPlaced[1]) + "/6", fs12);
     bPawns.setFillColor(sf::Color(180, 220, 180));
-    bPawns.setPosition({panelX, budgetY + 56});
+    bPawns.setPosition({panelX, budgetY + 56 * scale_});
     window.draw(bPawns);
 
-    // Whose turn
-    std::string turnStr = (board.automateSetupTurn == Color::White) ?
-        "White to place" : "Black to place";
-    sf::Text turnTxt(font, turnStr, 13);
+    std::string turnStr = (board.automateSetupTurn == Color::White) ? "White to place" : "Black to place";
+    sf::Text turnTxt(font, turnStr, fs13);
     turnTxt.setFillColor(sf::Color(255, 220, 100));
-    turnTxt.setPosition({panelX, budgetY + 78});
+    turnTxt.setPosition({panelX, budgetY + 78 * scale_});
     window.draw(turnTxt);
 
-    // Status
     if (!setupStatus_.empty()) {
-        sf::Text statusTxt(font, setupStatus_, 12);
+        sf::Text statusTxt(font, setupStatus_, fs12);
         statusTxt.setFillColor(sf::Color(255, 100, 100));
-        statusTxt.setPosition({panelX, budgetY + 98});
+        statusTxt.setPosition({panelX, budgetY + 98 * scale_});
         window.draw(statusTxt);
     }
 }
 
 void VisualGame::drawAutomateSetupOverlay() {
-    // Highlight valid placement squares for the currently selected piece
     if (board.automateSetupComplete) return;
 
     Color side = board.automateSetupTurn;
@@ -913,8 +1524,8 @@ void VisualGame::drawAutomateSetupOverlay() {
         for (int c = 0; c < 8; c++) {
             Square sq{r, c};
             if (board.automateCanPlace(side, pt, sq)) {
-                sf::RectangleShape highlight(sf::Vector2f(SQ - 2, SQ - 2));
-                highlight.setPosition({float(OX + c * SQ + 1), float(OY + (7 - r) * SQ + 1)});
+                sf::RectangleShape highlight(sf::Vector2f(float(dynSQ_ - 2), float(dynSQ_ - 2)));
+                highlight.setPosition({float(dynOX_ + c * dynSQ_ + 1), float(OY + (7 - r) * dynSQ_ + 1)});
                 highlight.setFillColor(sf::Color(100, 200, 100, 60));
                 highlight.setOutlineColor(sf::Color(100, 200, 100, 120));
                 highlight.setOutlineThickness(1);
@@ -923,4 +1534,5 @@ void VisualGame::drawAutomateSetupOverlay() {
         }
     }
 }
+
 

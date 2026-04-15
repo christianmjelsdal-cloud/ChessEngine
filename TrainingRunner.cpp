@@ -577,6 +577,7 @@ static void LoadGraphCsv(ChessVariant variant) {
                     p.hasPhase = true;
                 }
             }
+            if (p.train > 10.0 || p.train < 0.0) continue;  // sanity: skip garbage entries
             g_st.pts.push_back(p);
         } catch (...) {}
     }
@@ -1350,7 +1351,22 @@ static bool Training(const Config& cfg, int gen) {
             " --extra-data \"" + selfplayData.string() + "\""
             " --epochs "   + std::to_string(cfg.epochsPerGen) +
             " --batch-size " + std::to_string(cfg.batchSize) +
-            " --lr "       + dbl2s(cfg.lr, 8);
+            " --lr "       + dbl2s(cfg.lr, 8) +
+            " --early-stop " + std::to_string(cfg.earlyStop) +
+            " --weight-decay " + dbl2s(cfg.weightDecay, 8) +
+            " --grad-accum " + std::to_string(cfg.gradAccum) +
+            " --warmup-steps " + std::to_string(cfg.warmupSteps) +
+            " --draw-weight " + dbl2s(cfg.drawWeight, 4) +
+            " --mate-boost " + dbl2s(cfg.mateBoost, 4) +
+            " --max-positions " + std::to_string(cfg.maxPositions);
+        if (cfg.labelSmooth > 0.0)
+            duckArgs += " --label-smoothing " + dbl2s(cfg.labelSmooth, 4);
+        if (cfg.cosineLr) {
+            duckArgs += " --cosine-lr";
+            if (cfg.cosineT0 > 0) duckArgs += " --cosine-t0 " + std::to_string(cfg.cosineT0);
+        }
+        if (cfg.swa)
+            duckArgs += " --swa --swa-start " + std::to_string(cfg.swaStart);
         // Replay window for duck chess
         if (cfg.replayWindow > 0 && cfg.replayDecay > 0.0) {
             double weight = cfg.splRatio * cfg.replayDecay;
@@ -1359,7 +1375,7 @@ static bool Training(const Config& cfg, int gen) {
                 if (replayGen < cfg.startGen) break;
                 fs::path replayFile = assetsDir / (cfg.selfplayPrefix() + std::to_string(replayGen) + ".bin");
                 if (fs::exists(replayFile))
-                    duckArgs += " --extra-data \"" + replayFile.string() + "\"";
+                    duckArgs += " --extra-data \"" + replayFile.string() + "\" " + dbl2s(weight, 4);
                 weight *= cfg.replayDecay;
             }
         }
@@ -1502,7 +1518,39 @@ static bool Training(const Config& cfg, int gen) {
             g_log.write("ERROR", "training", gen, cleaned);
 
         TrainPoint pt; pt.gen = gen;
-        if (ParseLoss(ln, pt) && pt.train < 10.0 && pt.train >= 0.0) {
+        // Try cleaned first, fall back to raw ln — ensures val_loss is found
+        // regardless of any stripping that may have occurred
+        bool parsed = ParseLoss(cleaned, pt) && pt.train < 10.0 && pt.train >= 0.0;
+        if (parsed && !pt.hasVal) {
+            // Try raw line in case val_loss was stripped from cleaned
+            TrainPoint pt2; pt2.gen = gen;
+            if (ParseLoss(ln, pt2) && pt2.hasVal) {
+                pt.hasVal   = true;
+                pt.val      = pt2.val;
+                pt.hasAcc   = pt2.hasAcc;
+                pt.accuracy = pt2.accuracy;
+                pt.hasPhase = pt2.hasPhase;
+                pt.openingLoss    = pt2.openingLoss;
+                pt.middlegameLoss = pt2.middlegameLoss;
+                pt.endgameLoss    = pt2.endgameLoss;
+            }
+            // Last resort: search for val_loss= directly in both strings
+            if (!pt.hasVal) {
+                auto tryFind = [&](const std::string& s) {
+                    auto pos = s.find("val_loss=");
+                    if (pos == std::string::npos) return;
+                    pos += 9;  // skip "val_loss="
+                    try {
+                        size_t n;
+                        double v = std::stod(s.substr(pos), &n);
+                        if (v >= 0.0 && v < 10.0) { pt.hasVal = true; pt.val = v; }
+                    } catch (...) {}
+                };
+                tryFind(ln);
+                tryFind(cleaned);
+            }
+        }
+        if (parsed) {
             g_st.pushPt(pt);
             g_log.metric(gen, pt.step, pt.train, pt.val, pt.hasVal, pt.lr, pt.hasLR);
             if (pt.hasPhase) {

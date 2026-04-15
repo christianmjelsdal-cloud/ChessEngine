@@ -1128,6 +1128,19 @@ namespace NNUE {
             return;
         }
 
+        // Max positions cap: truncate data if needed (shuffle first for random sampling)
+        std::vector<TrainingPosition> cappedData;
+        const std::vector<TrainingPosition>* trainingData = &data;
+        if (config.maxPositions > 0 && (int)data.size() > config.maxPositions) {
+            cappedData = data;
+            std::mt19937 capRng(42);
+            std::shuffle(cappedData.begin(), cappedData.end(), capRng);
+            cappedData.resize(static_cast<size_t>(config.maxPositions));
+            trainingData = &cappedData;
+            std::cerr << "[TrainDuck] Capped to " << config.maxPositions
+                      << " positions (from " << data.size() << ")\n";
+        }
+
         constexpr int DNUM = DuckNNUE::NUM_FEATURES;  // 832
 
         const int numL1w = DNUM * L1_SIZE;
@@ -1212,8 +1225,8 @@ namespace NNUE {
         // Phase-balanced training: classify positions
         std::vector<int> openingIdx, middlegameIdx, endgameIdx;
         if (config.phaseBalancedTraining) {
-            for (int i = 0; i < static_cast<int>(data.size()); ++i) {
-                GamePhase gp = classifyPhase(data[i].activeFeatures);
+            for (int i = 0; i < static_cast<int>(trainingData->size()); ++i) {
+                GamePhase gp = classifyPhase((*trainingData)[i].activeFeatures);
                 switch (gp) {
                     case GamePhase::Opening:    openingIdx.push_back(i); break;
                     case GamePhase::Middlegame: middlegameIdx.push_back(i); break;
@@ -1230,6 +1243,13 @@ namespace NNUE {
 
         float bestLoss = 1e9f;
         int epochsWithoutImprovement = 0;
+
+        // SWA: running average of weights starting from swaStart epoch
+        std::vector<float> swaParams(totalParams, 0.0f);
+        int swaCount = 0;
+
+        // Total batch count for warmup/cosine scheduling
+        int totalBatchesSoFar = 0;
 
         for (int epoch = 0; epoch < config.epochs; ++epoch) {
             if (cancelFlag && cancelFlag->load()) break;
@@ -1257,7 +1277,7 @@ namespace NNUE {
                 indices.insert(indices.end(), mSampled.begin(), mSampled.end());
                 indices.insert(indices.end(), eSampled.begin(), eSampled.end());
             } else {
-                indices.resize(data.size());
+                indices.resize(trainingData->size());
                 std::iota(indices.begin(), indices.end(), 0);
             }
             std::shuffle(indices.begin(), indices.end(), rng);
@@ -1265,205 +1285,254 @@ namespace NNUE {
             float epochLoss = 0.0f;
             int numBatches = 0;
 
+            // Determine thread count for parallel gradient accumulation
+            int numTrainThreads = std::max(1, (int)std::thread::hardware_concurrency());
+            numTrainThreads = std::min(numTrainThreads, 16);
+
             for (int batchStart = 0; batchStart < static_cast<int>(indices.size()); batchStart += config.batchSize) {
                 int batchEnd = std::min(batchStart + config.batchSize, static_cast<int>(indices.size()));
                 int batchActualSize = batchEnd - batchStart;
 
                 unpackWeights(params);
 
+                // Parallel gradient accumulation — each thread processes a chunk of the batch
+                int chunkSize = std::max(1, batchActualSize / numTrainThreads);
+                int numChunks = (batchActualSize + chunkSize - 1) / chunkSize;
+
+                std::vector<std::vector<float>> threadGrads(numChunks, std::vector<float>(totalParams, 0.0f));
+                std::vector<float> threadLoss(numChunks, 0.0f);
+                std::vector<std::thread> trainThreads;
+                trainThreads.reserve(numChunks);
+
+                for (int t = 0; t < numChunks; ++t) {
+                    int tStart = batchStart + t * chunkSize;
+                    int tEnd   = std::min(tStart + chunkSize, batchEnd);
+                    trainThreads.emplace_back([&, t, tStart, tEnd]() {
+                        auto& tGrads = threadGrads[t];
+                        float tLoss = 0.0f;
+
+                        for (int bi = tStart; bi < tEnd; ++bi) {
+                            const TrainingPosition& pos = (*trainingData)[indices[bi]];
+
+                            // ---- FORWARD PASS (with SCReLU) ----
+                            std::array<float, L1_SIZE> whiteAcc;
+                            std::array<float, L1_SIZE> blackAcc;
+                            for (int j = 0; j < L1_SIZE; ++j) {
+                                whiteAcc[j] = net.L1_biases[j];
+                                blackAcc[j] = net.L1_biases[j];
+                            }
+
+                            for (int feat : pos.activeFeatures) {
+                                int mirFeat = mirrorDuckFeature(feat);
+                                for (int j = 0; j < L1_SIZE; ++j) {
+                                    whiteAcc[j] += net.L1_weights[feat][j];
+                                }
+                                for (int j = 0; j < L1_SIZE; ++j) {
+                                    blackAcc[j] += net.L1_weights[mirFeat][j];
+                                }
+                            }
+
+                            std::array<float, L1_SIZE * 2> l1Out;
+                            std::array<float, L1_SIZE * 2> l1Pre;
+                            const auto& stmAcc = (pos.sideToMove == Color::White) ? whiteAcc : blackAcc;
+                            const auto& oppAcc = (pos.sideToMove == Color::White) ? blackAcc : whiteAcc;
+
+                            for (int i = 0; i < L1_SIZE; ++i) {
+                                l1Pre[i] = stmAcc[i];
+                                l1Out[i] = screlu(stmAcc[i]);
+                            }
+                            for (int i = 0; i < L1_SIZE; ++i) {
+                                l1Pre[L1_SIZE + i] = oppAcc[i];
+                                l1Out[L1_SIZE + i] = screlu(oppAcc[i]);
+                            }
+
+                            std::array<float, L2_SIZE> l2Pre, l2Out;
+                            for (int j = 0; j < L2_SIZE; ++j) {
+                                float sum = net.L2_biases[j];
+                                for (int i = 0; i < L1_SIZE * 2; ++i)
+                                    sum += l1Out[i] * net.L2_weights[i][j];
+                                l2Pre[j] = sum;
+                                l2Out[j] = screlu(sum);
+                            }
+
+                            std::array<float, L3_SIZE> l3Pre, l3Out;
+                            for (int j = 0; j < L3_SIZE; ++j) {
+                                float sum = net.L3_biases[j];
+                                for (int i = 0; i < L2_SIZE; ++i)
+                                    sum += l2Out[i] * net.L3_weights[i][j];
+                                l3Pre[j] = sum;
+                                l3Out[j] = screlu(sum);
+                            }
+
+                            float rawOutput = net.output_bias;
+                            for (int i = 0; i < L3_SIZE; ++i)
+                                rawOutput += l3Out[i] * net.output_weights[i];
+
+                            float predicted = rawOutput * 400.0f;
+                            float predictedWhitePOV = (pos.sideToMove == Color::White) ? predicted : -predicted;
+
+                            // ---- LOSS ----
+                            float sigPred   = sigmoid(predictedWhitePOV / config.evalScale);
+                            float sigTarget = sigmoid(pos.searchEval / config.evalScale);
+                            // Label smoothing: blend result toward 0.5
+                            float result = pos.gameResult;
+                            if (config.labelSmoothing > 0.0f)
+                                result = result * (1.0f - config.labelSmoothing)
+                                       + 0.5f * config.labelSmoothing;
+                            float evalLoss   = (sigPred - sigTarget) * (sigPred - sigTarget);
+                            float resultLoss = (sigPred - result)    * (sigPred - result);
+                            float posLoss = config.lambda * evalLoss + (1.0f - config.lambda) * resultLoss;
+                            // Mate boost: upweight positions with high absolute eval
+                            if (config.mateBoost > 1.0f && std::abs(pos.searchEval) > 300.0f) {
+                                float boost = 1.0f + (config.mateBoost - 1.0f) *
+                                              std::min(1.0f, (std::abs(pos.searchEval) - 300.0f) / 700.0f);
+                                posLoss *= boost;
+                            }
+                            tLoss += posLoss;
+
+                            // ---- BACKWARD PASS ----
+                            float dLdSigPred    = 2.0f * config.lambda * (sigPred - sigTarget)
+                                                + 2.0f * (1.0f - config.lambda) * (sigPred - result);
+                            // Apply mate boost to gradient too
+                            if (config.mateBoost > 1.0f && std::abs(pos.searchEval) > 300.0f) {
+                                float boost = 1.0f + (config.mateBoost - 1.0f) *
+                                              std::min(1.0f, (std::abs(pos.searchEval) - 300.0f) / 700.0f);
+                                dLdSigPred *= boost;
+                            }
+                            float dSigPred_dPredW = sigPred * (1.0f - sigPred) / config.evalScale;
+                            float dLdPredW  = dLdSigPred * dSigPred_dPredW;
+                            float dLdPred   = (pos.sideToMove == Color::White) ? dLdPredW : -dLdPredW;
+                            float dLdRawOut = dLdPred * 400.0f;
+
+                            for (int i = 0; i < L3_SIZE; ++i)
+                                tGrads[offOutW + i] += dLdRawOut * l3Out[i];
+                            tGrads[offOutB] += dLdRawOut;
+
+                            std::array<float, L3_SIZE> dLdL3Out;
+                            for (int i = 0; i < L3_SIZE; ++i)
+                                dLdL3Out[i] = dLdRawOut * net.output_weights[i];
+
+                            std::array<float, L3_SIZE> dLdL3Pre;
+                            for (int j = 0; j < L3_SIZE; ++j)
+                                dLdL3Pre[j] = dLdL3Out[j] * screlu_derivative(l3Pre[j]);
+
+                            for (int i = 0; i < L2_SIZE; ++i)
+                                for (int j = 0; j < L3_SIZE; ++j)
+                                    tGrads[offL3w + i * L3_SIZE + j] += dLdL3Pre[j] * l2Out[i];
+                            for (int j = 0; j < L3_SIZE; ++j)
+                                tGrads[offL3b + j] += dLdL3Pre[j];
+
+                            std::array<float, L2_SIZE> dLdL2Out;
+                            dLdL2Out.fill(0.0f);
+                            for (int i = 0; i < L2_SIZE; ++i)
+                                for (int j = 0; j < L3_SIZE; ++j)
+                                    dLdL2Out[i] += dLdL3Pre[j] * net.L3_weights[i][j];
+
+                            std::array<float, L2_SIZE> dLdL2Pre;
+                            for (int j = 0; j < L2_SIZE; ++j)
+                                dLdL2Pre[j] = dLdL2Out[j] * screlu_derivative(l2Pre[j]);
+
+                            for (int i = 0; i < L1_SIZE * 2; ++i)
+                                for (int j = 0; j < L2_SIZE; ++j)
+                                    tGrads[offL2w + i * L2_SIZE + j] += dLdL2Pre[j] * l1Out[i];
+                            for (int j = 0; j < L2_SIZE; ++j)
+                                tGrads[offL2b + j] += dLdL2Pre[j];
+
+                            std::array<float, L1_SIZE * 2> dLdL1Out;
+                            dLdL1Out.fill(0.0f);
+                            for (int i = 0; i < L1_SIZE * 2; ++i)
+                                for (int j = 0; j < L2_SIZE; ++j)
+                                    dLdL1Out[i] += dLdL2Pre[j] * net.L2_weights[i][j];
+
+                            std::array<float, L1_SIZE * 2> dLdL1Pre;
+                            for (int i = 0; i < L1_SIZE * 2; ++i)
+                                dLdL1Pre[i] = dLdL1Out[i] * screlu_derivative(l1Pre[i]);
+
+                            std::array<float, L1_SIZE> dLdWhiteAcc, dLdBlackAcc;
+                            if (pos.sideToMove == Color::White) {
+                                for (int j = 0; j < L1_SIZE; ++j) {
+                                    dLdWhiteAcc[j] = dLdL1Pre[j];
+                                    dLdBlackAcc[j] = dLdL1Pre[L1_SIZE + j];
+                                }
+                            } else {
+                                for (int j = 0; j < L1_SIZE; ++j) {
+                                    dLdBlackAcc[j] = dLdL1Pre[j];
+                                    dLdWhiteAcc[j] = dLdL1Pre[L1_SIZE + j];
+                                }
+                            }
+
+                            for (int j = 0; j < L1_SIZE; ++j)
+                                tGrads[offL1b + j] += dLdWhiteAcc[j] + dLdBlackAcc[j];
+
+                            for (int feat : pos.activeFeatures) {
+                                int mirFeat = mirrorDuckFeature(feat);
+                                for (int j = 0; j < L1_SIZE; ++j)
+                                    tGrads[offL1w + feat * L1_SIZE + j] += dLdWhiteAcc[j];
+                                for (int j = 0; j < L1_SIZE; ++j)
+                                    tGrads[offL1w + mirFeat * L1_SIZE + j] += dLdBlackAcc[j];
+                            }
+                        } // end sample loop
+
+                        threadLoss[t] = tLoss;
+                    }); // end thread lambda
+                } // end thread launch loop
+
+                for (auto& th : trainThreads) th.join();
+
+                // Sum gradients and loss across threads
                 std::vector<float> grads(totalParams, 0.0f);
                 float batchLoss = 0.0f;
-
-                for (int bi = batchStart; bi < batchEnd; ++bi) {
-                    const TrainingPosition& pos = data[indices[bi]];
-
-                    // ---- FORWARD PASS (with SCReLU) ----
-                    std::array<float, L1_SIZE> whiteAcc;
-                    std::array<float, L1_SIZE> blackAcc;
-                    for (int j = 0; j < L1_SIZE; ++j) {
-                        whiteAcc[j] = net.L1_biases[j];
-                        blackAcc[j] = net.L1_biases[j];
-                    }
-
-                    for (int feat : pos.activeFeatures) {
-                        int mirFeat = mirrorDuckFeature(feat);
-                        for (int j = 0; j < L1_SIZE; ++j) {
-                            whiteAcc[j] += net.L1_weights[feat][j];
-                        }
-                        for (int j = 0; j < L1_SIZE; ++j) {
-                            blackAcc[j] += net.L1_weights[mirFeat][j];
-                        }
-                    }
-
-                    // SCReLU activation for L1
-                    std::array<float, L1_SIZE * 2> l1Out;
-                    std::array<float, L1_SIZE * 2> l1Pre;
-                    const auto& stmAcc = (pos.sideToMove == Color::White) ? whiteAcc : blackAcc;
-                    const auto& oppAcc = (pos.sideToMove == Color::White) ? blackAcc : whiteAcc;
-
-                    for (int i = 0; i < L1_SIZE; ++i) {
-                        l1Pre[i] = stmAcc[i];
-                        l1Out[i] = screlu(stmAcc[i]);
-                    }
-                    for (int i = 0; i < L1_SIZE; ++i) {
-                        l1Pre[L1_SIZE + i] = oppAcc[i];
-                        l1Out[L1_SIZE + i] = screlu(oppAcc[i]);
-                    }
-
-                    // SCReLU activation for L2
-                    std::array<float, L2_SIZE> l2Pre, l2Out;
-                    for (int j = 0; j < L2_SIZE; ++j) {
-                        float sum = net.L2_biases[j];
-                        for (int i = 0; i < L1_SIZE * 2; ++i) {
-                            sum += l1Out[i] * net.L2_weights[i][j];
-                        }
-                        l2Pre[j] = sum;
-                        l2Out[j] = screlu(sum);
-                    }
-
-                    // SCReLU activation for L3
-                    std::array<float, L3_SIZE> l3Pre, l3Out;
-                    for (int j = 0; j < L3_SIZE; ++j) {
-                        float sum = net.L3_biases[j];
-                        for (int i = 0; i < L2_SIZE; ++i) {
-                            sum += l2Out[i] * net.L3_weights[i][j];
-                        }
-                        l3Pre[j] = sum;
-                        l3Out[j] = screlu(sum);
-                    }
-
-                    float rawOutput = net.output_bias;
-                    for (int i = 0; i < L3_SIZE; ++i) {
-                        rawOutput += l3Out[i] * net.output_weights[i];
-                    }
-
-                    float predicted = rawOutput * 400.0f;
-                    float predictedWhitePOV = (pos.sideToMove == Color::White) ? predicted : -predicted;
-
-                    // ---- LOSS COMPUTATION ----
-                    float sigPred = sigmoid(predictedWhitePOV / config.evalScale);
-                    float sigTarget = sigmoid(pos.searchEval / config.evalScale);
-                    float result = pos.gameResult;
-
-                    float evalLoss = (sigPred - sigTarget) * (sigPred - sigTarget);
-                    float resultLoss = (sigPred - result) * (sigPred - result);
-                    float loss = config.lambda * evalLoss + (1.0f - config.lambda) * resultLoss;
-                    batchLoss += loss;
-
-                    // ---- BACKWARD PASS (with SCReLU derivatives) ----
-                    float dLdSigPred = 2.0f * config.lambda * (sigPred - sigTarget)
-                                     + 2.0f * (1.0f - config.lambda) * (sigPred - result);
-
-                    float dSigPred_dPredW = sigPred * (1.0f - sigPred) / config.evalScale;
-                    float dLdPredW = dLdSigPred * dSigPred_dPredW;
-                    float dLdPred = (pos.sideToMove == Color::White) ? dLdPredW : -dLdPredW;
-                    float dLdRawOutput = dLdPred * 400.0f;
-
-                    for (int i = 0; i < L3_SIZE; ++i) {
-                        grads[offOutW + i] += dLdRawOutput * l3Out[i];
-                    }
-                    grads[offOutB] += dLdRawOutput;
-
-                    std::array<float, L3_SIZE> dLdL3Out;
-                    for (int i = 0; i < L3_SIZE; ++i) {
-                        dLdL3Out[i] = dLdRawOutput * net.output_weights[i];
-                    }
-
-                    std::array<float, L3_SIZE> dLdL3Pre;
-                    for (int j = 0; j < L3_SIZE; ++j) {
-                        dLdL3Pre[j] = dLdL3Out[j] * screlu_derivative(l3Pre[j]);
-                    }
-
-                    for (int i = 0; i < L2_SIZE; ++i) {
-                        for (int j = 0; j < L3_SIZE; ++j) {
-                            grads[offL3w + i * L3_SIZE + j] += dLdL3Pre[j] * l2Out[i];
-                        }
-                    }
-                    for (int j = 0; j < L3_SIZE; ++j) {
-                        grads[offL3b + j] += dLdL3Pre[j];
-                    }
-
-                    std::array<float, L2_SIZE> dLdL2Out;
-                    dLdL2Out.fill(0.0f);
-                    for (int i = 0; i < L2_SIZE; ++i) {
-                        for (int j = 0; j < L3_SIZE; ++j) {
-                            dLdL2Out[i] += dLdL3Pre[j] * net.L3_weights[i][j];
-                        }
-                    }
-
-                    std::array<float, L2_SIZE> dLdL2Pre;
-                    for (int j = 0; j < L2_SIZE; ++j) {
-                        dLdL2Pre[j] = dLdL2Out[j] * screlu_derivative(l2Pre[j]);
-                    }
-
-                    for (int i = 0; i < L1_SIZE * 2; ++i) {
-                        for (int j = 0; j < L2_SIZE; ++j) {
-                            grads[offL2w + i * L2_SIZE + j] += dLdL2Pre[j] * l1Out[i];
-                        }
-                    }
-                    for (int j = 0; j < L2_SIZE; ++j) {
-                        grads[offL2b + j] += dLdL2Pre[j];
-                    }
-
-                    std::array<float, L1_SIZE * 2> dLdL1Out;
-                    dLdL1Out.fill(0.0f);
-                    for (int i = 0; i < L1_SIZE * 2; ++i) {
-                        for (int j = 0; j < L2_SIZE; ++j) {
-                            dLdL1Out[i] += dLdL2Pre[j] * net.L2_weights[i][j];
-                        }
-                    }
-
-                    std::array<float, L1_SIZE * 2> dLdL1Pre;
-                    for (int i = 0; i < L1_SIZE * 2; ++i) {
-                        dLdL1Pre[i] = dLdL1Out[i] * screlu_derivative(l1Pre[i]);
-                    }
-
-                    std::array<float, L1_SIZE> dLdWhiteAcc, dLdBlackAcc;
-                    if (pos.sideToMove == Color::White) {
-                        for (int j = 0; j < L1_SIZE; ++j) {
-                            dLdWhiteAcc[j] = dLdL1Pre[j];
-                            dLdBlackAcc[j] = dLdL1Pre[L1_SIZE + j];
-                        }
-                    } else {
-                        for (int j = 0; j < L1_SIZE; ++j) {
-                            dLdBlackAcc[j] = dLdL1Pre[j];
-                            dLdWhiteAcc[j] = dLdL1Pre[L1_SIZE + j];
-                        }
-                    }
-
-                    for (int j = 0; j < L1_SIZE; ++j) {
-                        grads[offL1b + j] += dLdWhiteAcc[j] + dLdBlackAcc[j];
-                    }
-
-                    for (int feat : pos.activeFeatures) {
-                        int mirFeat = mirrorDuckFeature(feat);
-                        for (int j = 0; j < L1_SIZE; ++j) {
-                            grads[offL1w + feat * L1_SIZE + j] += dLdWhiteAcc[j];
-                        }
-                        for (int j = 0; j < L1_SIZE; ++j) {
-                            grads[offL1w + mirFeat * L1_SIZE + j] += dLdBlackAcc[j];
-                        }
-                    }
-
-                } // end batch sample loop
+                for (int t = 0; t < numChunks; ++t) {
+                    batchLoss += threadLoss[t];
+                    for (int i = 0; i < totalParams; ++i)
+                        grads[i] += threadGrads[t][i];
+                }
 
                 float invBatch = 1.0f / static_cast<float>(batchActualSize);
-                for (int i = 0; i < totalParams; ++i) {
+                for (int i = 0; i < totalParams; ++i)
                     grads[i] *= invBatch;
-                }
 
                 epochLoss += batchLoss / static_cast<float>(batchActualSize);
                 ++numBatches;
+                totalBatchesSoFar++;
 
-                adamUpdate(params, grads, adamState, lr);
+                // Gradient accumulation: only update every gradAccum batches
+                int effectiveGradAccum = std::max(1, config.gradAccum);
+                if (numBatches % effectiveGradAccum == 0 || batchEnd >= (int)indices.size()) {
+                    // LR warmup: linear ramp over warmupSteps batches
+                    float effectiveLr = lr;
+                    if (config.warmupSteps > 0 && totalBatchesSoFar <= config.warmupSteps)
+                        effectiveLr = lr * float(totalBatchesSoFar) / float(config.warmupSteps);
+
+                    adamUpdate(params, grads, adamState, effectiveLr, 0.9f, 0.999f,
+                               config.weightDecay);
+                    std::fill(grads.begin(), grads.end(), 0.0f);
+                }
 
                 if (cancelFlag && (numBatches % 50 == 0) && cancelFlag->load()) break;
 
             } // end batch loop
 
-            lr *= config.lrDecay;
+            // LR schedule: cosine annealing or exponential decay
+            if (config.cosineLr) {
+                int T = (config.cosineT0 > 0) ? config.cosineT0 : config.epochs;
+                int epochInCycle = epoch % T;
+                lr = config.learningRate * 0.5f * (1.0f + std::cos(3.14159f * epochInCycle / T));
+                lr = std::max(lr, 1e-6f);
+            } else {
+                lr *= config.lrDecay;
+            }
 
             float avgLoss = epochLoss / static_cast<float>(numBatches);
+
+            // SWA: accumulate weight average after swaStart epoch
+            if (config.swa && epoch + 1 >= config.swaStart) {
+                unpackWeights(params);
+                // Running average: swaParams = (swaParams * n + params) / (n+1)
+                swaCount++;
+                for (int i = 0; i < totalParams; ++i)
+                    swaParams[i] += (params[i] - swaParams[i]) / float(swaCount);
+            }
 
             // Unpack weights before callback so caller can compute val loss
             unpackWeights(params);
@@ -1489,15 +1558,22 @@ namespace NNUE {
             }
         } // end epoch loop
 
+        // Apply SWA weights if accumulated
+        if (config.swa && swaCount > 0) {
+            for (int i = 0; i < totalParams; ++i)
+                params[i] = swaParams[i];
+        }
+
         unpackWeights(params);
         net.saveWeights(config.outputPath);
     }
 
     // -------------------------------------------------------------------------
-    // adamUpdate: Standard Adam optimizer
+    // adamUpdate: AdamW optimizer (Adam + decoupled weight decay)
     // -------------------------------------------------------------------------
     void Trainer::adamUpdate(std::vector<float>& params, std::vector<float>& grads,
-                             AdamState& state, float lr, float beta1, float beta2) {
+                             AdamState& state, float lr, float beta1, float beta2,
+                             float weightDecay) {
         constexpr float epsilon = 1e-8f;
         state.t++;
 
@@ -1511,7 +1587,9 @@ namespace NNUE {
             float mHat = state.m[i] / bc1;
             float vHat = state.v[i] / bc2;
 
-            params[i] -= lr * mHat / (std::sqrt(vHat) + epsilon);
+            // AdamW: apply weight decay directly to params (decoupled from gradient)
+            params[i] -= lr * mHat / (std::sqrt(vHat) + epsilon)
+                       + lr * weightDecay * params[i];
         }
     }
 

@@ -47,6 +47,18 @@ namespace NNUE {
 
         // === Duck Chess variant ===
         bool isDuckChess = false;          // generate duck chess games instead of standard
+
+        // === Advanced training (used by trainDuck C++ trainer) ===
+        float weightDecay    = 0.0f;       // AdamW weight decay (L2 regularization)
+        float labelSmoothing = 0.0f;       // label smoothing on game result target
+        int   gradAccum      = 1;          // gradient accumulation steps
+        int   warmupSteps    = 0;          // linear LR warmup steps
+        bool  cosineLr       = false;      // cosine LR annealing
+        int   cosineT0       = 0;          // cosine restart period (0 = no restart)
+        bool  swa            = false;      // Stochastic Weight Averaging
+        int   swaStart       = 5;          // epoch to start SWA averaging
+        float mateBoost      = 1.0f;       // loss multiplier for positions near mate (>1 = upweight)
+        int   maxPositions   = 0;          // cap training data size (0 = no cap)
     };
 
     struct EloResult {
@@ -105,7 +117,8 @@ namespace NNUE {
         };
 
         void adamUpdate(std::vector<float>& params, std::vector<float>& grads,
-                       AdamState& state, float lr, float beta1 = 0.9f, float beta2 = 0.999f);
+                       AdamState& state, float lr, float beta1 = 0.9f, float beta2 = 0.999f,
+                       float weightDecay = 0.0f);
 
         // Loss function (sigmoid MSE with lambda blending)
         float computeLoss(float predicted, float targetEval, float gameResult,

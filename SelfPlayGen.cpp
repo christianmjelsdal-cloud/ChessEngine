@@ -936,8 +936,10 @@ int SelfPlayGen::generate(const Config& cfg) {
                 }
 
                 std::snprintf(lastStatusPrefix, sizeof(lastStatusPrefix),
-                    "[SelfPlay] %d/%d (%d%%)  pos=%d  W/D/B=%d/%d/%d  (%d%%/%d%%/%d%%)  %s  %.1f games/s (avg %.1f)  %s",
-                    done, cfg.games, donePct, static_cast<int>(totalPos), ww, dr, bw, winPct, drawPct, lossPct, depthBuf, ewmaGps, rawGps, npsBuf);
+                    "[SelfPlay] %d/%d (%d%%)  pos=%d (%.0f pos/s)  W/D/B=%d/%d/%d  (%d%%/%d%%/%d%%)  %s  %.1f games/s (avg %.1f)  %s",
+                    done, cfg.games, donePct, static_cast<int>(totalPos),
+                    (wallElapsed > 0.1 ? totalPos / wallElapsed : 0.0),
+                    ww, dr, bw, winPct, drawPct, lossPct, depthBuf, ewmaGps, rawGps, npsBuf);
 
                 // Set the countdown target time
                 etaTarget = std::chrono::steady_clock::now() + std::chrono::seconds(etaSec);
@@ -1026,7 +1028,7 @@ int SelfPlayGen::generate(const Config& cfg) {
         }
         char startBuf[256];
         std::snprintf(startBuf, sizeof(startBuf),
-            "\r[SelfPlay] 0/%d (0%%)  pos=0  W/D/B=0/0/0  %s  warming up...",
+            "\r[SelfPlay] 0/%d (0%%)  pos=0 (0 pos/s)  W/D/B=0/0/0  %s  warming up...",
             cfg.games, depthBuf);
         std::fwrite(startBuf, 1, std::strlen(startBuf), stdout);
         std::fwrite("\n", 1, 1, stdout);

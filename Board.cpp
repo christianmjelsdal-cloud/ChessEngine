@@ -168,11 +168,12 @@ void Board::applyMove(const Move& move) {
     if (turn == Color::Black)
         fullMoveNumber++;
 
-    // En passant capture
+    // En passant capture — clear pawn from squares[][] and bitboards
     if (moving.type == PieceType::Pawn &&
         move.to.rank == enPassantTarget.rank &&
         move.to.col == enPassantTarget.col) {
         int capturedRank = move.from.rank;
+        bbClear(capturedRank, move.to.col);
         squares[capturedRank][move.to.col] = Piece{};
     }
 
@@ -186,17 +187,8 @@ void Board::applyMove(const Move& move) {
         };
     }
 
-    // Castling — move the rook
+    // Castling rights revocation for king move (rook squares[][] update handled below)
     if (moving.type == PieceType::King) {
-        int backRank = move.from.rank;
-        if (move.to.col - move.from.col == 2) { // kingside
-            squares[backRank][5] = squares[backRank][7];
-            squares[backRank][7] = Piece{};
-        }
-        else if (move.from.col - move.to.col == 2) { // queenside
-            squares[backRank][3] = squares[backRank][0];
-            squares[backRank][0] = Piece{};
-        }
         int ci = (moving.color == Color::White) ? 0 : 1;
         castlingRights[ci][0] = castlingRights[ci][1] = false;
     }
@@ -218,13 +210,41 @@ void Board::applyMove(const Move& move) {
         }
     }
 
-    // Move the piece
-    setPiece(move.to, moving);
-    setPiece(move.from, Piece{});
+    // Move the piece — update squares[][] and bitboards incrementally
+    // Clear source square
+    bbClear(move.from.rank, move.from.col);
+    squares[move.from.rank][move.from.col] = Piece{};
+    // Clear destination (captures)
+    if (!squares[move.to.rank][move.to.col].isNone())
+        bbClear(move.to.rank, move.to.col);
+    // Place moving piece at destination
+    squares[move.to.rank][move.to.col] = moving;
+    bbSet(move.to.rank, move.to.col, moving);
 
-    // Promotion
-    if (move.promotion != PieceType::None)
+    // Promotion: update piece type in squares[][] and bitboards
+    if (move.promotion != PieceType::None) {
+        bbClear(move.to.rank, move.to.col);
         squares[move.to.rank][move.to.col].type = move.promotion;
+        bbSet(move.to.rank, move.to.col, squares[move.to.rank][move.to.col]);
+    }
+
+    // Castling rook — update bitboards for rook move
+    if (moving.type == PieceType::King) {
+        int backRank = move.from.rank;
+        if (move.to.col - move.from.col == 2) { // kingside
+            bbClear(backRank, 7);
+            squares[backRank][5] = squares[backRank][7];
+            squares[backRank][7] = Piece{};
+            bbSet(backRank, 5, squares[backRank][5]);
+        } else if (move.from.col - move.to.col == 2) { // queenside
+            bbClear(backRank, 0);
+            squares[backRank][3] = squares[backRank][0];
+            squares[backRank][0] = Piece{};
+            bbSet(backRank, 3, squares[backRank][3]);
+        }
+    }
+
+    // En-passant pawn already cleared from squares[][] and bitboards in the EP block above
 
     // Handle duck placement if specified in the move (used by engine)
 #ifdef DUCK_CHESS
@@ -276,8 +296,7 @@ void Board::applyMove(const Move& move) {
             hash ^= Zobrist::side;
     }
 
-    // Rebuild bitboards from squares[][] (needed by getLegalMoves and evaluate)
-    recomputeBitboards();
+    // Bitboards are maintained incrementally above — no full recompute needed
 }
 
 bool Board::isSquareAttacked(Square sq, Color byColor) const {
@@ -698,17 +717,26 @@ void Board::automatePlacePiece(Color side, PieceType pt, Square sq) {
     if (pt == PieceType::Pawn) automatePawnsPlaced[ci]++;
     if (pt == PieceType::King) automateKingPlaced[ci] = true;
 
-    // Advance setup turn to the other side
-    automateSetupTurn = (side == Color::White) ? Color::Black : Color::White;
-
     // Check if setup is complete: both kings placed
     if (automateKingPlaced[0] && automateKingPlaced[1]) {
         automateSetupComplete = true;
-        // Set up for normal play: White moves first
         turn = Color::White;
-        // Disable castling (non-standard armies)
         castlingRights[0][0] = castlingRights[0][1] = false;
         castlingRights[1][0] = castlingRights[1][1] = false;
+        recomputeBitboards();
+        return;
+    }
+
+    // Advance turn to the other side
+    Color other = (side == Color::White) ? Color::Black : Color::White;
+    int oi = (int)other;
+
+    // If the other side has already placed their king, they're done —
+    // keep the turn on the current side so they can finish their placements
+    if (automateKingPlaced[oi]) {
+        automateSetupTurn = side;  // stay on current side
+    } else {
+        automateSetupTurn = other;  // normal alternation
     }
 
     recomputeBitboards();

@@ -691,6 +691,20 @@ int Engine::evaluate(const Board& board) {
 }
 
 // =============================================================
+//  INCREMENTAL NNUE EVALUATION
+//  Uses accStack_[ply] if valid; falls back to full evaluateQ.
+// =============================================================
+int Engine::evaluateWithAcc(const Board& board, int ply) {
+    if (!nnue_ || board.isDuckChess) return evaluate(board);
+    if (ply >= 0 && ply < MAX_PLY + 4 && accStack_[ply].valid) {
+        float phase = NNUE::Network::computePhase(board);
+        return nnue_->forwardQ(accStack_[ply], board.turn, phase);
+    }
+    // Fallback: full refresh
+    return nnue_->evaluateQ(board);
+}
+
+// =============================================================
 //  MOVE ORDERING
 // =============================================================
 bool Engine::isCapture(const Board& board, const Move& m) {
@@ -765,9 +779,9 @@ int Engine::qsearch(Board& board, int alpha, int beta, int ply) {
     nodes_++;
     if (shouldStop()) return 0;
 
-    if (ply >= MAX_PLY + 32) return evaluate(board);
+    if (ply >= MAX_PLY + 32) return evaluateWithAcc(board, ply);
 
-    int standPat = evaluate(board);
+    int standPat = evaluateWithAcc(board, ply);
     if (standPat >= beta) return beta;
     if (standPat > alpha) alpha = standPat;
 
@@ -794,6 +808,16 @@ int Engine::qsearch(Board& board, int alpha, int beta, int ply) {
         if (standPat + delta + 200 < alpha) continue;
 
         Board::UndoInfo undo;
+        // Propagate accumulator for qsearch captures
+        if (nnue_ && !board.isDuckChess && ply + 1 < MAX_PLY + 4 && accStack_[ply].valid) {
+            Piece moving   = board.getPiece(m.from);
+            Piece captured = board.getPiece(m.to);
+            nnue_->fusedCopyAndUpdateQ(board, accStack_[ply], accStack_[ply + 1],
+                m.from.rank, m.from.col, m.to.rank, m.to.col,
+                moving.type, moving.color, captured.type, captured.color);
+        } else if (ply + 1 < MAX_PLY + 4) {
+            accStack_[ply + 1].valid = false;
+        }
         board.makeMove(m, undo);
         int score = -qsearch(board, -beta, -alpha, ply + 1);
         board.unmakeMove(m, undo);
@@ -815,7 +839,7 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
 
     pvLength_[ply] = ply;
 
-    if (ply >= MAX_PLY) return evaluate(board);
+    if (ply >= MAX_PLY) return evaluateWithAcc(board, ply);
 
     if (depth <= 0) return qsearch(board, alpha, beta, ply);
 
@@ -850,7 +874,7 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
 
     if (inCheck && ply < MAX_PLY - 2) depth++;
 
-    int staticEval = evaluate(board);
+    int staticEval = evaluateWithAcc(board, ply);
 
     if (!isPV && !inCheck && depth <= 3 && std::abs(beta) < MATE_SCORE - 100) {
         int rfpMargin = 120 * depth;
@@ -873,6 +897,9 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
             Board nullBoard = board;
             nullBoard.turn = (board.turn == Color::White) ? Color::Black : Color::White;
             nullBoard.enPassantTarget = {-1, -1};
+
+            // Null move: same pieces, just flipped turn — accumulator is still valid
+            if (ply + 1 < MAX_PLY + 4) accStack_[ply + 1] = accStack_[ply];
 
             int nullScore = -search(nullBoard, depth - 1 - R, -beta, -beta + 1,
                                     ply + 1, false, false);
@@ -935,6 +962,19 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
         }
 
         Board::UndoInfo undo;
+
+        // Build child accumulator incrementally before making the move
+        if (nnue_ && !board.isDuckChess && ply + 1 < MAX_PLY + 4 && accStack_[ply].valid) {
+            Piece moving   = board.getPiece(m.from);
+            Piece captured = board.getPiece(m.to);
+            nnue_->fusedCopyAndUpdateQ(board, accStack_[ply], accStack_[ply + 1],
+                m.from.rank, m.from.col, m.to.rank, m.to.col,
+                moving.type, moving.color,
+                captured.type, captured.color);
+        } else if (ply + 1 < MAX_PLY + 4) {
+            accStack_[ply + 1].valid = false;
+        }
+
         board.makeMove(m, undo);
 
         int score;
@@ -1130,12 +1170,25 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply,
     if (MoveGen::isKingCaptured(board, us))
         return -(MATE_SCORE - ply);
 
+    // TT probe
+    uint64_t hash = computeHash(board);
+    size_t ttIdx = hash % activeTT().size();
+    TTEntry& tte = activeTT()[ttIdx];
+    Move hashMove{};
+    if (tte.key == hash) {
+        hashMove = tte.best;
+        if (tte.depth >= depth) {
+            if (tte.flag == TT_EXACT) return tte.score;
+            if (tte.flag == TT_LOWER && tte.score >= beta)  return tte.score;
+            if (tte.flag == TT_UPPER && tte.score <= alpha) return tte.score;
+        }
+    }
+
     MoveList chessMoves; MoveGen::getDuckChessMoves(board, chessMoves);
     if (chessMoves.empty())
         return -(MATE_SCORE - ply);
 
-    Move noMove{};
-    orderMoves(chessMoves, board, ply, noMove);
+    orderMoves(chessMoves, board, ply, hashMove);
 
     // Parent's post-duck accumulator (what was set before we were called)
     DuckNNUE::QAccumulator* parentAcc = (accStack && ply > 0) ? &accStack[ply - 1] : nullptr;
@@ -1244,6 +1297,15 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply,
         nextChessMove:;
         board.unmakeMove(cm, undo);
         if (alpha >= beta) break;
+    }
+
+    // TT store
+    if (tte.key != hash || tte.gen != ttGen_ || depth >= tte.depth) {
+        tte.key   = hash;
+        tte.score = bestScore;
+        tte.depth = (int16_t)depth;
+        tte.flag  = (bestScore <= alpha) ? TT_UPPER : TT_EXACT;
+        tte.gen   = ttGen_;
     }
 
     return bestScore;
@@ -1434,8 +1496,6 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
     if (legalMoves.size() == 1) return legalMoves[0];
 
     Move bestMove = legalMoves[0];
-    Move prevBestMove{};              // NEW: track best move stability
-    int  bestMoveStableCount = 0;     // NEW: how many iterations the best move hasn't changed
     int  prevScore = 0;
     lastPV_.clear();
     lastDepth_ = 0;
@@ -1443,7 +1503,15 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
     std::memset(pvTable_, 0, sizeof(pvTable_));
     std::memset(searchStack_, 0, sizeof(searchStack_));
 
-    rootEval_ = evaluate(board);
+    // Seed root accumulator (ply=0) — propagated incrementally through search tree
+    if (nnue_ && !board.isDuckChess) {
+        finny_.clear();
+        nnue_->refreshAccumulatorQFinny(board, accStack_[0], finny_);
+    } else {
+        accStack_[0].valid = false;
+    }
+
+    rootEval_ = evaluateWithAcc(board, 0);
 
     {
         std::lock_guard<std::mutex> lock(livePVMutex_);
@@ -1456,24 +1524,9 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
         if (stop_.load(std::memory_order_relaxed)) break;
 
         // === SOFT TIME CHECK ===
-        // Don't start a new iteration if we've used more than the soft limit.
-        // Exception: extend time if best move is unstable (changed recently).
         if (depth > 1) {
             int64_t elapsed = elapsedMs();
-            int effectiveSoft = softLimitMs_;
-
-            // If best move changed in last 2 iterations, extend soft limit by 50%
-            if (bestMoveStableCount < 2)
-                effectiveSoft = softLimitMs_ * 3 / 2;
-
-            // If best move has been stable for 4+ iterations, reduce soft limit
-            if (bestMoveStableCount >= 4)
-                effectiveSoft = softLimitMs_ * 2 / 3;
-
-            // Never exceed hard limit
-            effectiveSoft = std::min(effectiveSoft, hardLimitMs_);
-
-            if (elapsed > effectiveSoft) break;
+            if (elapsed > softLimitMs_) break;
         }
 
         int alpha, beta;
@@ -1494,6 +1547,7 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
 
         int bestScoreIter = -INF;
         Move bestMoveIter = moves[0];
+        std::vector<RootMove> rootScores;  // collect all root move scores for multi-PV
 
         for (int i = 0; i < (int)moves.size(); i++) {
             if (stop_.load(std::memory_order_relaxed)) break;
@@ -1512,6 +1566,15 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
             }
 
             board.unmakeMove(moves[i], undo);
+
+            if (!stop_.load(std::memory_order_relaxed)) {
+                // Capture PV for this root move from pvTable_
+                std::vector<Move> movePV;
+                movePV.push_back(moves[i]);
+                for (int j = 1; j < pvLength_[1]; j++)
+                    movePV.push_back(pvTable_[1][j]);
+                rootScores.push_back({moves[i], score, std::move(movePV)});
+            }
 
             if (score > bestScoreIter) {
                 bestScoreIter = score;
@@ -1560,18 +1623,20 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
         }
 
         if (!stop_.load(std::memory_order_relaxed)) {
-            // === TRACK BEST MOVE STABILITY ===
-            if (bestMoveIter == prevBestMove) {
-                bestMoveStableCount++;
-            } else {
-                bestMoveStableCount = 0;
-            }
-            prevBestMove = bestMoveIter;
-
             bestMove  = bestMoveIter;
             prevScore = bestScoreIter;
             rootEval_ = bestScoreIter;
             lastDepth_ = depth;
+
+            // Store top 3 root moves for multi-PV display
+            std::sort(rootScores.begin(), rootScores.end(),
+                      [](const RootMove& a, const RootMove& b){ return a.score > b.score; });
+            {
+                std::lock_guard<std::mutex> lock(topRootMtx_);
+                topRootMoves_.clear();
+                int n = std::min(3, (int)rootScores.size());
+                for (int k = 0; k < n; ++k) topRootMoves_.push_back(rootScores[k]);
+            }
 
             lastPV_.clear();
             for (int j = 0; j < pvLength_[0]; j++)
