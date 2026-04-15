@@ -3716,6 +3716,33 @@ static LRESULT CALLBACK WndProc(HWND hw, UINT msg, WPARAM wp, LPARAM lp) {
             }
 
             FlushLog();
+
+            // Live NPS: during self-play, inject curNps into current gen's points
+            // so the NPS panel updates in real time (every 500ms timer tick).
+            if (running) {
+                std::lock_guard<std::mutex> lk(g_st.mtx);
+                if (g_st.curNps > 0.0 && phase == "selfplay") {
+                    int liveGen = g_st.curGen + 1;  // curGen is 0-based offset, gen numbers are 1-based
+                    bool updated = false;
+                    for (auto& p : g_st.pts) {
+                        if (p.gen == liveGen) {
+                            p.nps = g_st.curNps;
+                            p.hasNps = true;
+                            updated = true;
+                        }
+                    }
+                    // If no points exist yet for this gen (self-play still running, no training yet),
+                    // create a placeholder point so the graph has something to show.
+                    if (!updated && g_st.curNps > 0.0) {
+                        TrainPoint live;
+                        live.gen = liveGen; live.step = 0;
+                        live.train = 0.0;
+                        live.nps = g_st.curNps; live.hasNps = true;
+                        g_st.pts.push_back(live);
+                    }
+                }
+            }
+
             InvalidateRect(g_hGraph, nullptr, FALSE);
         }
         break;
