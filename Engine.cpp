@@ -1175,9 +1175,9 @@ int Engine::scoreDuckPlacement(const Board& board, Square duckSq, Color myColor)
 
     // Use bitboards to find opponent sliders instead of 64-square mailbox scan
     Bitboard oppRQ = (board.pieceBBs[(int)PieceType::Rook]   | board.pieceBBs[(int)PieceType::Queen])
-                   & board.colorBBs[(int)opponent];
+                   & board.colorBB[(int)opponent];
     Bitboard oppBQ = (board.pieceBBs[(int)PieceType::Bishop] | board.pieceBBs[(int)PieceType::Queen])
-                   & board.colorBBs[(int)opponent];
+                   & board.colorBB[(int)opponent];
 
     Bitboard rqCopy = oppRQ;
     while (rqCopy) {
@@ -1215,7 +1215,9 @@ void Engine::orderDuckPlacements(SquareList& placements, const Board& board, Col
             std::swap(scores[i],     scores[best]);
         }
     }
-}#endif // DUCK_CHESS
+}
+
+#endif // DUCK_CHESS
 
 
 #ifdef DUCK_CHESS
@@ -1337,12 +1339,21 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply,
 
         Square oldDuck = board.duckSquare;
 
+        // Which accumulator holds the post-chess state?
+        // - needsRefresh (king/promo): postChess (copy path, refreshed after makeMove)
+        // - normal move: parentAcc (mutated in-place, will be undone after duck loop)
+        DuckNNUE::QAccumulator* chessAcc = (canInc && !needsRefresh) ? parentAcc : (canInc ? &postChess : nullptr);
+
+        // For king moves: refresh postChess now that board is in post-move state
+        if (canInc && needsRefresh) {
+            duckNnue_->refreshAccumulatorQ(board, postChess);
+            postChess.valid = true;
+        }
+
         // Null duck pruning: evaluate with duck unmoved as a quick lower bound.
         // If this already beats beta, skip all duck placements for this chess move.
         // Only at depth > 1 (at depth 1 the duck placement IS the last move).
         if (chessAcc && chessAcc->valid && depth > 1 && !shouldStop()) {
-            // forwardQ returns eval from board.turn's perspective (them, after makeMove).
-            // In negamax: our score = -forwardQ(them). If -forwardQ >= beta, prune.
             int nullScore = -duckNnue_->forwardQ(*chessAcc, board.turn);
             if (nullScore >= beta) {
                 // Undo chess delta on parentAcc before skipping
@@ -1362,17 +1373,6 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply,
                 if (alpha >= beta) break;
                 continue;
             }
-        }
-
-        // Which accumulator holds the post-chess state?
-        // - needsRefresh (king/promo): postChess (copy path, refreshed after makeMove)
-        // - normal move: parentAcc (mutated in-place, will be undone after duck loop)
-        DuckNNUE::QAccumulator* chessAcc = (canInc && !needsRefresh) ? parentAcc : (canInc ? &postChess : nullptr);
-
-        // For king moves: refresh postChess now that board is in post-move state
-        if (canInc && needsRefresh) {
-            duckNnue_->refreshAccumulatorQ(board, postChess);
-            postChess.valid = true;
         }
 
         for (int d = 0; d < nDucks; d++) {

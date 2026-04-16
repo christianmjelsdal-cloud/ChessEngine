@@ -616,8 +616,10 @@ void Board::unmakeMove(const Move& /*m*/, const UndoInfo& undo) {
         }
     }
     // Restore duck square if present
+#ifdef DUCK_CHESS
     if (isDuckChess && duckSquare.isValid())
         squares[duckSquare.rank][duckSquare.col] = Piece{PieceType::Duck, Color::White};
+#endif
 }
 
 // ============================================================

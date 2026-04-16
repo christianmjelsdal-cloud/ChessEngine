@@ -404,7 +404,8 @@ namespace DuckNNUE {
                 // (clamped * clamped * QA_ACT) / (QA * QA) — use float for this step
                 __m256 sf = _mm256_cvtepi32_ps(clamped);
                 sf = _mm256_mul_ps(_mm256_mul_ps(sf, sf), _mm256_set1_ps((float)QA_ACT / ((float)QA * QA)));
-                __m128i r = _mm256_cvtps_epi32(sf);  // truncate to int32
+                __m256i r256 = _mm256_cvtps_epi32(sf);
+                __m128i r    = _mm256_castsi256_si128(r256);
                 // Pack to uint8 via int16
                 __m128i r16 = _mm_packs_epi32(r, r);
                 __m128i r8  = _mm_packus_epi16(r16, r16);
@@ -415,7 +416,8 @@ namespace DuckNNUE {
                 __m256i oclamped = _mm256_max_epi32(vZero8, _mm256_min_epi32(oi32, _mm256_set1_epi32(QA)));
                 __m256 of = _mm256_cvtepi32_ps(oclamped);
                 of = _mm256_mul_ps(_mm256_mul_ps(of, of), _mm256_set1_ps((float)QA_ACT / ((float)QA * QA)));
-                __m128i or32 = _mm256_cvtps_epi32(of);
+                __m256i or256 = _mm256_cvtps_epi32(of);
+                __m128i or32  = _mm256_castsi256_si128(or256);
                 __m128i or16 = _mm_packs_epi32(or32, or32);
                 __m128i or8  = _mm_packus_epi16(or16, or16);
                 _mm_storel_epi64(reinterpret_cast<__m128i*>(&input_q[L1_SIZE + i]), or8);
@@ -452,7 +454,8 @@ namespace DuckNNUE {
             const __m256 vScale = _mm256_set1_ps(static_cast<float>(QA_ACT));
             for (int i = 0; i < L2_SIZE; i += 8) {
                 __m256 v = _mm256_mul_ps(_mm256_loadu_ps(&l2Out[i]), vScale);
-                __m128i i32 = _mm256_cvtps_epi32(v);
+                __m256i i32_256 = _mm256_cvtps_epi32(v);
+                __m128i i32 = _mm256_castsi256_si128(i32_256);
                 __m128i i16 = _mm_packs_epi32(i32, i32);
                 __m128i u8  = _mm_packus_epi16(i16, i16);
                 _mm_storel_epi64(reinterpret_cast<__m128i*>(&l2Out_q[i]), u8);
