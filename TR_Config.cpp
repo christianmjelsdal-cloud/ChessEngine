@@ -163,7 +163,7 @@ void saveGraphData(const std::string& dataDir, const std::vector<TrainPoint>& pt
                 << std::setprecision(8) << p.train << ',';
             if (p.hasVal) out << std::setprecision(8) << p.val; else out << "nan";
             out << ',';
-            if (p.hasLR) out << std::scientific << std::setprecision(6) << p.lr; else out << "nan";
+            if (p.hasLR) out << std::fixed << std::setprecision(8) << p.lr; else out << "nan";
             out << ',';
             out << std::fixed;
             if (p.hasAcc) out << std::setprecision(4) << p.accuracy; else out << "nan";
@@ -202,7 +202,7 @@ void appendGraphPoint(const std::string& dataDir, const TrainPoint& p) {
         << std::setprecision(8) << p.train << ',';
     if (p.hasVal) out << std::setprecision(8) << p.val; else out << "nan";
     out << ',';
-    if (p.hasLR) out << std::scientific << std::setprecision(6) << p.lr; else out << "nan";
+    if (p.hasLR) out << std::fixed << std::setprecision(8) << p.lr; else out << "nan";
     out << ',';
     out << std::fixed;
     if (p.hasAcc) out << std::setprecision(4) << p.accuracy; else out << "nan";

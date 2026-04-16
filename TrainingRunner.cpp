@@ -1815,7 +1815,7 @@ static void PipelineThread(Config cfg) {
                     << std::fixed << std::setprecision(8) << p.train << ',';
                 if (p.hasVal) out << p.val; else out << "nan";
                 out << ',';
-                if (p.hasLR) out << std::scientific << std::setprecision(6) << p.lr; else out << "nan";
+                if (p.hasLR) out << std::fixed << std::setprecision(8) << p.lr; else out << "nan";
                 out << ',';
                 if (p.hasAcc) out << std::fixed << std::setprecision(4) << p.accuracy; else out << "nan";
                 out << ',';
@@ -2083,7 +2083,7 @@ static void DrawGraph(HWND hw) {
                 float y2=mt2+gh2*i/4;
                 g.DrawLine(&gridPen,ml,y2,ml+gw,y2);
                 double val=maxL-rng*i/4;
-                std::wostringstream ss; ss<<std::scientific<<std::setprecision(2)<<val;
+                std::wostringstream ss; ss<<std::fixed<<std::setprecision(6)<<val;
                 g.DrawString(ss.str().c_str(),-1,&gridFnt,PointF(2,y2-6),&gridBr);
             }
             Pen lrPen(Color(255,180,80,220),1.8f);

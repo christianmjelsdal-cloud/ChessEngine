@@ -566,7 +566,7 @@ int main(int argc, char* argv[]) {
                           << " op=" << std::fixed << std::setprecision(8) << opLoss
                           << " mg=" << std::fixed << std::setprecision(8) << mgLoss
                           << " eg=" << std::fixed << std::setprecision(8) << egLoss
-                          << " lr=" << std::scientific << std::setprecision(6) << currentLr
+                          << " lr=" << std::fixed << std::setprecision(8) << currentLr
                           << " epoch_time=" << std::fixed << std::setprecision(1) << lastEpochSecs << "s"
                           << " eta=" << etaMin << "m" << etaSec << "s"
                           << "\n";

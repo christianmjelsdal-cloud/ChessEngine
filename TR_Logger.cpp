@@ -160,7 +160,7 @@ void FileLogger::logMetric(int gen, int epoch, double trainLoss, double valLoss,
          << " train_loss=" << std::fixed << std::setprecision(8) << trainLoss;
     if (hasVal)
         line << " val_loss=" << std::fixed << std::setprecision(8) << valLoss;
-    line << " lr=" << std::scientific << std::setprecision(6) << lr;
+    line << " lr=" << std::fixed << std::setprecision(8) << lr;
     if (hasAcc)
         line << " acc=" << std::fixed << std::setprecision(4) << acc;
     if (hasPhase)
