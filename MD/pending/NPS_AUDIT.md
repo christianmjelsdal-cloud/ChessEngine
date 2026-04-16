@@ -171,11 +171,11 @@ Cache the best duck placement for a given board position in the TT. If the same 
 |---|---|---|---|
 | Pass acc as pointer — fix #1 | Medium | ~30-40% | ✅ Done |
 | Delta-undo postChess — fix #2 | Medium | ~10-15% | ✅ Done |
-| Remove squares[][] from UndoInfo — fix #3 | High | ~8-12% | Pending |
-| Magic bitboard `isSquareAttacked` — fix #5 | Low | ~5-10% std chess | Pending |
-| INT8 L3 in forwardQ — fix #6 | Low | ~5-10% eval | Pending |
-| Partial sort for duck placements — fix #7 | Low | ~3-5% | Pending |
-| Null duck move pruning — fix #8a | Medium | ~10-20% nodes | Pending |
+| Remove squares[][] from UndoInfo — fix #3 | High | ~8-12% | ✅ Done |
+| Magic bitboard `isSquareAttacked` — fix #5 | Low | ~5-10% std chess | ✅ Done |
+| INT8 L3 in forwardQ — fix #6 | Low | ~5-10% eval | ✅ Done |
+| Partial sort for duck placements — fix #7 | Low | ~3-5% | ✅ Done |
+| Null duck move pruning — fix #8a | Medium | ~10-20% nodes | ✅ Done |
 | Duck placement TT — fix #8c | Medium | unknown | Pending |
 | MVV-LVA for duck captures — fix #3 prev | Done | ~5-8% | ✅ Done |
 | INT8 L2 in forwardQ — fix #6 prev | Done | ~2-3x eval | ✅ Done |

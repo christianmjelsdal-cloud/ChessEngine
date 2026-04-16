@@ -445,24 +445,38 @@ namespace DuckNNUE {
             l2Out[j] = c * c;
         }
 
-        // L3 — INT8 quantized weights
+        // L3 — INT8 quantized weights (L2_SIZE=128 inputs, L3_SIZE=64 outputs)
+        // Quantize l2Out (float [0,1]) to uint8 [0,127] for maddubs
+        static thread_local uint8_t l2Out_q[L2_SIZE];
+        {
+            const __m256 vScale = _mm256_set1_ps(static_cast<float>(QA_ACT));
+            for (int i = 0; i < L2_SIZE; i += 8) {
+                __m256 v = _mm256_mul_ps(_mm256_loadu_ps(&l2Out[i]), vScale);
+                __m128i i32 = _mm256_cvtps_epi32(v);
+                __m128i i16 = _mm_packs_epi32(i32, i32);
+                __m128i u8  = _mm_packus_epi16(i16, i16);
+                _mm_storel_epi64(reinterpret_cast<__m128i*>(&l2Out_q[i]), u8);
+            }
+        }
         for (int j = 0; j < L3_SIZE; ++j) {
             const int8_t* w = L3_weights_T_q[j].data();
-            // l2Out is float — quantize to uint8 for INT8 multiply
-            // L2_SIZE=128, process 16 at a time
+            // L2_SIZE=128: two 64-element AVX2 passes
             __m256i sum32 = _mm256_setzero_si256();
-            // Use float path for L3 (L2_SIZE=128 is small, overhead of quantizing l2Out not worth it)
-            const float* wf = L3_weights_T[j].data();
-            __m256 fsum = _mm256_setzero_ps();
-            for (int i = 0; i < L2_SIZE; i += 8)
-                fsum = _mm256_add_ps(fsum, _mm256_mul_ps(_mm256_loadu_ps(&l2Out[i]), _mm256_loadu_ps(&wf[i])));
-            __m128 s = _mm_add_ps(_mm256_castps256_ps128(fsum), _mm256_extractf128_ps(fsum, 1));
-            __m128 shuf = _mm_movehdup_ps(s); s = _mm_add_ps(s, shuf);
-            s = _mm_add_ss(s, _mm_movehl_ps(shuf, s));
-            float val = _mm_cvtss_f32(s) + L3_biases[j];
+            for (int i = 0; i < L2_SIZE; i += 32) {
+                __m256i a = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&l2Out_q[i]));
+                __m256i b = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&w[i]));
+                __m256i prod = _mm256_maddubs_epi16(a, b);
+                sum32 = _mm256_add_epi32(sum32, _mm256_madd_epi16(prod, _mm256_set1_epi16(1)));
+            }
+            __m128i lo = _mm256_castsi256_si128(sum32);
+            __m128i hi = _mm256_extracti128_si256(sum32, 1);
+            __m128i s4 = _mm_add_epi32(lo, hi);
+            s4 = _mm_hadd_epi32(s4, s4);
+            s4 = _mm_hadd_epi32(s4, s4);
+            int32_t raw = _mm_cvtsi128_si32(s4) + L3_biases_q[j];
+            float val = static_cast<float>(raw) / (static_cast<float>(QA_ACT) * QW_L3);
             float c = val < 0.f ? 0.f : val > 1.f ? 1.f : val;
             l3Out[j] = c * c;
-            (void)sum32; (void)w;
         }
 
         // Output

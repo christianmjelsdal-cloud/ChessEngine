@@ -572,9 +572,8 @@ void Board::makeMove(const Move& m, UndoInfo& undo) {
     }
 
     // Full squares[][] snapshot for reliable unmake
-    for (int r = 0; r < 8; r++)
-        for (int c = 0; c < 8; c++)
-            undo.squares[r][c] = squares[r][c];
+    // NOTE: squares[][] is reconstructed from bitboards on unmake — no snapshot needed.
+    // Kept as a comment to document the intentional omission.
 
     applyMove(m);
 }
@@ -597,9 +596,28 @@ void Board::unmakeMove(const Move& /*m*/, const UndoInfo& undo) {
     blackKingSq    = undo.blackKingSq;
     phase          = undo.phase;
     turn           = (turn == Color::White) ? Color::Black : Color::White;
+
+    // Reconstruct squares[][] from bitboards — avoids the 512-byte snapshot.
+    // Clear all squares first, then repopulate from bitboard data.
     for (int r = 0; r < 8; r++)
         for (int c = 0; c < 8; c++)
-            squares[r][c] = undo.squares[r][c];
+            squares[r][c] = Piece{};
+
+    for (int pt = 1; pt <= 6; pt++) {
+        Bitboard wb = pieceBBs[pt] & colorBB[0];
+        while (wb) {
+            int sq = BB::popLsb(wb);
+            squares[sq / 8][sq % 8] = Piece{static_cast<PieceType>(pt), Color::White};
+        }
+        Bitboard bb = pieceBBs[pt] & colorBB[1];
+        while (bb) {
+            int sq = BB::popLsb(bb);
+            squares[sq / 8][sq % 8] = Piece{static_cast<PieceType>(pt), Color::Black};
+        }
+    }
+    // Restore duck square if present
+    if (isDuckChess && duckSquare.isValid())
+        squares[duckSquare.rank][duckSquare.col] = Piece{PieceType::Duck, Color::White};
 }
 
 // ============================================================

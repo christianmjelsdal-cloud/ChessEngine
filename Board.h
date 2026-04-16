@@ -75,8 +75,7 @@ public:
         Square   whiteKingSq;
         Square   blackKingSq;
         int      phase;
-        // Full squares[][] snapshot — guarantees correct unmake for all edge cases
-        Piece    squares[8][8];
+        // squares[][] is reconstructed from bitboards on unmake — no snapshot needed
     };
 
     // Constructor

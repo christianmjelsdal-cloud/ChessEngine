@@ -1337,6 +1337,33 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply,
 
         Square oldDuck = board.duckSquare;
 
+        // Null duck pruning: evaluate with duck unmoved as a quick lower bound.
+        // If this already beats beta, skip all duck placements for this chess move.
+        // Only at depth > 1 (at depth 1 the duck placement IS the last move).
+        if (chessAcc && chessAcc->valid && depth > 1 && !shouldStop()) {
+            // forwardQ returns eval from board.turn's perspective (them, after makeMove).
+            // In negamax: our score = -forwardQ(them). If -forwardQ >= beta, prune.
+            int nullScore = -duckNnue_->forwardQ(*chessAcc, board.turn);
+            if (nullScore >= beta) {
+                // Undo chess delta on parentAcc before skipping
+                if (canInc && !needsRefresh) {
+                    if (moving.type == PieceType::Pawn && cm.to.col != cm.from.col && !isCapture) {
+                        Color opp2 = (moving.color == Color::White) ? Color::Black : Color::White;
+                        duckNnue_->addFeatureQ(NNUE::featureIndex(PieceType::Pawn, opp2, cm.from.rank, cm.to.col), *parentAcc);
+                    }
+                    duckNnue_->removeFeatureQ(NNUE::featureIndex(moving.type, moving.color, cm.to.rank, cm.to.col), *parentAcc);
+                    if (isCapture)
+                        duckNnue_->addFeatureQ(NNUE::featureIndex(captured.type, captured.color, cm.to.rank, cm.to.col), *parentAcc);
+                    duckNnue_->addFeatureQ(NNUE::featureIndex(moving.type, moving.color, cm.from.rank, cm.from.col), *parentAcc);
+                }
+                board.unmakeMove(cm, undo);
+                bestScore = std::max(bestScore, nullScore);
+                if (bestScore > alpha) alpha = bestScore;
+                if (alpha >= beta) break;
+                continue;
+            }
+        }
+
         // Which accumulator holds the post-chess state?
         // - needsRefresh (king/promo): postChess (copy path, refreshed after makeMove)
         // - normal move: parentAcc (mutated in-place, will be undone after duck loop)
