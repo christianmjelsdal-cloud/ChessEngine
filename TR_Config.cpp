@@ -142,6 +142,8 @@ std::vector<TrainPoint> loadGraphData(const std::string& dataDir) {
             if (std::getline(ss, tok, ',')) {
                 if (tok != "nan" && !tok.empty()) { p.nps = std::stod(tok); p.hasNps = true; }
             }
+            // NPS-only points have train=0 — mark hasLoss=false so loss panel skips them
+            if (p.train == 0.0 && !p.hasVal) p.hasLoss = false;
         } catch (...) { continue; }
         result.push_back(p);
     }

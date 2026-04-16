@@ -1,0 +1,232 @@
+﻿Build started 15-04-2026 22:55:28.
+Logging verbosity is set to: Normal.
+Project "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\ChessEngine.sln" on node 1 (Build target(s)).
+ValidateSolutionConfiguration:
+  Building solution configuration "Release|x64".
+Project "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\ChessEngine.sln" (1) is building "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\ChessEngine.vcxproj" (2) on node 1 (default targets).
+PrepareForBuild:
+  Structured output is enabled. The formatting of compiler diagnostics will reflect the error hierarchy. See https://aka.ms/cpp/structured-output for more details.
+InitializeBuildStatus:
+  Creating "ChessEngine\x64\Release\ChessEngine.tlog\unsuccessfulbuild" because "AlwaysCreate" was specified.
+  Touching "ChessEngine\x64\Release\ChessEngine.tlog\unsuccessfulbuild".
+ComputeStdModulesCompileInputs:
+  Reading library manifest file 'C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\modules\modules.json' which provides data for library 'microsoft/STL'.
+  Adding module source 'C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\modules\std.ixx' from library 'microsoft/STL' to be built with this project.
+  Adding module source 'C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\modules\std.compat.ixx' from library 'microsoft/STL' to be built with this project.
+VcpkgTripletSelection:
+  Using triplet "x64-windows" from "C:\vcpkg\installed\x64-windows\"
+  Using normalized configuration "Release"
+ClCompile:
+  C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\bin\HostX86\x64\CL.exe /c /I"C:\vcpkg\installed\x64-windows\include" /Zi /nologo /W3 /WX- /diagnostics:column /sdl /FS /O2 /Oi /GL /D HAS_SYZYGY /D DUCK_CHESS /D NDEBUG /D _WINDOWS /D _UNICODE /D UNICODE /Gm- /EHsc /MD /GS /Gy /arch:AVX2 /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /std:c++20 /permissive- /Fo"ChessEngine\x64\Release\\" /Fd"ChessEngine\x64\Release\vc145.pdb" /external:W3 /Gd /TP /FC /errorReport:queue Bitboard.cpp Board.cpp Engine.cpp GameLogic.cpp Main.cpp MoveGen.cpp NNUE.cpp DuckNNUE.cpp NNUETrainer.cpp SelfPlayGen.cpp UCI.cpp Syzygy.cpp VisualGame.cpp VisualGame_Input.cpp VisualGame_Render.cpp
+  Bitboard.cpp
+  Board.cpp
+  Engine.cpp
+  GameLogic.cpp
+  Main.cpp
+  MoveGen.cpp
+  NNUE.cpp
+  DuckNNUE.cpp
+  NNUETrainer.cpp
+  SelfPlayGen.cpp
+  UCI.cpp
+  Syzygy.cpp
+  VisualGame.cpp
+  VisualGame_Input.cpp
+  VisualGame_Render.cpp
+  C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\bin\HostX86\x64\CL.exe /c /I"C:\vcpkg\installed\x64-windows\include" /Zi /nologo /W3 /WX- /diagnostics:column /sdl /FS /O2 /Oi /GL /D _CRT_SECURE_NO_WARNINGS /D _SILENCE_CXX20_ATOMIC_INIT_DEPRECATION_WARNING /D HAS_SYZYGY /D DUCK_CHESS /D NDEBUG /D _WINDOWS /D _UNICODE /D UNICODE /Gm- /EHsc /MD /GS /Gy /arch:AVX2 /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /std:c++20 /permissive- /Fo"ChessEngine\x64\Release\\" /Fd"ChessEngine\x64\Release\vc145.pdb" /external:W3 /Gd /TP /FC /errorReport:queue tbprobe.c
+  tbprobe.c
+Link:
+  C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\bin\HostX86\x64\link.exe /ERRORREPORT:QUEUE /OUT:"C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" /NOLOGO /LIBPATH:"C:\vcpkg\installed\x64-windows\lib" /LIBPATH:"C:\vcpkg\installed\x64-windows\lib\manual-link" kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib "C:\vcpkg\installed\x64-windows\lib\*.lib" /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.pdb" /SUBSYSTEM:WINDOWS /OPT:REF /OPT:ICF /LTCG /LTCGOUT:"ChessEngine\x64\Release\ChessEngine.iobj" /TLBID:1 /ENTRY:"mainCRTStartup" /DYNAMICBASE /NXCOMPAT /IMPLIB:"C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.lib" /MACHINE:X64 ChessEngine\x64\Release\Bitboard.obj
+  ChessEngine\x64\Release\Board.obj
+  ChessEngine\x64\Release\Engine.obj
+  ChessEngine\x64\Release\GameLogic.obj
+  ChessEngine\x64\Release\Main.obj
+  ChessEngine\x64\Release\MoveGen.obj
+  ChessEngine\x64\Release\NNUE.obj
+  ChessEngine\x64\Release\DuckNNUE.obj
+  ChessEngine\x64\Release\NNUETrainer.obj
+  ChessEngine\x64\Release\SelfPlayGen.obj
+  ChessEngine\x64\Release\UCI.obj
+  ChessEngine\x64\Release\Syzygy.obj
+  ChessEngine\x64\Release\tbprobe.obj
+  ChessEngine\x64\Release\VisualGame.obj
+  ChessEngine\x64\Release\VisualGame_Input.obj
+  ChessEngine\x64\Release\VisualGame_Render.obj
+LINK : fatal error LNK1104: cannot open file 'C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe' [C:\Users\chris\pyproj\my_env\Projects\ChessEngine\ChessEngine.vcxproj]
+Done Building Project "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\ChessEngine.vcxproj" (default targets) -- FAILED.
+
+Project "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\ChessEngine.sln" (1) is building "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\TrainingRunner.vcxproj" (3) on node 1 (default targets).
+PrepareForBuild:
+  Structured output is enabled. The formatting of compiler diagnostics will reflect the error hierarchy. See https://aka.ms/cpp/structured-output for more details.
+InitializeBuildStatus:
+  Creating "x64\Release\TrainingRunner\TrainingRunner.tlog\unsuccessfulbuild" because "AlwaysCreate" was specified.
+  Touching "x64\Release\TrainingRunner\TrainingRunner.tlog\unsuccessfulbuild".
+CopyFileToFolders:
+  All outputs are up-to-date.
+VcpkgTripletSelection:
+  Using triplet "x64-windows" from "C:\vcpkg\installed\x64-windows\"
+  Using normalized configuration "Release"
+ClCompile:
+  C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\bin\HostX86\x64\CL.exe /c /I"C:\vcpkg\installed\x64-windows\include" /Zi /nologo /W3 /WX- /diagnostics:column /sdl /FS /O2 /Oi /GL /D DUCK_CHESS /D NDEBUG /D _CONSOLE /D NOMINMAX /D _CRT_SECURE_NO_WARNINGS /D _UNICODE /D UNICODE /Gm- /EHsc /MD /GS /Gy /arch:AVX2 /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /std:c++17 /permissive- /Fo"x64\Release\TrainingRunner\\" /Fd"x64\Release\TrainingRunner\vc145.pdb" /external:W3 /Gd /TP /FC /errorReport:queue Bitboard.cpp Board.cpp Engine.cpp Syzygy.cpp GameLogic.cpp MoveGen.cpp NNUE.cpp DuckNNUE.cpp NNUETrainer.cpp SelfPlayGen.cpp TrainingRunner.cpp
+  Bitboard.cpp
+  Board.cpp
+  Engine.cpp
+  Syzygy.cpp
+  GameLogic.cpp
+  MoveGen.cpp
+  NNUE.cpp
+  DuckNNUE.cpp
+  NNUETrainer.cpp
+  SelfPlayGen.cpp
+  TrainingRunner.cpp
+  C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\bin\HostX86\x64\CL.exe /c /I"C:\vcpkg\installed\x64-windows\include" /Zi /nologo /W3 /WX- /diagnostics:column /sdl /FS /O2 /Oi /GL /D _CRT_SECURE_NO_WARNINGS /D _SILENCE_CXX20_ATOMIC_INIT_DEPRECATION_WARNING /D DUCK_CHESS /D NDEBUG /D _CONSOLE /D NOMINMAX /D _CRT_SECURE_NO_WARNINGS /D _UNICODE /D UNICODE /Gm- /EHsc /MD /GS /Gy /arch:AVX2 /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /std:c++17 /permissive- /Fo"x64\Release\TrainingRunner\\" /Fd"x64\Release\TrainingRunner\vc145.pdb" /external:W3 /Gd /TP /FC /errorReport:queue tbprobe.c
+  tbprobe.c
+Link:
+  C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\bin\HostX86\x64\link.exe /ERRORREPORT:QUEUE /OUT:"C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\TrainingRunner.exe" /NOLOGO /LIBPATH:"C:\vcpkg\installed\x64-windows\lib" /LIBPATH:"C:\vcpkg\installed\x64-windows\lib\manual-link" winmm.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib "C:\vcpkg\installed\x64-windows\lib\*.lib" /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\TrainingRunner.pdb" /SUBSYSTEM:WINDOWS /OPT:REF /OPT:ICF /LTCG:incremental /LTCGOUT:"x64\Release\TrainingRunner\TrainingRunner.iobj" /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\TrainingRunner.lib" /MACHINE:X64 x64\Release\TrainingRunner\Bitboard.obj
+  x64\Release\TrainingRunner\Board.obj
+  x64\Release\TrainingRunner\Engine.obj
+  x64\Release\TrainingRunner\Syzygy.obj
+  x64\Release\TrainingRunner\GameLogic.obj
+  x64\Release\TrainingRunner\MoveGen.obj
+  x64\Release\TrainingRunner\NNUE.obj
+  x64\Release\TrainingRunner\DuckNNUE.obj
+  x64\Release\TrainingRunner\NNUETrainer.obj
+  x64\Release\TrainingRunner\SelfPlayGen.obj
+  x64\Release\TrainingRunner\TrainingRunner.obj
+  x64\Release\TrainingRunner\tbprobe.obj
+LINK : fatal error LNK1104: cannot open file 'C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\TrainingRunner.exe' [C:\Users\chris\pyproj\my_env\Projects\ChessEngine\TrainingRunner.vcxproj]
+Done Building Project "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\TrainingRunner.vcxproj" (default targets) -- FAILED.
+
+Project "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\ChessEngine.sln" (1) is building "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\PerftTests.vcxproj" (4) on node 1 (default targets).
+PrepareForBuild:
+  Structured output is enabled. The formatting of compiler diagnostics will reflect the error hierarchy. See https://aka.ms/cpp/structured-output for more details.
+InitializeBuildStatus:
+  Creating "x64\Release\PerftTests\PerftTests.tlog\unsuccessfulbuild" because "AlwaysCreate" was specified.
+  Touching "x64\Release\PerftTests\PerftTests.tlog\unsuccessfulbuild".
+ComputeStdModulesCompileInputs:
+  Reading library manifest file 'C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\modules\modules.json' which provides data for library 'microsoft/STL'.
+  Adding module source 'C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\modules\std.ixx' from library 'microsoft/STL' to be built with this project.
+  Adding module source 'C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\modules\std.compat.ixx' from library 'microsoft/STL' to be built with this project.
+VcpkgTripletSelection:
+  Using triplet "x64-windows" from "C:\vcpkg\installed\x64-windows\"
+  Using normalized configuration "Release"
+ClCompile:
+  C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\bin\HostX86\x64\CL.exe /c /I"C:\vcpkg\installed\x64-windows\include" /Zi /nologo /W3 /WX- /diagnostics:column /sdl /FS /O2 /Oi /GL /D HAS_SYZYGY /D NDEBUG /D _CONSOLE /D NOMINMAX /D _CRT_SECURE_NO_WARNINGS /D _UNICODE /D UNICODE /Gm- /EHsc /MD /GS /Gy /arch:AVX2 /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /std:c++20 /permissive- /Fo"x64\Release\PerftTests\\" /Fd"x64\Release\PerftTests\vc145.pdb" /external:W3 /Gd /TP /FC /errorReport:queue Bitboard.cpp Board.cpp Engine.cpp GameLogic.cpp MoveGen.cpp NNUE.cpp DuckNNUE.cpp NNUETrainer.cpp SelfPlayGen.cpp UCI.cpp Test.cpp Syzygy.cpp
+  Bitboard.cpp
+  Board.cpp
+  Engine.cpp
+  GameLogic.cpp
+  MoveGen.cpp
+  NNUE.cpp
+  DuckNNUE.cpp
+  NNUETrainer.cpp
+  SelfPlayGen.cpp
+  UCI.cpp
+  Test.cpp
+  Syzygy.cpp
+  C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\bin\HostX86\x64\CL.exe /c /I"C:\vcpkg\installed\x64-windows\include" /Zi /nologo /W3 /WX- /diagnostics:column /sdl /FS /O2 /Oi /GL /D _CRT_SECURE_NO_WARNINGS /D _SILENCE_CXX20_ATOMIC_INIT_DEPRECATION_WARNING /D HAS_SYZYGY /D NDEBUG /D _CONSOLE /D NOMINMAX /D _CRT_SECURE_NO_WARNINGS /D _UNICODE /D UNICODE /Gm- /EHsc /MD /GS /Gy /arch:AVX2 /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /std:c++20 /permissive- /Fo"x64\Release\PerftTests\\" /Fd"x64\Release\PerftTests\vc145.pdb" /external:W3 /Gd /TP /FC /errorReport:queue tbprobe.c
+  tbprobe.c
+Link:
+  C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\bin\HostX86\x64\link.exe /ERRORREPORT:QUEUE /OUT:"C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\PerftTests.exe" /NOLOGO /LIBPATH:"C:\vcpkg\installed\x64-windows\lib" /LIBPATH:"C:\vcpkg\installed\x64-windows\lib\manual-link" kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib "C:\vcpkg\installed\x64-windows\lib\*.lib" /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\PerftTests.pdb" /SUBSYSTEM:CONSOLE /OPT:REF /OPT:ICF /LTCG:incremental /LTCGOUT:"x64\Release\PerftTests\PerftTests.iobj" /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\PerftTests.lib" /MACHINE:X64 x64\Release\PerftTests\Bitboard.obj
+  x64\Release\PerftTests\Board.obj
+  x64\Release\PerftTests\Engine.obj
+  x64\Release\PerftTests\GameLogic.obj
+  x64\Release\PerftTests\MoveGen.obj
+  x64\Release\PerftTests\NNUE.obj
+  x64\Release\PerftTests\DuckNNUE.obj
+  x64\Release\PerftTests\NNUETrainer.obj
+  x64\Release\PerftTests\SelfPlayGen.obj
+  x64\Release\PerftTests\UCI.obj
+  x64\Release\PerftTests\Test.obj
+  x64\Release\PerftTests\Syzygy.obj
+  x64\Release\PerftTests\tbprobe.obj
+  Generating code
+  1 of 2101 functions (<0.1%) were compiled, the rest were copied from previous compilation.
+    0 functions were new in current compilation
+    12 functions had inline decision re-evaluated but remain unchanged
+  Finished generating code
+  PerftTests.vcxproj -> C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\PerftTests.exe
+AppLocalFromInstalled:
+  pwsh.exe -ExecutionPolicy Bypass -noprofile -File "C:\vcpkg\scripts\buildsystems\msbuild\applocal.ps1" "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\PerftTests.exe" "C:\vcpkg\installed\x64-windows\bin" "x64\Release\PerftTests\PerftTests.tlog\PerftTests.write.1u.tlog" "x64\Release\PerftTests\vcpkg.applocal.log"
+FinalizeBuildStatus:
+  Deleting file "x64\Release\PerftTests\PerftTests.tlog\unsuccessfulbuild".
+  Touching "x64\Release\PerftTests\PerftTests.tlog\PerftTests.lastbuildstate".
+Done Building Project "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\PerftTests.vcxproj" (default targets).
+
+Project "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\ChessEngine.sln" (1) is building "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\SmokeTests.vcxproj" (5) on node 1 (default targets).
+PrepareForBuild:
+  Structured output is enabled. The formatting of compiler diagnostics will reflect the error hierarchy. See https://aka.ms/cpp/structured-output for more details.
+InitializeBuildStatus:
+  Creating "x64\Release\SmokeTests\SmokeTests.tlog\unsuccessfulbuild" because "AlwaysCreate" was specified.
+  Touching "x64\Release\SmokeTests\SmokeTests.tlog\unsuccessfulbuild".
+ComputeStdModulesCompileInputs:
+  Reading library manifest file 'C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\modules\modules.json' which provides data for library 'microsoft/STL'.
+  Adding module source 'C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\modules\std.ixx' from library 'microsoft/STL' to be built with this project.
+  Adding module source 'C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\modules\std.compat.ixx' from library 'microsoft/STL' to be built with this project.
+VcpkgTripletSelection:
+  Using triplet "x64-windows" from "C:\vcpkg\installed\x64-windows\"
+  Using normalized configuration "Release"
+ClCompile:
+  C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\bin\HostX86\x64\CL.exe /c /I"C:\vcpkg\installed\x64-windows\include" /Zi /nologo /W3 /WX- /diagnostics:column /sdl /FS /O2 /Oi /GL /D HAS_SYZYGY /D NDEBUG /D _CONSOLE /D NOMINMAX /D _CRT_SECURE_NO_WARNINGS /D TEST_NO_MAIN /D _UNICODE /D UNICODE /Gm- /EHsc /MD /GS /Gy /arch:AVX2 /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /std:c++20 /permissive- /Fo"x64\Release\SmokeTests\\" /Fd"x64\Release\SmokeTests\vc145.pdb" /external:W3 /Gd /TP /FC /errorReport:queue Bitboard.cpp Board.cpp Engine.cpp GameLogic.cpp MoveGen.cpp NNUE.cpp DuckNNUE.cpp NNUETrainer.cpp SelfPlayGen.cpp UCI.cpp Test.cpp SmokeTest.cpp Syzygy.cpp
+  Bitboard.cpp
+  Board.cpp
+  Engine.cpp
+  GameLogic.cpp
+  MoveGen.cpp
+  NNUE.cpp
+  DuckNNUE.cpp
+  NNUETrainer.cpp
+  SelfPlayGen.cpp
+  UCI.cpp
+  Test.cpp
+  SmokeTest.cpp
+  Syzygy.cpp
+  C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\bin\HostX86\x64\CL.exe /c /I"C:\vcpkg\installed\x64-windows\include" /Zi /nologo /W3 /WX- /diagnostics:column /sdl /FS /O2 /Oi /GL /D _CRT_SECURE_NO_WARNINGS /D _SILENCE_CXX20_ATOMIC_INIT_DEPRECATION_WARNING /D HAS_SYZYGY /D NDEBUG /D _CONSOLE /D NOMINMAX /D _CRT_SECURE_NO_WARNINGS /D TEST_NO_MAIN /D _UNICODE /D UNICODE /Gm- /EHsc /MD /GS /Gy /arch:AVX2 /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /std:c++20 /permissive- /Fo"x64\Release\SmokeTests\\" /Fd"x64\Release\SmokeTests\vc145.pdb" /external:W3 /Gd /TP /FC /errorReport:queue tbprobe.c
+  tbprobe.c
+Link:
+  C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.50.35717\bin\HostX86\x64\link.exe /ERRORREPORT:QUEUE /OUT:"C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\SmokeTests.exe" /NOLOGO /LIBPATH:"C:\vcpkg\installed\x64-windows\lib" /LIBPATH:"C:\vcpkg\installed\x64-windows\lib\manual-link" kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib "C:\vcpkg\installed\x64-windows\lib\*.lib" /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\SmokeTests.pdb" /SUBSYSTEM:CONSOLE /STACK:"8388608" /OPT:REF /OPT:ICF /LTCG:incremental /LTCGOUT:"x64\Release\SmokeTests\SmokeTests.iobj" /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\SmokeTests.lib" /MACHINE:X64 x64\Release\SmokeTests\Bitboard.obj
+  x64\Release\SmokeTests\Board.obj
+  x64\Release\SmokeTests\Engine.obj
+  x64\Release\SmokeTests\GameLogic.obj
+  x64\Release\SmokeTests\MoveGen.obj
+  x64\Release\SmokeTests\NNUE.obj
+  x64\Release\SmokeTests\DuckNNUE.obj
+  x64\Release\SmokeTests\NNUETrainer.obj
+  x64\Release\SmokeTests\SelfPlayGen.obj
+  x64\Release\SmokeTests\UCI.obj
+  x64\Release\SmokeTests\Test.obj
+  x64\Release\SmokeTests\SmokeTest.obj
+  x64\Release\SmokeTests\Syzygy.obj
+  x64\Release\SmokeTests\tbprobe.obj
+  Generating code
+  1 of 2101 functions (<0.1%) were compiled, the rest were copied from previous compilation.
+    0 functions were new in current compilation
+    13 functions had inline decision re-evaluated but remain unchanged
+  Finished generating code
+  SmokeTests.vcxproj -> C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\SmokeTests.exe
+AppLocalFromInstalled:
+  pwsh.exe -ExecutionPolicy Bypass -noprofile -File "C:\vcpkg\scripts\buildsystems\msbuild\applocal.ps1" "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\SmokeTests.exe" "C:\vcpkg\installed\x64-windows\bin" "x64\Release\SmokeTests\SmokeTests.tlog\SmokeTests.write.1u.tlog" "x64\Release\SmokeTests\vcpkg.applocal.log"
+FinalizeBuildStatus:
+  Deleting file "x64\Release\SmokeTests\SmokeTests.tlog\unsuccessfulbuild".
+  Touching "x64\Release\SmokeTests\SmokeTests.tlog\SmokeTests.lastbuildstate".
+Done Building Project "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\SmokeTests.vcxproj" (default targets).
+
+Done Building Project "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\ChessEngine.sln" (Build target(s)) -- FAILED.
+
+
+Build FAILED.
+
+"C:\Users\chris\pyproj\my_env\Projects\ChessEngine\ChessEngine.sln" (Build target) (1) ->
+"C:\Users\chris\pyproj\my_env\Projects\ChessEngine\ChessEngine.vcxproj" (default target) (2) ->
+(Link target) -> 
+  LINK : fatal error LNK1104: cannot open file 'C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe' [C:\Users\chris\pyproj\my_env\Projects\ChessEngine\ChessEngine.vcxproj]
+
+
+"C:\Users\chris\pyproj\my_env\Projects\ChessEngine\ChessEngine.sln" (Build target) (1) ->
+"C:\Users\chris\pyproj\my_env\Projects\ChessEngine\TrainingRunner.vcxproj" (default target) (3) ->
+  LINK : fatal error LNK1104: cannot open file 'C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\TrainingRunner.exe' [C:\Users\chris\pyproj\my_env\Projects\ChessEngine\TrainingRunner.vcxproj]
+
+    0 Warning(s)
+    2 Error(s)
+
+Time Elapsed 00:04:58.54

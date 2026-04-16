@@ -1,0 +1,104 @@
+'TrainingRunner.exe' (Win32): Loaded 'C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\TrainingRunner.exe'. Symbols loaded.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\ntdll.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\kernel32.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\KernelBase.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\user32.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\winmm.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\win32u.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\ucrtbase.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\gdi32.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\gdi32full.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\msvcp_win.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\msvcp140.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\WinSxS\amd64_microsoft.windows.gdiplus_6595b64144ccf1df_1.1.26100.8036_none_6ef439583dc61568\GdiPlus.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\vcruntime140_1.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\WinSxS\amd64_microsoft.windows.common-controls_6595b64144ccf1df_5.82.26100.8037_none_87ebc5097a2f9e52\comctl32.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\advapi32.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\combase.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\vcruntime140.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\vcruntime140.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Unloaded 'C:\Windows\System32\vcruntime140.dll'
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\rpcrt4.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\msvcrt.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\sechost.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\imm32.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\uxtheme.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\msctf.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\WinSxS\amd64_microsoft.windows.common-controls_6595b64144ccf1df_6.0.26100.8037_none_3e092faae333b53b\comctl32.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\SHCore.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\kernel.appcore.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\bcryptprimitives.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\oleaut32.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\TextInputFramework.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\CoreMessaging.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\CoreUIComponents.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\WinTypes.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\cryptbase.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\TextShaping.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\DWrite.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\ninput.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\ole32.dll'. Symbol loading disabled by Include/Exclude setting.
+Exception thrown at 0x00007FFBC3B373FA in TrainingRunner.exe: Microsoft C++ exception: std::invalid_argument at memory location 0x0000000BB63FD5A0.
+Exception thrown at 0x00007FFBC3B373FA in TrainingRunner.exe: Microsoft C++ exception: std::invalid_argument at memory location 0x0000000BB63FD5A0.
+Exception thrown at 0x00007FFBC3B373FA in TrainingRunner.exe: Microsoft C++ exception: std::invalid_argument at memory location 0x0000000BB63FD5A0.
+Exception thrown at 0x00007FFBC3B373FA in TrainingRunner.exe: Microsoft C++ exception: std::invalid_argument at memory location 0x0000000BB63FD5A0.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\winmmbase.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\mciqtz32.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\quartz.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\shlwapi.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\windows.storage.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\ws2_32.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\bcrypt.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\clbcatq.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\devenum.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\cfgmgr32.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\msdmo.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\qasf.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\WMVCORE.DLL'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\WMASF.DLL'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\cryptsp.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\MP3DMOD.DLL'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\mfplat.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\RTWorkQ.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\msacm32.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\l3codeca.acm'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\msmpeg2adec.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\mfperfhelper.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\msmpeg2ac3dec.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\avrt.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\MMDevAPI.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\wdmaud.drv'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\wdmaud2.drv'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\setupapi.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\devobj.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\wintrust.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\crypt32.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\msasn1.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Unloaded 'C:\Windows\System32\setupapi.dll'
+'TrainingRunner.exe' (Win32): Unloaded 'C:\Windows\System32\wdmaud2.drv'
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\wdmaud2.drv'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\setupapi.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Unloaded 'C:\Windows\System32\setupapi.dll'
+'TrainingRunner.exe' (Win32): Unloaded 'C:\Windows\System32\wdmaud2.drv'
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\AudioSes.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\msacm32.drv'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\midimap.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\dsound.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\RESAMPLEDMO.DLL'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\powrprof.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\powrprof.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Unloaded 'C:\Windows\System32\powrprof.dll'
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\umpdc.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\ResourcePolicyClient.dll'. Symbol loading disabled by Include/Exclude setting.
+The thread 5352 has exited with code 0 (0x0).
+The thread 36104 has exited with code 0 (0x0).
+'TrainingRunner.exe' (Win32): Unloaded 'C:\Windows\System32\avrt.dll'
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\Windows.UI.dll'. Symbol loading disabled by Include/Exclude setting.
+'TrainingRunner.exe' (Win32): Loaded 'C:\Windows\System32\avrt.dll'. Symbol loading disabled by Include/Exclude setting.
+The thread 39756 has exited with code 0 (0x0).
+'TrainingRunner.exe' (Win32): Unloaded 'C:\Windows\System32\avrt.dll'
+The thread 38580 has exited with code 0 (0x0).
+The thread 19144 has exited with code 0 (0x0).
+The thread 37220 has exited with code 0 (0x0).
+The thread 8028 has exited with code 0 (0x0).
+The thread 26344 has exited with code 0 (0x0).
