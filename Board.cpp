@@ -300,67 +300,32 @@ void Board::applyMove(const Move& move) {
 }
 
 bool Board::isSquareAttacked(Square sq, Color byColor) const {
-    // Check all opponent piece attacks on this square
+    int sqIdx = BB::toSquareIndex(sq);
+    Color us = byColor;
 
-    // Pawn attacks
-    int pawnDir = (byColor == Color::White) ? -1 : 1; // direction pawns attack FROM
-    for (int dc : {-1, 1}) {
-        int pr = sq.rank + pawnDir;
-        int pc = sq.col + dc;
-        if (pr >= 0 && pr < 8 && pc >= 0 && pc < 8) {
-            Piece p = squares[pr][pc];
-            if (p.type == PieceType::Pawn && p.color == byColor)
-                return true;
-        }
-    }
+    // Pawn attacks (use precomputed table — attack FROM sq by opponent pawns)
+    // PawnAttacks[us][sqIdx] = squares that a pawn of color `us` on sqIdx attacks
+    // We want: does any pawn of `byColor` attack `sq`?
+    // A pawn of byColor attacks sq if sq is in PawnAttacks[byColor][pawnSq]
+    // Equivalently: pawnSq is in PawnAttacks[opposite][sqIdx]
+    Color opp = (byColor == Color::White) ? Color::Black : Color::White;
+    if (BB::PawnAttacks[(int)opp][sqIdx] & pieces(byColor, PieceType::Pawn))
+        return true;
 
     // Knight attacks
-    int kOff[8][2] = {{2,1},{2,-1},{-2,1},{-2,-1},{1,2},{1,-2},{-1,2},{-1,-2}};
-    for (auto& o : kOff) {
-        int nr = sq.rank + o[0], nc = sq.col + o[1];
-        if (nr >= 0 && nr < 8 && nc >= 0 && nc < 8) {
-            Piece p = squares[nr][nc];
-            if (p.type == PieceType::Knight && p.color == byColor)
-                return true;
-        }
-    }
-
-    // Sliding attacks (bishop/rook/queen)
-    auto checkSlider = [&](const int dirs[][2], int numDirs, PieceType slider1, PieceType slider2) -> bool {
-        for (int i = 0; i < numDirs; i++) {
-            int nr = sq.rank + dirs[i][0], nc = sq.col + dirs[i][1];
-            while (nr >= 0 && nr < 8 && nc >= 0 && nc < 8) {
-                // Duck blocks line of sight
-                if (isDuckSquare(nr, nc)) break;
-                Piece p = squares[nr][nc];
-                if (!p.isNone()) {
-                    if (p.color == byColor && (p.type == slider1 || p.type == slider2))
-                        return true;
-                    break;
-                }
-                nr += dirs[i][0]; nc += dirs[i][1];
-            }
-        }
-        return false;
-    };
-
-    const int diagDirs[4][2] = {{1,1},{1,-1},{-1,1},{-1,-1}};
-    const int straightDirs[4][2] = {{1,0},{-1,0},{0,1},{0,-1}};
-
-    if (checkSlider(diagDirs, 4, PieceType::Bishop, PieceType::Queen)) return true;
-    if (checkSlider(straightDirs, 4, PieceType::Rook, PieceType::Queen)) return true;
+    if (BB::KnightAttacks[sqIdx] & pieces(byColor, PieceType::Knight))
+        return true;
 
     // King attacks
-    for (int dr = -1; dr <= 1; dr++)
-        for (int dc = -1; dc <= 1; dc++) {
-            if (dr == 0 && dc == 0) continue;
-            int nr = sq.rank + dr, nc = sq.col + dc;
-            if (nr >= 0 && nr < 8 && nc >= 0 && nc < 8) {
-                Piece p = squares[nr][nc];
-                if (p.type == PieceType::King && p.color == byColor)
-                    return true;
-            }
-        }
+    if (BB::KingAttacks[sqIdx] & pieces(byColor, PieceType::King))
+        return true;
+
+    // Sliding attacks — magic bitboard lookups (O(1) vs O(n) ray walk)
+    Bitboard occ = occupiedBB;
+    if (BB::rookAttacks(sqIdx, occ) & (pieces(byColor, PieceType::Rook) | pieces(byColor, PieceType::Queen)))
+        return true;
+    if (BB::bishopAttacks(sqIdx, occ) & (pieces(byColor, PieceType::Bishop) | pieces(byColor, PieceType::Queen)))
+        return true;
 
     return false;
 }

@@ -1195,25 +1195,27 @@ int Engine::scoreDuckPlacement(const Board& board, Square duckSq, Color myColor)
     return score;
 }
 
-void Engine::orderDuckPlacements(SquareList& placements, const Board& board, Color myColor) const {
+void Engine::orderDuckPlacements(SquareList& placements, const Board& board, Color myColor, int topN) const {
     const int n = (int)placements.size();
+    if (n <= 1) return;
+    const int keep = (topN > 0 && topN < n) ? topN : n;
+
     int scores[64];
     for (int i = 0; i < n; i++)
         scores[i] = scoreDuckPlacement(board, placements[i], myColor);
 
-    // Insertion sort — n is at most 63, typically 50-60
-    for (int i = 1; i < n; i++) {
-        Square sq = placements[i]; int s = scores[i];
-        int j = i - 1;
-        while (j >= 0 && scores[j] < s) {
-            placements[j + 1] = placements[j]; scores[j + 1] = scores[j];
-            j--;
+    // Partial selection sort: find the top `keep` elements.
+    // Avoids sorting the tail that will never be used.
+    for (int i = 0; i < keep; i++) {
+        int best = i;
+        for (int j = i + 1; j < n; j++)
+            if (scores[j] > scores[best]) best = j;
+        if (best != i) {
+            std::swap(placements[i], placements[best]);
+            std::swap(scores[i],     scores[best]);
         }
-        placements[j + 1] = sq; scores[j + 1] = s;
     }
-}
-
-#endif // DUCK_CHESS
+}#endif // DUCK_CHESS
 
 
 #ifdef DUCK_CHESS
@@ -1276,7 +1278,7 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply,
     // generating them once per node and reusing saves ~30 getDuckPlacements calls.
     // We regenerate only when a capture occurs (captured piece frees a square).
     SquareList duckSquaresBase; MoveGen::getDuckPlacements(board, duckSquaresBase);
-    orderDuckPlacements(duckSquaresBase, board, us);
+    orderDuckPlacements(duckSquaresBase, board, us, maxDucks);
 
     // Tighter duck caps: fewer duck placements = much lower branching factor.
     // Ordering puts the best squares first so quality is preserved.
@@ -1341,7 +1343,7 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply,
         SquareList captureSquares;
         if (isCapture) {
             MoveGen::getDuckPlacements(board, captureSquares);
-            orderDuckPlacements(captureSquares, board, us);
+            orderDuckPlacements(captureSquares, board, us, maxDucks);
             duckSquares = &captureSquares;
         }
         int nDucks = std::min(maxDucks, (int)duckSquares->size());
@@ -1561,7 +1563,7 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
                 }
 
                 SquareList duckSquares; MoveGen::getDuckPlacements(board, duckSquares);
-                orderDuckPlacements(duckSquares, board, us);
+                orderDuckPlacements(duckSquares, board, us, 18);
 
                 Square oldDuck = board.duckSquare;
                 int rootMaxDucks = std::min((int)duckSquares.size(), 18);

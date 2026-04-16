@@ -139,7 +139,7 @@ private:
     int searchDuck(Board& board, int depth, int alpha, int beta, int ply,
                    DuckNNUE::QAccumulator* accStack);
     int scoreDuckPlacement(const Board& board, Square duckSq, Color myColor) const;
-    void orderDuckPlacements(SquareList& placements, const Board& board, Color myColor) const;
+    void orderDuckPlacements(SquareList& placements, const Board& board, Color myColor, int topN = 0) const;
 
     // Accumulator stack for duck chess incremental updates
     // Slot [ply] = post-duck; slot [MAX_PLY+ply] = post-chess scratch
