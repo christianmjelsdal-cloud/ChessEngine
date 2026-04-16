@@ -182,20 +182,6 @@ struct SquareList {
     const Square* end()   const { return squares + count; }
 };
 
-// Undo information for make/unmake move pattern
-struct UndoInfo {
-    Square enPassantTarget = {-1, -1};
-    bool castlingRights[2][2] = {};
-    int halfMoveClock = 0;
-    Piece capturedPiece;         // piece that was captured (None if no capture)
-    Square capturedSquare = {-1, -1};  // where the captured piece was (differs from to-square for en passant)
-    bool wasEnPassant = false;
-    bool wasCastleKingside = false;
-    bool wasCastleQueenside = false;
-    uint64_t prevHash = 0;  // E-1: save hash for unmake
-    int prevNonPawnMaterial[2] = {0, 0};  // E-4: save for unmake
-    int prevPhase = 0;                     // E-5: save for unmake
-#ifdef DUCK_CHESS
-    Square previousDuckSquare = {-1, -1}; // FIX C-2: save duck position for unmake
-#endif
-};
+// Undo information for make/unmake move pattern — LEGACY, not used.
+// All code uses Board::UndoInfo instead. Kept for reference only.
+// TODO: remove this struct entirely.

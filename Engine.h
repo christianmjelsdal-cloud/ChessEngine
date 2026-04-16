@@ -79,12 +79,14 @@ public:
 
     /// Lazy SMP: point this engine at an external shared TT (used by helper threads)
     struct TTEntry {
-        uint64_t key   = 0;
-        int32_t  score = 0;
-        int16_t  depth = -1;
-        uint8_t  flag  = 2;  // TT_UPPER=2
-        Move     best{};
-        uint8_t  gen   = 0;
+        uint64_t key   = 0;    // 8 bytes
+        int32_t  score = 0;    // 4 bytes
+        int16_t  depth = -1;   // 2 bytes
+        uint8_t  flag  = 2;    // 1 byte  (TT_UPPER=2)
+        uint8_t  gen   = 0;    // 1 byte
+        uint16_t best  = 0;    // 2 bytes (packed move via packMove/unpackMove)
+        // Total: 18 bytes (vs ~44 with Move best{})
+        // Padding to 20 bytes — still 3x smaller than before, much better cache utilization
     };
     void setSharedTT(std::vector<TTEntry>* sharedTT) { sharedTT_ = sharedTT; }
 
@@ -169,10 +171,10 @@ private:
     Move countermoves_[2][64][64]{};
     Move previousMove_{};
 
-    // 1-ply continuation history: indexed by [prev_piece_type][prev_to_sq][curr_piece_type][curr_to_sq]
-    // Tracks how well a move follows a specific previous move — strong ordering signal
-    // Compressed to [7][64][7][64] = ~200KB (fits in L2 cache)
-    int  contHist_[7][64][7][64]{};
+    // 1-ply continuation history: indexed by [prev_piece_type-1][prev_to_sq][curr_piece_type-1][curr_to_sq]
+    // Piece types 1-6 (Pawn=1..King=6), subtract 1 for 0-based indexing.
+    // Reduced from [7][64][7][64] (~784KB) to [6][64][6][64] (~576KB) — fits better in L2/L3.
+    int  contHist_[6][64][6][64]{};
 
     // Search stack: stores the move played at each ply for continuation history lookup
     Move moveStack_[MAX_PLY]{};

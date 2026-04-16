@@ -770,8 +770,8 @@ int Engine::scoreMove(const Move& m, const Board& board,
         int prevTo  = moveStack_[ply - 1].to.rank * 8 + moveStack_[ply - 1].to.col;
         Piece moving = board.getPiece(m.from);
         int currPt  = (int)moving.type;
-        if (prevPt >= 0 && prevPt < 7 && currPt >= 0 && currPt < 7)
-            histScore += contHist_[prevPt][prevTo][currPt][toSq];
+        if (prevPt >= 1 && prevPt <= 6 && currPt >= 1 && currPt <= 6)
+            histScore += contHist_[prevPt-1][prevTo][currPt-1][toSq];
     }
 
     return histScore;
@@ -888,7 +888,7 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
     Move hashMove{};
 
     if (tte.key == hash) {
-        hashMove = tte.best;
+        hashMove = unpackMove(tte.best);
         if (tte.depth >= depth && !isPV) {
             if (tte.flag == 0) return tte.score;
             if (tte.flag == 1 && tte.score >= beta)  return tte.score;
@@ -944,7 +944,7 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
     if (isPV && !(hashMove.from.isValid() && hashMove.to.isValid()) && depth >= 4) {
         search(board, depth - 2, alpha, beta, ply, false, true);
         if (activeTT()[ttIdx].key == hash)
-            hashMove = activeTT()[ttIdx].best;
+            hashMove = unpackMove(activeTT()[ttIdx].best);
     }
 
     orderMoves(moves, board, ply, hashMove);
@@ -1035,8 +1035,8 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
                     int prevTo = moveStack_[ply - 1].to.rank * 8 + moveStack_[ply - 1].to.col;
                     Piece moving = board.getPiece(m.from);
                     int currPt  = (int)moving.type;
-                    if (prevPt >= 0 && prevPt < 7 && currPt >= 0 && currPt < 7) {
-                        int ch = contHist_[prevPt][prevTo][currPt][tSq];
+                    if (prevPt >= 1 && prevPt <= 6 && currPt >= 1 && currPt <= 6) {
+                        int ch = contHist_[prevPt-1][prevTo][currPt-1][tSq];
                         if (ch > 5000)       reduction = std::max(0, reduction - 1);
                         else if (ch < -5000) reduction++;
                     }
@@ -1103,19 +1103,19 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
                             int prevTo = moveStack_[ply - 1].to.rank * 8 + moveStack_[ply - 1].to.col;
                             Piece moving = board.getPiece(m.from);
                             int currPt  = (int)moving.type;
-                            if (prevPt >= 0 && prevPt < 7 && currPt >= 0 && currPt < 7) {
-                                contHist_[prevPt][prevTo][currPt][tSq] += bonus;
-                                if (contHist_[prevPt][prevTo][currPt][tSq] > 1000000)
-                                    contHist_[prevPt][prevTo][currPt][tSq] = 1000000;
+                            if (prevPt >= 1 && prevPt <= 6 && currPt >= 1 && currPt <= 6) {
+                                contHist_[prevPt-1][prevTo][currPt-1][tSq] += bonus;
+                                if (contHist_[prevPt-1][prevTo][currPt-1][tSq] > 1000000)
+                                    contHist_[prevPt-1][prevTo][currPt-1][tSq] = 1000000;
                                 // Penalize quiets that didn't cause cutoff
                                 for (int q = 0; q < quietsTriedCnt; q++) {
                                     Piece qp = board.getPiece(quietsTriedArr[q].from);
                                     int qpt = (int)qp.type;
                                     int qt2 = quietsTriedArr[q].to.rank * 8 + quietsTriedArr[q].to.col;
-                                    if (qpt >= 0 && qpt < 7) {
-                                        contHist_[prevPt][prevTo][qpt][qt2] -= bonus;
-                                        if (contHist_[prevPt][prevTo][qpt][qt2] < -1000000)
-                                            contHist_[prevPt][prevTo][qpt][qt2] = -1000000;
+                                    if (qpt >= 1 && qpt <= 6) {
+                                        contHist_[prevPt-1][prevTo][qpt-1][qt2] -= bonus;
+                                        if (contHist_[prevPt-1][prevTo][qpt-1][qt2] < -1000000)
+                                            contHist_[prevPt-1][prevTo][qpt-1][qt2] = -1000000;
                                     }
                                 }
                             }
@@ -1142,7 +1142,7 @@ int Engine::search(Board& board, int depth, int alpha, int beta,
         tte.score = bestScore;
         tte.depth = (int16_t)depth;
         tte.flag  = ttFlag;
-        tte.best  = bestMove;
+        tte.best = packMove(bestMove);
         tte.gen   = ttGen_;
     }
 
@@ -1250,7 +1250,7 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply,
     TTEntry& tte = activeTT()[ttIdx];
     Move hashMove{};
     if (tte.key == hash) {
-        hashMove = tte.best;
+        hashMove = unpackMove(tte.best);
         if (tte.depth >= depth) {
             if (tte.flag == TT_EXACT) return tte.score;
             if (tte.flag == TT_LOWER && tte.score >= beta)  return tte.score;
@@ -1474,9 +1474,9 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
                 history_[c][f][t] /= 2;
 
     // Age continuation history (halve to preserve useful signal across searches)
-    for (int p1 = 0; p1 < 7; p1++)
+    for (int p1 = 0; p1 < 6; p1++)
         for (int s1 = 0; s1 < 64; s1++)
-            for (int p2 = 0; p2 < 7; p2++)
+            for (int p2 = 0; p2 < 6; p2++)
                 for (int s2 = 0; s2 < 64; s2++)
                     contHist_[p1][s1][p2][s2] /= 2;
 
@@ -1741,7 +1741,7 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
         MoveList moves; MoveGen::getLegalMoves(board, moves);
         uint64_t hash = computeHash(board);
         size_t ttIdx = hash % activeTT().size();
-        Move hashMove = (activeTT()[ttIdx].key == hash) ? activeTT()[ttIdx].best : Move{};
+        Move hashMove = (activeTT()[ttIdx].key == hash) ? unpackMove(activeTT()[ttIdx].best) : Move{};
         orderMoves(moves, board, 0, hashMove);
 
         int bestScoreIter = -INF;

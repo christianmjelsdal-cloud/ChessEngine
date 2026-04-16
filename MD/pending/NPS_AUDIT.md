@@ -20,148 +20,165 @@
 | `scoreDuckPlacement` 64-sq slider scan → bitboard popcount | ~10-15% |
 | `scoreMove` duck captures: SEE → MVV-LVA | ~5-8% |
 | `forwardQ` L2: float AVX2 → INT8 `_mm256_maddubs_epi16` | ~2-3x eval |
+| `forwardQ` L3: float AVX2 → INT8 `_mm256_maddubs_epi16` | ~5-10% eval |
+| `isSquareAttacked`: manual ray-walk → magic bitboard lookups | ~5-10% std chess |
+| `orderDuckPlacements`: full sort → partial selection sort (topN) | ~3-5% |
+| Pass `parentAcc` as pointer to `searchDuck` — eliminates 420KB/node copy | ~30-40% |
+| Delta-undo chess move on `parentAcc` — eliminates 60KB/node copy | ~10-15% |
+| Remove `squares[8][8]` from `UndoInfo` — reconstruct from bitboards | ~8-12% |
+| Null duck move pruning — skip duck placements when chess move beats beta | ~10-20% nodes |
 
 ---
 
 ## Remaining Bottlenecks
 
-### 1. `*myAcc = postChess` — 420KB memcpy per node (HIGHEST PRIORITY)
+### 1. `TTEntry` is ~44 bytes — far above the 16-byte target
 
-**Location:** `Engine.cpp` — duck placement inner loop  
-**Cost:** `QAccumulator` = 512 × 2 × int16 = 2KB. Copied once per duck placement per chess move.  
-At depth 2: 7 ducks × 30 chess moves = 210 copies × 2KB = **420KB per node**.  
-At depth 3: 12 ducks × 30 chess moves = 360 copies × 2KB = **720KB per node**.
+**Location:** `Engine.h` — `TTEntry` struct  
+**Cost:** `TTEntry` contains `Move best{}` which includes `Square duckTo` (8 bytes for duck chess). Total size:
+- `uint64_t key` = 8
+- `int32_t score` = 4
+- `int16_t depth` = 2
+- `uint8_t flag` = 1
+- `uint8_t gen` = 1
+- `Move best` = `Square from`(8) + `Square to`(8) + `PieceType promotion`(1) + `Square duckTo`(8) = 25 + padding = ~28 bytes
+- **Total: ~44 bytes** vs the 16-byte target in `TT_ENTRY_BYTES`
 
-**Root cause:** `searchDuck` at ply+1 reads `accStack[ply]` as its parent by index. The only way to communicate the post-duck accumulator to the child is to write it into `accStack[ply]` before recursing.
-
-**Fix requires restructuring:**  
-Add a `parentAcc` pointer parameter to `searchDuck`:
-```cpp
-int searchDuck(Board& board, int depth, int alpha, int beta, int ply,
-               DuckNNUE::QAccumulator* accStack,
-               DuckNNUE::QAccumulator* parentAcc);  // <-- add this
-```
-The duck loop applies the delta to `postChess` in-place and passes `&postChess` directly as `parentAcc`. The child uses `parentAcc` instead of `accStack[ply-1]`. Eliminates all 210 copies — only the 30 `postChess = *parentAcc` copies remain.
-
-**Estimated gain:** ~30-40% NPS improvement.
-
----
-
-### 2. `postChess = *parentAcc` — 60KB memcpy per node
-
-**Location:** `Engine.cpp` — chess move loop  
-**Cost:** 2KB × 30 chess moves = 60KB per node.
-
-**Root cause:** Each chess move needs its own post-chess accumulator as a base for the duck delta loop. The parent must be preserved intact for the next chess move.
+A 4M-entry TT at 44 bytes = **176MB** vs 64MB at 16 bytes. This causes massive cache pressure — TT entries span 3 cache lines instead of 1.
 
 **Fix (medium effort):**  
-Instead of copying, apply the chess delta to `parentAcc` in-place, use it for the duck loop, then undo the chess delta after. Turns 30 × 2KB copies into 30 × (2-4 `removeFeatureQ`/`addFeatureQ` calls). Each call is an AVX2 512-element loop (~32 ops) — much cheaper than a 2KB memcpy.
+Pack the move using `packMove()` (already implemented in `Types.h`) — stores from/to/promotion in 16 bits. For duck chess, store duck placement separately or omit it from TT (duck placement is re-searched anyway). Replace `Move best` with `uint16_t bestPacked`:
+```cpp
+struct TTEntry {
+    uint64_t key   = 0;   // 8 bytes
+    int32_t  score = 0;   // 4 bytes
+    int16_t  depth = -1;  // 2 bytes
+    uint8_t  flag  = 2;   // 1 byte
+    uint8_t  gen   = 0;   // 1 byte
+    uint16_t best  = 0;   // 2 bytes (packed move)
+    // Total: 18 bytes → pad to 20 or pack to 16
+};
+```
+With 16-byte entries: 4M entries = 64MB, fits in L3 cache on most CPUs. Cache miss rate drops dramatically.
 
-Requires careful handling of king moves (which trigger full refresh) and en passant.
-
-**Estimated gain:** ~10-15% NPS improvement.
-
----
-
-### 3. `makeMove` copies `squares[8][8]` — 512 bytes per call
-
-**Location:** `Board.cpp` — `makeMove`/`unmakeMove`  
-**Cost:** `UndoInfo` contains `Piece squares[8][8]` = 64 × 8 bytes = 512 bytes. Saved on every `makeMove`, restored on every `unmakeMove`. At 30 chess moves per node: 30 × 512 × 2 = **30KB per node** just for the squares snapshot.
-
-**Root cause:** The full squares snapshot was added as a safety net. The bitboards are also snapshotted separately (redundant for piece positions).
-
-**Fix requires restructuring:**  
-Remove `squares[8][8]` from `UndoInfo`. Reconstruct `squares[][]` from the bitboard fields on unmake. The bitboards already capture all piece positions. Requires verifying all edge cases (castling rook, EP pawn, promotion) are correctly handled by the bitboard restore path.
-
-**Estimated gain:** ~8-12% NPS improvement.
+**Estimated gain:** ~15-25% NPS improvement from better TT cache utilization.
 
 ---
 
-### 4. `makeMove` snapshots all 7 `pieceBBs` — 56 bytes per call
+### 2. `UndoInfo` in `Types.h` is dead code
+
+**Location:** `Types.h` — bottom of file  
+**Issue:** There are two `UndoInfo` structs: one in `Types.h` (never used) and `Board::UndoInfo` (used everywhere). The `Types.h` version is dead code that adds confusion and compile overhead.
+
+**Fix (trivial):** Delete the `UndoInfo` struct from `Types.h`.
+
+**Estimated gain:** None for NPS, but reduces confusion and compile time slightly.
+
+---
+
+### 3. `Board::UndoInfo` still snapshots all 7 `pieceBBs` — 56 bytes
 
 **Location:** `Board.cpp` — `makeMove`  
-**Cost:** 7 × 8 bytes = 56 bytes saved/restored per move. Minor individually but part of `UndoInfo` bloat.
+**Cost:** 7 × 8 bytes = 56 bytes saved per move. With 30 chess moves per node: 30 × 56 = 1.68KB per node.
 
 **Fix (medium effort):**  
-Only snapshot the 2-3 bitboards that actually change per move (the moving piece type, captured piece type, and possibly promotion type). Use a delta-based undo.
+Only snapshot the 2-3 bitboards that actually change per move. For a quiet move: only the moving piece type's bitboard and the color bitboards change. For a capture: also the captured piece type's bitboard. Track which bitboards changed and restore only those.
 
-**Estimated gain:** Negligible alone, meaningful combined with fix #3.
+**Estimated gain:** ~3-5% NPS improvement.
 
 ---
 
-### 5. `isSquareAttacked` uses mailbox scan for sliders
+### 4. `getLegalMoves` calls `makeMove`/`unmakeMove` for every pseudo-legal move
 
-**Location:** `Board.cpp`  
-**Cost:** The slider check in `isSquareAttacked` uses a manual ray-walking loop (not magic bitboards). Called during standard chess legality checking — not in duck chess hot path, but affects standard chess NPS.
+**Location:** `MoveGen.cpp` — `getLegalMoves`  
+**Cost:** For standard chess, every pseudo-legal move is made and unmade to check legality. With ~30 pseudo-legal moves and `Board::UndoInfo` now at ~120 bytes (after removing squares[][]), this is 30 × 120 × 2 = 7.2KB per call.
+
+**Note:** This only affects standard chess (duck chess skips legality checking). Not a duck chess bottleneck.
+
+**Fix (high effort):**  
+Use pin detection and check evasion to filter pseudo-legal moves without make/unmake. Standard approach in strong engines. Requires implementing pin bitboards and check detection via bitboard attacks.
+
+**Estimated gain:** ~10-20% for standard chess NPS. No impact on duck chess.
+
+---
+
+### 5. `Engine` per-thread allocation in self-play — 12 × ~282KB
+
+**Location:** `SelfPlayGen.cpp` — worker lambda  
+**Cost:** Each of 12 worker threads allocates its own `Engine` on the heap. `Engine` contains:
+- `history_[2][64][64]` = 65,536 ints = 256KB
+- `contHist_[7][64][7][64]` = 200,704 ints = ~784KB
+- `pvTable_[64][64]` = 4,096 Moves = ~114KB
+- `accStack_[68]` = 68 × 2KB = 136KB
+- `duckAccStack_[128]` = 128 × 2KB = 256KB
+- TT: `SELFPLAY_TT_SIZE = 1<<20` entries × 44 bytes = **44MB per thread**
+
+**Total per thread: ~45MB**. With 12 threads: **~540MB** just for Engine instances.
+
+The TT dominates. At 44 bytes per entry and 1M entries, each thread's TT is 44MB. This is the primary memory pressure source.
+
+**Fix:** Reduce `SELFPLAY_TT_SIZE` or fix TTEntry size (item #1 above). With 16-byte entries: 1M entries = 16MB per thread = 192MB total — much more manageable.
+
+**Estimated gain:** Indirect — reducing memory pressure improves cache behavior across all threads.
+
+---
+
+### 6. `contHist_[7][64][7][64]` — 784KB per Engine instance
+
+**Location:** `Engine.h`  
+**Cost:** 7 × 64 × 7 × 64 × 4 bytes = 802,816 bytes ≈ 784KB. This is larger than L2 cache on most CPUs, meaning continuation history lookups frequently miss L2 and hit L3.
 
 **Fix (low effort):**  
-Replace the manual ray-walking with `BB::rookAttacks`/`BB::bishopAttacks` magic bitboard lookups. Already available in `Bitboard.h`.
-
+Reduce dimensions. The piece type dimension (7) includes `None` and `Duck` which are never used. Reduce to 6 (Pawn through King):
 ```cpp
-// Replace manual slider loops with:
-Bitboard occ = occupied();
-if (BB::rookAttacks(sq, occ) & (pieces(byColor, PieceType::Rook) | pieces(byColor, PieceType::Queen)))
-    return true;
-if (BB::bishopAttacks(sq, occ) & (pieces(byColor, PieceType::Bishop) | pieces(byColor, PieceType::Queen)))
-    return true;
+int contHist_[6][64][6][64]{};  // 6×64×6×64×4 = 589,824 bytes ≈ 576KB
 ```
+Or use a smaller table with a hash: `contHist_[piece_from_sq & 0x3FF][piece_to_sq & 0x3FF]` — 1024×1024×4 = 4MB (worse). Better: reduce to `[6][64][6][64]` and adjust indexing.
 
-**Estimated gain:** ~5-10% for standard chess NPS. No impact on duck chess.
-
----
-
-### 6. `forwardQ` L3 still uses float path
-
-**Location:** `DuckNNUE.cpp` — `forwardQ()`  
-**Cost:** L3 has 64 outputs over 128 inputs. Currently uses float AVX2 (8 values per op). L2 output (`l2Out`) is float, so quantizing it to uint8 for INT8 L3 requires an extra conversion step.
-
-**Fix (low effort):**  
-Quantize `l2Out` to uint8 inline (clamp to [0,127]) and use `_mm256_maddubs_epi16` for L3 as well. L3_SIZE=64 so the loop is only 8 iterations of 16 int8 values — the conversion overhead is minimal.
-
-**Estimated gain:** ~5-10% eval speed (L3 is smaller than L2 so less impact).
+**Estimated gain:** ~2-5% from better cache utilization of history tables.
 
 ---
 
-### 7. `getDuckPlacements` returns all empty squares (~60)
+### 7. `shouldStop()` checks `nodes_ & 4095` — called every node
 
-**Location:** `MoveGen.cpp`  
-**Cost:** Returns all empty squares via bitboard popcount — fast. But `orderDuckPlacements` then scores all 60 squares even though only `maxDucks` (4-12) will be used.
+**Location:** `Engine.cpp` — `shouldStop()`  
+**Cost:** Every node calls `shouldStop()` which checks `(nodes_ & 4095) == 0` and then calls `elapsedMs()` (a `std::chrono` call). The `std::chrono::steady_clock::now()` call is relatively expensive (~10-50ns). At 1600 NPS with 12 workers, this fires ~4 times per second per thread — negligible.
 
-**Fix (low effort):**  
-Score only the top `maxDucks` squares using a partial insertion sort (stop after finding the top N). Avoids scoring ~50 squares that will never be used.
-
-**Estimated gain:** ~3-5% (scoring is cheap after the bitboard fix, but still 60 calls vs 7-12).
+**Status:** Not a bottleneck at current NPS. Would matter at 100K+ NPS.
 
 ---
 
-### 8. Compound branching factor — structural limit
+### 8. Duck placement TT — cache best duck square per position
 
-**Not fixable without algorithm change.**
+**Location:** `Engine.cpp` — `searchDuck`  
+**Concept:** After a chess move, the best duck placement for a given board position is deterministic (same position → same best duck). Cache it in the TT. If the same post-chess position is reached via different chess moves, reuse the cached duck placement score.
 
-At depth 2: ~30 chess moves × 7 duck placements = **210 leaf evals per node**.  
-At depth 3: ~30 chess moves × 12 duck placements = **360 leaf evals per node**.
+**Complexity:** Duck chess TT already stores the best chess move. Extending it to also store the best duck square requires either a larger TT entry or a separate duck TT.
 
-Standard chess at depth 3 has ~30 leaf evals per node. Duck chess cannot alpha-beta prune across duck placements — the duck placement is the second half of a move, so you can't cut off the chess move based on duck placement scores.
-
-**Possible approaches:**
-
-**8a. Null duck move pruning (medium effort, ~10-20% node reduction)**  
-Before evaluating any duck placements for a chess move, evaluate the position with no duck placement (or duck staying put) as a quick lower bound. If this already beats beta, skip all duck placements for this chess move.
-
-**8b. Separate duck search (high effort)**  
-Treat duck placement as a separate 1-ply maximization after the chess move, with its own alpha-beta. The chess move loop becomes a standard alpha-beta, and the duck placement is a separate inner loop that finds the best duck square for the current chess move. This is a more fundamental restructuring but could reduce the effective branching factor significantly.
-
-**8c. Duck placement TT (medium effort)**  
-Cache the best duck placement for a given board position in the TT. If the same post-chess position is reached via different chess moves, reuse the cached duck placement score.
+**Estimated gain:** Unknown — depends on how often the same post-chess position is reached via different chess moves. Likely small at depth 2-3.
 
 ---
 
-### 9. `MoveList` and `SquareList` — fixed-size stack arrays
+### 9. `MoveList` has `assert()` in hot path
 
-**Location:** `Types.h` (presumably)  
-**Cost:** `MoveList` is a fixed-size array (256 moves). Each `getDuckChessMoves` call fills it from scratch. No issue with allocation, but the array is 256 × sizeof(Move) bytes on the stack — potentially cache-unfriendly if large.
+**Location:** `Types.h` — `MoveList::operator[]`  
+**Cost:** In Release builds, `assert()` is compiled out (`NDEBUG` defined). No cost.
 
-**Status:** Likely fine as-is. Worth checking sizeof(Move) to ensure it's compact.
+**Status:** Not a bottleneck.
+
+---
+
+### 10. `Square` struct uses `int` fields — 8 bytes per square
+
+**Location:** `Types.h`  
+**Cost:** `Square` has `int rank` (4 bytes) + `int col` (4 bytes) = 8 bytes. `Move` has 3 squares = 24 bytes + 1 byte promotion = 25 bytes + padding. Using `int8_t` would reduce `Square` to 2 bytes and `Move` to 7 bytes.
+
+**Fix (medium effort, high risk):**  
+Change `Square::rank` and `Square::col` to `int8_t`. Use -1 as invalid sentinel (fits in int8_t). This would reduce `Move` from ~28 bytes to ~8 bytes, `TTEntry` from ~44 to ~20 bytes, `MoveList` from ~7KB to ~2KB.
+
+Requires auditing all arithmetic on rank/col to ensure no overflow with int8_t.
+
+**Estimated gain:** ~10-20% from reduced memory bandwidth across all data structures.
 
 ---
 
@@ -173,9 +190,12 @@ Cache the best duck placement for a given board position in the TT. If the same 
 | Delta-undo postChess — fix #2 | Medium | ~10-15% | ✅ Done |
 | Remove squares[][] from UndoInfo — fix #3 | High | ~8-12% | ✅ Done |
 | Magic bitboard `isSquareAttacked` — fix #5 | Low | ~5-10% std chess | ✅ Done |
-| INT8 L3 in forwardQ — fix #6 | Low | ~5-10% eval | ✅ Done |
+| INT8 L2/L3 in forwardQ — fix #6 | Low | ~2-3x eval | ✅ Done |
 | Partial sort for duck placements — fix #7 | Low | ~3-5% | ✅ Done |
 | Null duck move pruning — fix #8a | Medium | ~10-20% nodes | ✅ Done |
+| Pack `TTEntry.best` to uint16_t — new #1 | Medium | ~15-25% | Pending |
+| Delete dead `UndoInfo` from Types.h — new #2 | Trivial | cleanup | Pending |
+| Snapshot only changed `pieceBBs` — new #3 | Medium | ~3-5% | Pending |
+| Reduce `contHist_` dimensions — new #6 | Low | ~2-5% | Pending |
+| Reduce `Square` to int8_t — new #10 | Medium/High | ~10-20% | Pending |
 | Duck placement TT — fix #8c | Medium | unknown | Pending |
-| MVV-LVA for duck captures — fix #3 prev | Done | ~5-8% | ✅ Done |
-| INT8 L2 in forwardQ — fix #6 prev | Done | ~2-3x eval | ✅ Done |
