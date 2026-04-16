@@ -1,0 +1,24 @@
+# Enforce Windows line endings for all C++ source files
+*.cpp     text eol=crlf
+*.h       text eol=crlf
+*.c       text eol=crlf
+*.txt     text eol=crlf
+*.bat     text eol=crlf
+*.py      text eol=crlf
+*.md      text eol=crlf
+*.json    text eol=crlf
+*.sln     text eol=crlf
+*.vcxproj text eol=crlf
+*.tsv     text eol=crlf
+*.csv     text eol=crlf
+
+# Binary files — no line ending conversion
+*.bin     binary
+*.exe     binary
+*.obj     binary
+*.lib     binary
+*.pdb     binary
+*.png     binary
+*.ttf     binary
+*.mp3     binary
+*.pt      binary
