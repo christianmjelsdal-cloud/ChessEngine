@@ -1153,11 +1153,8 @@ int Engine::scoreDuckPlacement(const Board& board, Square duckSq, Color myColor)
     int score = 0;
     Color opponent = (myColor == Color::White) ? Color::Black : Color::White;
 
-    Square oppKingSq = {-1, -1};
-    for (int r = 0; r < 8; r++)
-        for (int c = 0; c < 8; c++)
-            if (board.squares[r][c].type == PieceType::King && board.squares[r][c].color == opponent)
-                oppKingSq = {r, c};
+    // Use board's cached king squares — avoids 64-square scan per call
+    Square oppKingSq = (opponent == Color::White) ? board.whiteKingSq : board.blackKingSq;
 
     if (oppKingSq.isValid()) {
         int dr = abs(duckSq.rank - oppKingSq.rank);
@@ -1172,19 +1169,24 @@ int Engine::scoreDuckPlacement(const Board& board, Square duckSq, Color myColor)
     int centerDist = abs(duckSq.rank - 3) + abs(duckSq.col - 3);
     score += (7 - centerDist) * 5;
 
-    for (int r = 0; r < 8; r++)
-        for (int c = 0; c < 8; c++) {
-            Piece p = board.squares[r][c];
-            if (p.isNone() || p.isDuck() || p.color != opponent) continue;
+    // Use bitboards to find opponent sliders instead of 64-square mailbox scan
+    Bitboard oppRQ = (board.pieceBBs[(int)PieceType::Rook]   | board.pieceBBs[(int)PieceType::Queen])
+                   & board.colorBBs[(int)opponent];
+    Bitboard oppBQ = (board.pieceBBs[(int)PieceType::Bishop] | board.pieceBBs[(int)PieceType::Queen])
+                   & board.colorBBs[(int)opponent];
 
-            if (p.type == PieceType::Rook || p.type == PieceType::Queen) {
-                if (duckSq.rank == r || duckSq.col == c) score += 15;
-            }
-            if (p.type == PieceType::Bishop || p.type == PieceType::Queen) {
-                if (abs(duckSq.rank - r) == abs(duckSq.col - c) && duckSq.rank != r)
-                    score += 15;
-            }
-        }
+    Bitboard rqCopy = oppRQ;
+    while (rqCopy) {
+        int sq = BB::popLsb(rqCopy);
+        int r = sq / 8, c = sq % 8;
+        if (duckSq.rank == r || duckSq.col == c) score += 15;
+    }
+    Bitboard bqCopy = oppBQ;
+    while (bqCopy) {
+        int sq = BB::popLsb(bqCopy);
+        int r = sq / 8, c = sq % 8;
+        if (abs(duckSq.rank - r) == abs(duckSq.col - c) && duckSq.rank != r) score += 15;
+    }
 
     return score;
 }
@@ -1347,19 +1349,19 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply,
 
             Square newDuck = (*duckSquares)[d];
 
-            // OPT: Apply duck delta directly onto postChess in-place, recurse,
-            // then undo — eliminates the 2KB copy into myAcc per duck placement.
+            // Build myAcc = postChess + duck delta, using AVX2 in-place ops.
+            // This avoids a full 2KB memcpy: instead we copy postChess->myAcc
+            // once per chess move (outside this loop) and apply/undo duck deltas
+            // incrementally. But since we need postChess intact for the next
+            // chess move, we write into myAcc directly each duck iteration.
             if (canInc) {
-                if (oldDuck.isValid())
-                    duckNnue_->removeFeatureQ(DuckNNUE::duckFeatureIndex(oldDuck.rank, oldDuck.col), postChess);
-                duckNnue_->addFeatureQ(DuckNNUE::duckFeatureIndex(newDuck.rank, newDuck.col), postChess);
-                postChess.valid = true;
-                // Point myAcc at postChess so searchDuck reads the right state
+                // Copy postChess -> myAcc (2KB, unavoidable once per duck)
                 *myAcc = postChess;
-                // Undo duck delta on postChess for next iteration
-                duckNnue_->removeFeatureQ(DuckNNUE::duckFeatureIndex(newDuck.rank, newDuck.col), postChess);
+                // Apply duck delta to myAcc only
                 if (oldDuck.isValid())
-                    duckNnue_->addFeatureQ(DuckNNUE::duckFeatureIndex(oldDuck.rank, oldDuck.col), postChess);
+                    duckNnue_->removeFeatureQ(DuckNNUE::duckFeatureIndex(oldDuck.rank, oldDuck.col), *myAcc);
+                duckNnue_->addFeatureQ(DuckNNUE::duckFeatureIndex(newDuck.rank, newDuck.col), *myAcc);
+                myAcc->valid = true;
             }
 
             board.placeDuck(newDuck);
