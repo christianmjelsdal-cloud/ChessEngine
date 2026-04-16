@@ -155,7 +155,22 @@ private:
     NNUE::QAccumulator  accStack_[MAX_PLY + 4];
     NNUE::FinnyTable    finny_;
 
-    /* ---------- transposition table ---------- */
+    /* ---------- Duck placement cache ---------- */
+    // Small separate table: (post-chess board hash, duck-stripped) → best duck square + score.
+    // Allows reusing the duck placement loop result when the same post-chess position recurs.
+    // 64K entries × 12 bytes = 768KB — fits comfortably in L3.
+    static constexpr size_t DUCK_TT_SIZE = 1 << 16;  // 64K entries
+    struct DuckTTEntry {
+        uint64_t key    = 0;   // post-chess hash with duck XOR'd out
+        int16_t  score  = 0;   // best score found across all duck placements
+        uint8_t  bestSq = 255; // best duck square (0-63, 255 = invalid)
+        uint8_t  depth  = 0;   // depth at which this was stored
+        uint8_t  gen    = 0;   // generation for replacement
+        uint8_t  flag   = 2;   // TT_EXACT / TT_LOWER / TT_UPPER
+        // 14 bytes total, padded to 16
+        uint16_t _pad   = 0;
+    };
+    std::vector<DuckTTEntry> duckTT_;
     enum TTFlag : uint8_t { TT_EXACT, TT_LOWER, TT_UPPER };
     // TTEntry is public (defined above)
     std::vector<TTEntry> tt_;
@@ -165,7 +180,7 @@ private:
     // Helper: get the active TT (shared if set, own otherwise)
     std::vector<TTEntry>& activeTT() { return sharedTT_ ? *sharedTT_ : tt_; }
 
-    /* ---------- killer / history / countermove ---------- */
+    /* ---------- transposition table ---------- */
     Move killers_[MAX_PLY][2]{};
     int  history_[2][64][64]{};
     Move countermoves_[2][64][64]{};

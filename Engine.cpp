@@ -265,7 +265,7 @@ std::string Engine::pvToUCI(const std::vector<Move>& pv) const {
 // =============================================================
 //  CONSTRUCTORS
 // =============================================================
-Engine::Engine() : tt_(TT_SIZE), nodes_(0),
+Engine::Engine() : tt_(TT_SIZE), duckTT_(DUCK_TT_SIZE), nodes_(0),
     duckAccStack_(std::make_unique<DuckNNUE::QAccumulator[]>(MAX_PLY * 2)) {
     initZobrist();
     std::memset(killers_, 0, sizeof(killers_));
@@ -273,7 +273,7 @@ Engine::Engine() : tt_(TT_SIZE), nodes_(0),
     std::memset(countermoves_, 0, sizeof(countermoves_));
 }
 
-Engine::Engine(size_t ttSize) : tt_(ttSize), nodes_(0),
+Engine::Engine(size_t ttSize) : tt_(ttSize), duckTT_(DUCK_TT_SIZE), nodes_(0),
     duckAccStack_(std::make_unique<DuckNNUE::QAccumulator[]>(MAX_PLY * 2)) {
     initZobrist();
     std::memset(killers_, 0, sizeof(killers_));
@@ -1378,31 +1378,65 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply,
             }
         }
 
-        for (int d = 0; d < nDucks; d++) {
-            if (shouldStop()) break;
+        // Duck placement TT probe: look up best duck square for this post-chess position.
+        // Key strips the current duck position out of the hash so it's duck-position-independent.
+        uint64_t duckKey = computeHash(board);
+        if (board.duckSquare.isValid())
+            duckKey ^= zDuck_[board.duckSquare.rank * 8 + board.duckSquare.col];
+        const size_t dttIdx = duckKey % duckTT_.size();
+        DuckTTEntry& dtte = duckTT_[dttIdx];
+        int duckDepth = depth - 1;  // depth at which we'll search each duck placement
 
-            Square newDuck = (*duckSquares)[d];
+        // Preferred duck sq from TT (for ordering — tried first before the main loop).
+        Square dttBestSq = {-1, -1};
+        if (dtte.key == duckKey && dtte.bestSq < 64) {
+            dttBestSq = {(int)(dtte.bestSq / 8), (int)(dtte.bestSq % 8)};
+            // Full cutoff: use cached score if depth is sufficient and same generation.
+            if (dtte.depth >= (uint8_t)std::min(duckDepth, 255) && dtte.gen == ttGen_ && dtte.flag == TT_EXACT) {
+                int cachedScore = dtte.score;
+                // Undo chess delta before skipping duck loop
+                if (canInc && !needsRefresh) {
+                    if (moving.type == PieceType::Pawn && cm.to.col != cm.from.col && !isCapture) {
+                        Color opp2 = (moving.color == Color::White) ? Color::Black : Color::White;
+                        duckNnue_->addFeatureQ(NNUE::featureIndex(PieceType::Pawn, opp2, cm.from.rank, cm.to.col), *parentAcc);
+                    }
+                    duckNnue_->removeFeatureQ(NNUE::featureIndex(moving.type, moving.color, cm.to.rank, cm.to.col), *parentAcc);
+                    if (isCapture)
+                        duckNnue_->addFeatureQ(NNUE::featureIndex(captured.type, captured.color, cm.to.rank, cm.to.col), *parentAcc);
+                    duckNnue_->addFeatureQ(NNUE::featureIndex(moving.type, moving.color, cm.from.rank, cm.from.col), *parentAcc);
+                }
+                board.unmakeMove(cm, undo);
+                if (cachedScore > bestScore) {
+                    bestScore = cachedScore;
+                    if (bestScore > alpha) alpha = bestScore;
+                }
+                if (alpha >= beta) break;
+                continue;
+            }
+        }
 
-            // Apply duck delta to chessAcc in-place, pass directly as parentAcc.
+        int duckBestScore = -INF;
+        uint8_t duckBestSq = 255;
+
+        // Helper lambda: evaluate a single duck placement and update duckBestScore/bestScore.
+        // Returns true if a beta cutoff occurred.
+        auto tryDuck = [&](Square newDuck) -> bool {
+            if (shouldStop()) return false;
+            // Apply duck delta to chessAcc in-place.
             if (chessAcc) {
                 if (oldDuck.isValid())
                     duckNnue_->removeFeatureQ(DuckNNUE::duckFeatureIndex(oldDuck.rank, oldDuck.col), *chessAcc);
                 duckNnue_->addFeatureQ(DuckNNUE::duckFeatureIndex(newDuck.rank, newDuck.col), *chessAcc);
                 chessAcc->valid = true;
             }
-
             board.placeDuck(newDuck);
-
-            int score = -searchDuck(board, depth - 1, -beta, -alpha, ply + 1,
-                                    accStack, chessAcc);
-
-            // Undo duck delta for next iteration
+            int score = -searchDuck(board, depth - 1, -beta, -alpha, ply + 1, accStack, chessAcc);
+            // Undo duck delta
             if (chessAcc) {
                 duckNnue_->removeFeatureQ(DuckNNUE::duckFeatureIndex(newDuck.rank, newDuck.col), *chessAcc);
                 if (oldDuck.isValid())
                     duckNnue_->addFeatureQ(DuckNNUE::duckFeatureIndex(oldDuck.rank, oldDuck.col), *chessAcc);
             }
-
             // Undo duck placement
             board.squares[newDuck.rank][newDuck.col] = Piece{};
             if (oldDuck.isValid()) {
@@ -1411,16 +1445,56 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply,
             } else {
                 board.duckSquare = {-1, -1};
             }
-
+            if (score > duckBestScore) {
+                duckBestScore = score;
+                duckBestSq = (uint8_t)(newDuck.rank * 8 + newDuck.col);
+            }
             if (score > bestScore) {
                 bestScore = score;
-                if (score > alpha) {
-                    alpha = score;
-                    if (alpha >= beta) goto nextChessMove;
+                if (score > alpha) alpha = score;
+            }
+            return alpha >= beta;
+        };
+
+        // Try TT best duck first (move ordering), then the rest of the list.
+        bool cutoff = false;
+        if (dttBestSq.isValid()) {
+            // Check it's actually in the list before trying it
+            bool found = false;
+            for (int d = 0; d < nDucks; d++) {
+                if ((*duckSquares)[d].rank == dttBestSq.rank && (*duckSquares)[d].col == dttBestSq.col) {
+                    found = true; break;
                 }
+            }
+            if (found && !shouldStop()) {
+                cutoff = tryDuck(dttBestSq);
+            }
+        }
+
+        // Main duck loop — skip the TT-best sq if it was already tried above.
+        if (!cutoff) {
+            for (int d = 0; d < nDucks && !cutoff; d++) {
+                if (shouldStop()) break;
+                Square newDuck = (*duckSquares)[d];
+                // Skip if already tried as TT-best
+                if (dttBestSq.isValid() && newDuck.rank == dttBestSq.rank && newDuck.col == dttBestSq.col)
+                    continue;
+                cutoff = tryDuck(newDuck);
             }
         }
         nextChessMove:;
+
+        // Store duck placement result to duckTT_ for future move ordering / cutoffs.
+        if (duckBestSq != 255 && !shouldStop()) {
+            if (dtte.key != duckKey || dtte.gen != ttGen_ || duckDepth >= (int)dtte.depth) {
+                dtte.key    = duckKey;
+                dtte.score  = (int16_t)std::max(-32767, std::min(32767, duckBestScore));
+                dtte.bestSq = duckBestSq;
+                dtte.depth  = (uint8_t)std::min(duckDepth, 255);
+                dtte.flag   = TT_EXACT;
+                dtte.gen    = ttGen_;
+            }
+        }
 
         // Undo chess delta on parentAcc (only for non-king/non-promo moves)
         if (canInc && !needsRefresh) {
