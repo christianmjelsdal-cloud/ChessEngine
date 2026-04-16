@@ -169,8 +169,8 @@ Cache the best duck placement for a given board position in the TT. If the same 
 
 | Item | Effort | Estimated Gain | Status |
 |---|---|---|---|
-| Pass acc as pointer — fix #1 | Medium | ~30-40% | Pending |
-| Delta-undo postChess — fix #2 | Medium | ~10-15% | Pending |
+| Pass acc as pointer — fix #1 | Medium | ~30-40% | ✅ Done |
+| Delta-undo postChess — fix #2 | Medium | ~10-15% | ✅ Done |
 | Remove squares[][] from UndoInfo — fix #3 | High | ~8-12% | Pending |
 | Magic bitboard `isSquareAttacked` — fix #5 | Low | ~5-10% std chess | Pending |
 | INT8 L3 in forwardQ — fix #6 | Low | ~5-10% eval | Pending |

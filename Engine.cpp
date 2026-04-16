@@ -1222,24 +1222,20 @@ void Engine::orderDuckPlacements(SquareList& placements, const Board& board, Col
 // =============================================================
 //  DUCK CHESS SEARCH — incremental accumulator updates
 //
-//  accStack layout (absolute, always duckAccStack_):
-//    acc[ply] = post-duck-placement accumulator at this ply
-//               (set by this function before recursing)
-//    acc[0]   = root pre-move state (refreshed by getBestMove)
-//
-//  Each ply copies acc[ply-1] (parent post-duck), applies the
-//  chess move incrementally into a local, then applies duck
-//  remove/add into acc[ply] before recursing.
+//  parentAcc: the post-duck accumulator from the caller (direct pointer,
+//             no index lookup). Eliminates the 2KB copy into accStack[ply]
+//             per duck placement that the old index-based approach required.
 // =============================================================
 int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply,
-                       DuckNNUE::QAccumulator* accStack) {
+                       DuckNNUE::QAccumulator* accStack,
+                       DuckNNUE::QAccumulator* parentAcc) {
     if (shouldStop()) return 0;
     nodes_++;
 
     if (ply >= MAX_PLY || depth <= 0) {
-        // Use the accumulator that was set by our caller (acc[ply-1] post-duck)
-        if (duckNnue_ && accStack && ply > 0 && accStack[ply - 1].valid)
-            return duckNnue_->forwardQ(accStack[ply - 1], board.turn);
+        // Evaluate using the parent's post-duck accumulator passed directly
+        if (duckNnue_ && parentAcc && parentAcc->valid)
+            return duckNnue_->forwardQ(*parentAcc, board.turn);
         return evaluate(board);
     }
 
@@ -1268,26 +1264,17 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply,
 
     orderMoves(chessMoves, board, ply, hashMove);
 
-    // Parent's post-duck accumulator (what was set before we were called)
-    DuckNNUE::QAccumulator* parentAcc = (accStack && ply > 0) ? &accStack[ply - 1] : nullptr;
-    // This ply's post-duck slot (written before recursing)
-    DuckNNUE::QAccumulator* myAcc = accStack ? &accStack[ply] : nullptr;
+    // Duck cap — compute before hoisting duck generation
+    int maxDucks = (depth <= 1) ? 4 : (depth <= 2) ? 7 : (depth <= 3) ? 12 : 18;
 
-    // OPT: Hoist duck placement generation outside the chess move loop.
-    // Available duck squares change only when a piece is captured (rare), so
-    // generating them once per node and reusing saves ~30 getDuckPlacements calls.
-    // We regenerate only when a capture occurs (captured piece frees a square).
+    // Hoist duck placement generation outside the chess move loop.
     SquareList duckSquaresBase; MoveGen::getDuckPlacements(board, duckSquaresBase);
     orderDuckPlacements(duckSquaresBase, board, us, maxDucks);
-
-    // Tighter duck caps: fewer duck placements = much lower branching factor.
-    // Ordering puts the best squares first so quality is preserved.
-    int maxDucks = (depth <= 1) ? 4 : (depth <= 2) ? 7 : (depth <= 3) ? 12 : 18;
     maxDucks = std::min(maxDucks, (int)duckSquaresBase.size());
 
     int bestScore = -INF;
 
-    // Post-chess accumulator scratch slot (heap, avoids stack alignment issues)
+    // Post-chess accumulator scratch slot (heap, one per ply to avoid aliasing)
     DuckNNUE::QAccumulator& postChess = duckAccStack_[MAX_PLY + ply];
 
     for (int i = 0; i < (int)chessMoves.size(); i++) {
@@ -1299,34 +1286,36 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply,
         bool isCapture = !captured.isNone() && !captured.isDuck();
 
         bool canInc = duckNnue_ && parentAcc && parentAcc->valid
-                      && myAcc && !moving.isNone() && !moving.isDuck()
+                      && !moving.isNone() && !moving.isDuck()
                       && moving.type != PieceType::None
                       && static_cast<int>(moving.type) >= 1
                       && static_cast<int>(moving.type) <= 6;
 
+        // Fix #2: Apply chess delta directly to parentAcc in-place (no 2KB copy).
+        // Use parentAcc as postChess, then undo the delta after the duck loop.
+        // King moves and promotions require a full refresh — fall back to copy for those.
+        bool needsRefresh = canInc && (moving.type == PieceType::King ||
+                                       cm.promotion != PieceType::None);
         if (canInc) {
-            // Build post-chess accumulator: copy parent + apply chess move delta
-            postChess = *parentAcc;
-            duckNnue_->removeFeatureQ(NNUE::featureIndex(moving.type, moving.color, cm.from.rank, cm.from.col), postChess);
-            if (isCapture)
-                duckNnue_->removeFeatureQ(NNUE::featureIndex(captured.type, captured.color, cm.to.rank, cm.to.col), postChess);
-            PieceType finalType = (cm.promotion != PieceType::None) ? cm.promotion : moving.type;
-            duckNnue_->addFeatureQ(NNUE::featureIndex(finalType, moving.color, cm.to.rank, cm.to.col), postChess);
-            if (moving.type == PieceType::King) {
-                int br = cm.from.rank;
-                if (cm.to.col - cm.from.col == 2) {
-                    duckNnue_->removeFeatureQ(NNUE::featureIndex(PieceType::Rook, moving.color, br, 7), postChess);
-                    duckNnue_->addFeatureQ(NNUE::featureIndex(PieceType::Rook, moving.color, br, 5), postChess);
-                } else if (cm.from.col - cm.to.col == 2) {
-                    duckNnue_->removeFeatureQ(NNUE::featureIndex(PieceType::Rook, moving.color, br, 0), postChess);
-                    duckNnue_->addFeatureQ(NNUE::featureIndex(PieceType::Rook, moving.color, br, 3), postChess);
+            if (needsRefresh) {
+                // King move: all HalfKAv2 features change — must copy and refresh
+                postChess = *parentAcc;
+                duckNnue_->refreshAccumulatorQ(board, postChess);  // will be called after makeMove
+                // Note: refreshAccumulatorQ needs the post-move board, so we defer it
+                // For now fall back to copy path for king moves
+                postChess = *parentAcc;
+            } else {
+                // Apply chess delta to parentAcc in-place — no copy needed
+                duckNnue_->removeFeatureQ(NNUE::featureIndex(moving.type, moving.color, cm.from.rank, cm.from.col), *parentAcc);
+                if (isCapture)
+                    duckNnue_->removeFeatureQ(NNUE::featureIndex(captured.type, captured.color, cm.to.rank, cm.to.col), *parentAcc);
+                duckNnue_->addFeatureQ(NNUE::featureIndex(moving.type, moving.color, cm.to.rank, cm.to.col), *parentAcc);
+                if (moving.type == PieceType::Pawn && cm.to.col != cm.from.col && !isCapture) {
+                    Color opp = (moving.color == Color::White) ? Color::Black : Color::White;
+                    duckNnue_->removeFeatureQ(NNUE::featureIndex(PieceType::Pawn, opp, cm.from.rank, cm.to.col), *parentAcc);
                 }
+                // parentAcc now holds the post-chess state — use it directly as postChess
             }
-            if (moving.type == PieceType::Pawn && cm.to.col != cm.from.col && !isCapture) {
-                Color opp = (moving.color == Color::White) ? Color::Black : Color::White;
-                duckNnue_->removeFeatureQ(NNUE::featureIndex(PieceType::Pawn, opp, cm.from.rank, cm.to.col), postChess);
-            }
-            postChess.valid = true;
         }
 
         Board::UndoInfo undo;
@@ -1337,8 +1326,6 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply,
             return MATE_SCORE - ply;
         }
 
-        // OPT: Only regenerate duck squares when a capture occurred (freed a square).
-        // For quiet moves the available squares are identical to the pre-move set.
         const SquareList* duckSquares = &duckSquaresBase;
         SquareList captureSquares;
         if (isCapture) {
@@ -1350,29 +1337,41 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply,
 
         Square oldDuck = board.duckSquare;
 
+        // Which accumulator holds the post-chess state?
+        // - needsRefresh (king/promo): postChess (copy path, refreshed after makeMove)
+        // - normal move: parentAcc (mutated in-place, will be undone after duck loop)
+        DuckNNUE::QAccumulator* chessAcc = (canInc && !needsRefresh) ? parentAcc : (canInc ? &postChess : nullptr);
+
+        // For king moves: refresh postChess now that board is in post-move state
+        if (canInc && needsRefresh) {
+            duckNnue_->refreshAccumulatorQ(board, postChess);
+            postChess.valid = true;
+        }
+
         for (int d = 0; d < nDucks; d++) {
             if (shouldStop()) break;
 
             Square newDuck = (*duckSquares)[d];
 
-            // Build myAcc = postChess + duck delta, using AVX2 in-place ops.
-            // This avoids a full 2KB memcpy: instead we copy postChess->myAcc
-            // once per chess move (outside this loop) and apply/undo duck deltas
-            // incrementally. But since we need postChess intact for the next
-            // chess move, we write into myAcc directly each duck iteration.
-            if (canInc) {
-                // Copy postChess -> myAcc (2KB, unavoidable once per duck)
-                *myAcc = postChess;
-                // Apply duck delta to myAcc only
+            // Apply duck delta to chessAcc in-place, pass directly as parentAcc.
+            if (chessAcc) {
                 if (oldDuck.isValid())
-                    duckNnue_->removeFeatureQ(DuckNNUE::duckFeatureIndex(oldDuck.rank, oldDuck.col), *myAcc);
-                duckNnue_->addFeatureQ(DuckNNUE::duckFeatureIndex(newDuck.rank, newDuck.col), *myAcc);
-                myAcc->valid = true;
+                    duckNnue_->removeFeatureQ(DuckNNUE::duckFeatureIndex(oldDuck.rank, oldDuck.col), *chessAcc);
+                duckNnue_->addFeatureQ(DuckNNUE::duckFeatureIndex(newDuck.rank, newDuck.col), *chessAcc);
+                chessAcc->valid = true;
             }
 
             board.placeDuck(newDuck);
 
-            int score = -searchDuck(board, depth - 1, -beta, -alpha, ply + 1, accStack);
+            int score = -searchDuck(board, depth - 1, -beta, -alpha, ply + 1,
+                                    accStack, chessAcc);
+
+            // Undo duck delta for next iteration
+            if (chessAcc) {
+                duckNnue_->removeFeatureQ(DuckNNUE::duckFeatureIndex(newDuck.rank, newDuck.col), *chessAcc);
+                if (oldDuck.isValid())
+                    duckNnue_->addFeatureQ(DuckNNUE::duckFeatureIndex(oldDuck.rank, oldDuck.col), *chessAcc);
+            }
 
             // Undo duck placement
             board.squares[newDuck.rank][newDuck.col] = Piece{};
@@ -1392,6 +1391,20 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply,
             }
         }
         nextChessMove:;
+
+        // Undo chess delta on parentAcc (only for non-king/non-promo moves)
+        if (canInc && !needsRefresh) {
+            // Undo in reverse order
+            if (moving.type == PieceType::Pawn && cm.to.col != cm.from.col && !isCapture) {
+                Color opp = (moving.color == Color::White) ? Color::Black : Color::White;
+                duckNnue_->addFeatureQ(NNUE::featureIndex(PieceType::Pawn, opp, cm.from.rank, cm.to.col), *parentAcc);
+            }
+            duckNnue_->removeFeatureQ(NNUE::featureIndex(moving.type, moving.color, cm.to.rank, cm.to.col), *parentAcc);
+            if (isCapture)
+                duckNnue_->addFeatureQ(NNUE::featureIndex(captured.type, captured.color, cm.to.rank, cm.to.col), *parentAcc);
+            duckNnue_->addFeatureQ(NNUE::featureIndex(moving.type, moving.color, cm.from.rank, cm.from.col), *parentAcc);
+        }
+
         board.unmakeMove(cm, undo);
         if (alpha >= beta) break;
     }
@@ -1573,19 +1586,27 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
 
                     Square newDuck = duckSquares[d];
 
-                    // Set accStack[0] = post-chess + post-duck so searchDuck at ply=1
-                    // has the correct parent accumulator
+                    // Apply duck delta to rootPostChess in-place, pass directly as parentAcc.
+                    // No copy into accStack[0] needed — eliminates 2KB copy per duck.
                     if (rootCanInc && accBase) {
-                        duckAccStack_[0] = rootPostChess;
                         if (oldDuck.isValid())
-                            duckNnue_->removeFeatureQ(DuckNNUE::duckFeatureIndex(oldDuck.rank, oldDuck.col), duckAccStack_[0]);
-                        duckNnue_->addFeatureQ(DuckNNUE::duckFeatureIndex(newDuck.rank, newDuck.col), duckAccStack_[0]);
-                        duckAccStack_[0].valid = true;
+                            duckNnue_->removeFeatureQ(DuckNNUE::duckFeatureIndex(oldDuck.rank, oldDuck.col), rootPostChess);
+                        duckNnue_->addFeatureQ(DuckNNUE::duckFeatureIndex(newDuck.rank, newDuck.col), rootPostChess);
+                        rootPostChess.valid = true;
                     }
 
                     board.placeDuck(newDuck);
 
-                    int score = -searchDuck(board, depth - 1, -beta, -alpha, 1, accBase);
+                    int score = -searchDuck(board, depth - 1, -beta, -alpha, 1,
+                                            accBase,
+                                            rootCanInc ? &rootPostChess : nullptr);
+
+                    // Undo duck delta on rootPostChess for next iteration
+                    if (rootCanInc && accBase) {
+                        duckNnue_->removeFeatureQ(DuckNNUE::duckFeatureIndex(newDuck.rank, newDuck.col), rootPostChess);
+                        if (oldDuck.isValid())
+                            duckNnue_->addFeatureQ(DuckNNUE::duckFeatureIndex(oldDuck.rank, oldDuck.col), rootPostChess);
+                    }
 
                     // Undo duck
                     board.squares[newDuck.rank][newDuck.col] = Piece{};
@@ -1605,10 +1626,7 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
                     }
                 }
 
-                // Restore accStack[0] to root position for next chess move
-                if (rootCanInc && accBase)
-                    duckNnue_->refreshAccumulatorQ(board, duckAccStack_[0]);
-
+                // No need to restore accStack[0] — we no longer write to it
                 board.unmakeMove(cm, undo);
                 if (alpha >= beta) break;
             }

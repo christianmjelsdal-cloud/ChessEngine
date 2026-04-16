@@ -137,7 +137,8 @@ private:
 
     /* ---------- Duck Chess search ---------- */
     int searchDuck(Board& board, int depth, int alpha, int beta, int ply,
-                   DuckNNUE::QAccumulator* accStack);
+                   DuckNNUE::QAccumulator* accStack,
+                   DuckNNUE::QAccumulator* parentAcc = nullptr);
     int scoreDuckPlacement(const Board& board, Square duckSq, Color myColor) const;
     void orderDuckPlacements(SquareList& placements, const Board& board, Color myColor, int topN = 0) const;
 
