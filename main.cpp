@@ -294,6 +294,7 @@ int main(int argc, char* argv[]) {
         }
         if (const char* v = flagValue(argc, argv, "--record-min-ply")) cfg.recordMinPly = safeStoi(v, "--record-min-ply");
         if (const char* v = flagValue(argc, argv, "--record-max-eval")) cfg.recordMaxEval = safeStoi(v, "--record-max-eval");
+        if (const char* v = flagValue(argc, argv, "--nps-samples"))   cfg.npsSamples   = safeStoi(v, "--nps-samples");
         if (const char* v = flagValue(argc, argv, "--openings"))      cfg.openingsFile = v;
         if (const char* v = flagValue(argc, argv, "--frc-mix")) {
             try { cfg.frcMix = std::stof(v); }

@@ -732,6 +732,13 @@ int SelfPlayGen::generate(const Config& cfg) {
     uint64_t lastReportNodes = 0;   // totalNodes at last NPS snapshot
     double ewmaNps         = 0.0;   // EWMA of interval NPS
     double lastNpsSnapTime = 0.0;   // wallElapsed at last NPS snapshot (independent of report timer)
+
+    // NPS sampling: emit NPS_SAMPLE lines at evenly-spaced game intervals
+    // so the pipeline can store one NPS value per epoch slot.
+    int npsSampleInterval = (cfg.npsSamples > 0 && cfg.games > 0)
+                            ? std::max(1, cfg.games / cfg.npsSamples) : 0;
+    int npsSampleNext     = npsSampleInterval;  // next game count to emit a sample
+    int npsSampleStep     = 0;                  // which sample (1-based, maps to epoch)
     double pauseAdjustSec  = 0.0;   // accumulated dead time from OS thread suspension (pause/resume)
     static constexpr double EWMA_ALPHA = 0.15; // smoothing factor (lower = more stable ETA)
 
@@ -996,6 +1003,18 @@ int SelfPlayGen::generate(const Config& cfg) {
                 std::fwrite(lineBuf, 1, static_cast<size_t>(len), stdout);
                 std::fwrite("\n", 1, 1, stdout);  // newline so pipe readers (TrainingRunner) receive each update
                 std::fflush(stdout);
+
+                // Emit NPS_SAMPLE line if we've crossed a sample boundary
+                if (npsSampleInterval > 0 && done >= npsSampleNext && ewmaNps > 0.0) {
+                    npsSampleStep++;
+                    char sampleBuf[128];
+                    std::snprintf(sampleBuf, sizeof(sampleBuf),
+                        "NPS_SAMPLE step=%d nps=%.1f", npsSampleStep, ewmaNps);
+                    std::fwrite(sampleBuf, 1, std::strlen(sampleBuf), stdout);
+                    std::fwrite("\n", 1, 1, stdout);
+                    std::fflush(stdout);
+                    npsSampleNext += npsSampleInterval;
+                }
             }
         }
     };

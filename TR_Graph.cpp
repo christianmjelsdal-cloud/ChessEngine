@@ -384,7 +384,8 @@ static void DrawGraph(HWND hw) {
             }
             drawGenBounds(pt_top, pt_h, xfLeft);
 
-            // Step line: one NPS value per gen, flat within gen, step at boundary
+            // Continuous line through NPS sample points (one per epoch slot).
+            // Points within the same gen are connected; gen boundaries get a dot.
             Pen npsPen(Color(255,80,220,180),1.8f);
             SolidBrush dotBr(Color(255,80,220,180));
             bool started=false; float px5=0,py5=0;
@@ -392,14 +393,18 @@ static void DrawGraph(HWND hw) {
             for (size_t i=0;i<pts.size();i++){
                 if (!pts[i].hasNps) continue;
                 float cx=xfLeft((int)i), cy=yf(pts[i].nps);
-                if (started && pts[i].gen==lastGen) {
-                    g.DrawLine(&npsPen,px5,py5,cx,cy);
-                } else if (started) {
-                    g.DrawLine(&npsPen,px5,py5,cx,py5);
-                    g.DrawLine(&npsPen,cx,py5,cx,cy);
+                if (started) {
+                    if (pts[i].gen==lastGen) {
+                        // Same gen: connect with a line
+                        g.DrawLine(&npsPen,px5,py5,cx,cy);
+                    } else {
+                        // New gen: draw a dot at the start of the new gen's data
+                        g.FillEllipse(&dotBr,cx-3.0f,cy-3.0f,6.0f,6.0f);
+                    }
+                } else {
+                    // First point ever: draw a dot
+                    g.FillEllipse(&dotBr,cx-3.0f,cy-3.0f,6.0f,6.0f);
                 }
-                if (pts[i].gen!=lastGen)
-                    g.FillEllipse(&dotBr,cx-3,cy-3,6,6);
                 px5=cx; py5=cy; started=true; lastGen=pts[i].gen;
             }
         }

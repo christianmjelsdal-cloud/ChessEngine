@@ -105,6 +105,9 @@ public:
         // --- Optional logging callback (avoids dependency on TR_Globals) ---
         std::function<void(const std::string&)> logFn;  ///< if set, config dump and per-game lines are sent here
 
+        // --- NPS sampling: emit NPS_SAMPLE lines at evenly-spaced game intervals ---
+        int         npsSamples   = 0;  ///< number of NPS samples to emit (0 = disabled, use epochsPerGen)
+
         // --- Variant ---
         bool isDuckChess = false;  ///< generate duck chess positions (sets board.isDuckChess, uses 832-feature encoding)
     };

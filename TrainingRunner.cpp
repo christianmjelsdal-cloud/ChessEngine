@@ -1153,6 +1153,8 @@ static bool SelfPlay(const Config& cfg, int gen) {
         // Recording filters
         " --record-min-ply " + std::to_string(cfg.recordMinPly) +
         " --record-max-eval " + std::to_string(cfg.recordMaxEval) +
+        // NPS sampling: one sample per epoch slot
+        " --nps-samples " + std::to_string(cfg.epochsPerGen) +
         // Mixed depth
         (cfg.mixedDepthRatio > 0.0 ?
             " --mixed-depth-ratio " + dbl2s(cfg.mixedDepthRatio, 3) +
@@ -2171,20 +2173,21 @@ static void DrawGraph(HWND hw) {
                 g.DrawString(ss.str().c_str(),-1,&gridFnt,PointF(2,y2-6),&gridBr);
             }
 
-            // Step line: flat within gen, step at gen boundary
+            // Continuous line through NPS sample points (one per epoch slot).
             Pen npsPen(Color(255,80,220,180),1.8f);
             SolidBrush dotBr(Color(255,80,220,180));
             bool started=false; float px5=0,py5=0; int lastGen=-1;
             for (size_t i=0;i<pts.size();i++){
                 if (!pts[i].hasNps) continue;
                 float cx=xf((int)i), cy=yf(pts[i].nps);
-                if (started && pts[i].gen==lastGen) {
-                    g.DrawLine(&npsPen,px5,py5,cx,cy);
-                } else if (started) {
-                    g.DrawLine(&npsPen,px5,py5,cx,py5);
-                    g.DrawLine(&npsPen,cx,py5,cx,cy);
+                if (started) {
+                    if (pts[i].gen==lastGen)
+                        g.DrawLine(&npsPen,px5,py5,cx,cy);
+                    else
+                        g.FillEllipse(&dotBr,cx-3.0f,cy-3.0f,6.0f,6.0f);
+                } else {
+                    g.FillEllipse(&dotBr,cx-3.0f,cy-3.0f,6.0f,6.0f);
                 }
-                if (pts[i].gen!=lastGen) g.FillEllipse(&dotBr,cx-3.0f,cy-3.0f,6.0f,6.0f);
                 px5=cx; py5=cy; started=true; lastGen=pts[i].gen;
             }
         }

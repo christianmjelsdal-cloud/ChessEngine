@@ -164,7 +164,8 @@ static bool SelfPlay(const Config& cfg, int gen) {
         " --softmax-temp " + dbl2s(cfg.softmaxTemp, 2) +
         (cfg.rootNoiseEps > 0.0 ? " --root-noise " + dbl2s(cfg.rootNoiseEps, 3) : "") +
         " --record-min-ply " + std::to_string(cfg.recordMinPly) +
-        " --record-max-eval " + std::to_string(cfg.recordMaxEval)
+        " --record-max-eval " + std::to_string(cfg.recordMaxEval) +
+        " --nps-samples " + std::to_string(cfg.epochsPerGen)
     );
     g_st.setStatus("Gen "+std::to_string(gen)+": self-play ("+std::to_string(cfg.gamesPerGen)+" games)");
     g_st.setPhase("selfplay");
@@ -236,6 +237,31 @@ static bool SelfPlay(const Config& cfg, int gen) {
                     }
                 } catch(...) {}
             }
+        }
+        // Parse NPS_SAMPLE lines: "NPS_SAMPLE step=N nps=XXXX"
+        // These are emitted at evenly-spaced game intervals during self-play,
+        // one per epoch slot, so they align with training epoch points on the graph.
+        if (ln.find("NPS_SAMPLE") != std::string::npos) {
+            try {
+                auto stepPos = ln.find("step=");
+                auto npsPos2 = ln.find("nps=");
+                if (stepPos != std::string::npos && npsPos2 != std::string::npos) {
+                    int step = std::stoi(ln.substr(stepPos + 5));
+                    double npsVal = std::stod(ln.substr(npsPos2 + 4));
+                    if (npsVal > 0.0 && step > 0) {
+                        TrainPoint npt;
+                        npt.gen    = gen;
+                        npt.step   = step;
+                        npt.train  = 0.0;   // no loss data — NPS-only point
+                        npt.nps    = npsVal;
+                        npt.hasNps = true;
+                        g_st.pushPt(npt);
+                        // Also update curNps for live graph
+                        std::lock_guard<std::mutex> lk(g_st.mtx);
+                        g_st.curNps = npsVal;
+                    }
+                }
+            } catch(...) {}
         }
     }, g_st.stopFlag);
     double selfPlayElapsed = static_cast<double>(std::chrono::duration_cast<std::chrono::seconds>(
