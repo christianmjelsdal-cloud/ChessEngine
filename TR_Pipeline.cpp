@@ -171,7 +171,7 @@ static bool SelfPlay(const Config& cfg, int gen) {
     g_st.setPhase("selfplay");
     { std::lock_guard<std::mutex> lk(g_st.mtx); g_st.phaseStart = std::chrono::steady_clock::now(); }  // FIX 6.1
     { std::lock_guard<std::mutex> lk(g_st.mtx); g_st.pausedPhaseSec = 0; }
-    { std::lock_guard<std::mutex> lk(g_st.mtx); g_st.curEpoch=0; g_st.totalEpochs=cfg.gamesPerGen; g_st.selfPlayEtaSec=0; }
+    { std::lock_guard<std::mutex> lk(g_st.mtx); g_st.curEpoch=0; g_st.totalEpochs=cfg.gamesPerGen; g_st.selfPlayEtaSec=0; g_st.curNps=0.0; }
     g_fileLog.logPhaseStart("selfplay", gen, "games=" + std::to_string(cfg.gamesPerGen) + " depth=" + std::to_string(cfg.depth) + " workers=" + std::to_string(cfg.workers));
     auto selfPlayStart = std::chrono::steady_clock::now();
     bool selfPlayOk = RunProc(cmd, d, [&](const std::string& ln){

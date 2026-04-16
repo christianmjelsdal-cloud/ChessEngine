@@ -73,6 +73,7 @@ public:
         Square   whiteKingSq     = {0, 4};
         Square   blackKingSq     = {7, 4};
         int      phase           = 0;
+        bool     isDuckChess     = false;  // saved/restored so unmakeMove is mode-agnostic
         // squares[][] is reconstructed from bitboards on unmake — no snapshot needed
     };
 

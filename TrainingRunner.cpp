@@ -1167,7 +1167,7 @@ static bool SelfPlay(const Config& cfg, int gen) {
     g_log.event("selfplay", gen, "PHASE_START games=" + std::to_string(cfg.gamesPerGen)
                 + " depth=" + std::to_string(cfg.depth)
                 + " workers=" + std::to_string(cfg.workers));
-    { std::lock_guard<std::mutex> lk(g_st.mtx); g_st.curEpoch=0; g_st.totalEpochs=cfg.gamesPerGen; }
+    { std::lock_guard<std::mutex> lk(g_st.mtx); g_st.curEpoch=0; g_st.totalEpochs=cfg.gamesPerGen; g_st.curNps=0.0; }
     int lastLoggedPct = -1;  // track last logged progress percentage
     bool spOk = RunProc(cmd, d, [&](const std::string& ln){
         // NPS_SAMPLE lines are internal data for the graph — don't show in output window
@@ -2248,21 +2248,28 @@ static void DrawGraph(HWND hw) {
                 }
                 for (auto& kv : genIdxRange) genXRange[kv.first] = {xf(kv.second.first), xf(kv.second.second)};
             }
+            // Pre-compute per-gen NPS counts and indices to avoid O(n²) in npsX lambda.
+            std::map<int, int> genNpsCount;
+            std::vector<int>   npsIdxInGen(pts.size(), 0);
+            {
+                std::map<int, int> genNpsCur;
+                for (size_t i = 0; i < pts.size(); i++) {
+                    if (!pts[i].hasNps) continue;
+                    int g = pts[i].gen;
+                    npsIdxInGen[i] = genNpsCur[g]++;
+                }
+                genNpsCount = genNpsCur;
+            }
             auto npsX = [&](size_t i) -> float {
                 auto it = stepToX.find({pts[i].gen, pts[i].step});
                 if (it != stepToX.end()) return it->second;
                 auto rng = genXRange.find(pts[i].gen);
                 if (rng != genXRange.end()) {
-                    int npsCount = 0, npsIdx = 0;
-                    for (size_t j = 0; j < pts.size(); j++) {
-                        if (pts[j].gen == pts[i].gen && pts[j].hasNps) {
-                            if (j == i) npsIdx = npsCount;
-                            npsCount++;
-                        }
-                    }
-                    if (npsCount > 1) {
+                    int cnt = genNpsCount[pts[i].gen];
+                    int idx = npsIdxInGen[i];
+                    if (cnt > 1) {
                         float xStart = rng->second.first, xEnd = rng->second.second;
-                        return xStart + (xEnd - xStart) * npsIdx / (npsCount - 1);
+                        return xStart + (xEnd - xStart) * idx / (cnt - 1);
                     }
                     return (rng->second.first + rng->second.second) * 0.5f;
                 }

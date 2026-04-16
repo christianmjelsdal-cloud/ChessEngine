@@ -553,6 +553,7 @@ void Board::makeMove(const Move& m, UndoInfo& undo) {
     undo.fullMoveNumber = fullMoveNumber;
     undo.hash           = hash;
     undo.duckSquare     = duckSquare;
+    undo.isDuckChess    = isDuckChess;
     undo.occupiedBB     = occupiedBB;
     undo.colorBB[0]     = colorBB[0];
     undo.colorBB[1]     = colorBB[1];
@@ -588,6 +589,7 @@ void Board::unmakeMove(const Move& /*m*/, const UndoInfo& undo) {
     fullMoveNumber = undo.fullMoveNumber;
     hash           = undo.hash;
     duckSquare     = undo.duckSquare;
+    isDuckChess    = undo.isDuckChess;
     occupiedBB     = undo.occupiedBB;
     colorBB[0]     = undo.colorBB[0];
     colorBB[1]     = undo.colorBB[1];

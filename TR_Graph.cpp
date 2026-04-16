@@ -413,6 +413,19 @@ static void DrawGraph(HWND hw) {
                     genXRange[kv.first] = {xfLeft(kv.second.first), xfLeft(kv.second.second)};
             }
 
+            // Pre-compute per-gen NPS counts and indices to avoid O(n²) in npsX lambda.
+            std::map<int, int> genNpsCount;
+            std::vector<int>   npsIdxInGen(pts.size(), 0);
+            {
+                std::map<int, int> genNpsCur;
+                for (size_t i = 0; i < pts.size(); i++) {
+                    if (!pts[i].hasNps) continue;
+                    int g = pts[i].gen;
+                    npsIdxInGen[i] = genNpsCur[g]++;
+                }
+                genNpsCount = genNpsCur;
+            }
+
             auto npsX = [&](size_t i) -> float {
                 const auto& p = pts[i];
                 // Try exact step match first
@@ -421,17 +434,11 @@ static void DrawGraph(HWND hw) {
                 // Fall back: spread NPS points linearly across the gen's x range
                 auto rng = genXRange.find(p.gen);
                 if (rng != genXRange.end()) {
-                    // Count NPS points for this gen to determine position
-                    int npsCount = 0, npsIdx = 0;
-                    for (size_t j = 0; j < pts.size(); j++) {
-                        if (pts[j].gen == p.gen && pts[j].hasNps) {
-                            if (j == i) npsIdx = npsCount;
-                            npsCount++;
-                        }
-                    }
-                    if (npsCount > 1) {
+                    int cnt = genNpsCount[p.gen];
+                    int idx = npsIdxInGen[i];
+                    if (cnt > 1) {
                         float xStart = rng->second.first, xEnd = rng->second.second;
-                        return xStart + (xEnd - xStart) * npsIdx / (npsCount - 1);
+                        return xStart + (xEnd - xStart) * idx / (cnt - 1);
                     }
                     return (rng->second.first + rng->second.second) * 0.5f;
                 }
