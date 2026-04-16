@@ -180,6 +180,8 @@ struct AppState {
     int batchEtaSec  = 0;
     int epochEtaSec  = 0;
     int nextEpochSec = 0;
+    int curBatch     = 0;   // current batch within epoch (for --train-duck)
+    int totalBatches = 0;   // total batches per epoch (for --train-duck)
     std::chrono::steady_clock::time_point batchEtaStamp;
     std::chrono::steady_clock::time_point epochEtaStamp;
     std::chrono::steady_clock::time_point nextEpochStamp;
@@ -1536,6 +1538,53 @@ static bool Training(const Config& cfg, int gen) {
         // Log the cleaned line (ETA fields removed)
         g_st.pushLog(cleaned);
 
+        // Parse batch progress from --train-duck: "\r  batch N/TOTAL  loss=X  Y b/s  ETA Zm Ws"
+        // Update curEpoch with batch progress so the banner shows real-time progress.
+        // Also parse epoch_time= and eta= from epoch summary lines.
+        {
+            // Batch line: "batch N/TOTAL" — update batch counter for banner display
+            auto bpos = ln.find("batch ");
+            if (bpos != std::string::npos) {
+                try {
+                    size_t numStart = bpos + 6;
+                    size_t slashPos = ln.find('/', numStart);
+                    if (slashPos != std::string::npos) {
+                        int bn = std::stoi(ln.substr(numStart, slashPos - numStart));
+                        size_t totalEnd = slashPos + 1;
+                        int tb = std::stoi(ln.substr(totalEnd));
+                        if (bn > 0 && tb > 0) {
+                            std::lock_guard<std::mutex> lk(g_st.mtx);
+                            g_st.curBatch     = bn;
+                            g_st.totalBatches = tb;
+                        }
+                    }
+                } catch (...) {}
+            }
+            // Epoch summary line: "epoch_time=Xs eta=XmYs"
+            auto etaPos = ln.find("eta=");
+            if (etaPos != std::string::npos && ln.find("Epoch ") != std::string::npos) {
+                try {
+                    std::string etaStr = ln.substr(etaPos + 4);
+                    // Parse "XmYs" format
+                    int mins = 0, secs = 0;
+                    size_t mpos = etaStr.find('m');
+                    if (mpos != std::string::npos) {
+                        mins = std::stoi(etaStr.substr(0, mpos));
+                        size_t spos = etaStr.find('s', mpos);
+                        if (spos != std::string::npos)
+                            secs = std::stoi(etaStr.substr(mpos + 1, spos - mpos - 1));
+                    }
+                    int totalSec = mins * 60 + secs;
+                    if (totalSec > 0) {
+                        auto now = std::chrono::steady_clock::now();
+                        std::lock_guard<std::mutex> lk(g_st.mtx);
+                        g_st.epochEtaSec   = totalSec;
+                        g_st.epochEtaStamp = now;
+                    }
+                } catch (...) {}
+            }
+        }
+
         // Log errors, tracebacks, and exceptions to file
         if (cleaned.find("Traceback") != std::string::npos ||
             cleaned.find("Error")     != std::string::npos ||
@@ -1876,6 +1925,7 @@ static void DrawGraph(HWND hw) {
 
         double minV=1e9, maxV=-1e9;
         for (auto& p2 : pts) {
+            if (!p2.hasLoss) continue;
             minV = (std::min)(minV, p2.train); maxV = (std::max)(maxV, p2.train);
             if (p2.hasVal) { minV = (std::min)(minV, p2.val); maxV = (std::max)(maxV, p2.val); }
         }
@@ -1898,12 +1948,14 @@ static void DrawGraph(HWND hw) {
         int bestTrainIdx=-1, bestValIdx=-1;
         double bestTrain=1e9, bestVal=1e9;
         for (size_t i=0; i<pts.size(); i++) {
+            if (!pts[i].hasLoss) continue;
             if (pts[i].train < bestTrain) { bestTrain=pts[i].train; bestTrainIdx=(int)i; }
             if (pts[i].hasVal && pts[i].val < bestVal) { bestVal=pts[i].val; bestValIdx=(int)i; }
         }
 
         Pen trainPen(Color(255,65,125,245), 1.8f);
         for (size_t i=1; i<pts.size(); i++)
+            if (!pts[i].hasLoss || !pts[i-1].hasLoss) continue;
             g.DrawLine(&trainPen, xf((int)i-1), yf(pts[i-1].train), xf((int)i), yf(pts[i].train));
 
         Pen valPen(Color(255,245,160,60), 1.8f);
@@ -3611,6 +3663,13 @@ static LRESULT CALLBACK WndProc(HWND hw, UINT msg, WPARAM wp, LPARAM lp) {
                 train = g_st.lastTrain; val = g_st.lastVal; elo = g_st.lastElo;
                 running = g_st.running;
             }
+            // Also read batch progress for training phase
+            int curBatch = 0, totalBatches = 0;
+            {
+                std::lock_guard<std::mutex> lk(g_st.mtx);
+                curBatch     = g_st.curBatch;
+                totalBatches = g_st.totalBatches;
+            }
             // Status line — shows phase description and latest loss/ELO; timing is in banner
             std::wstring stw = W(status);
             if (running && totalGens > 0) {
@@ -3684,8 +3743,11 @@ static LRESULT CALLBACK WndProc(HWND hw, UINT msg, WPARAM wp, LPARAM lp) {
                         progressDetail = L"  Games: " + std::to_wstring(curEp) + L"/" + std::to_wstring(totalEp);
                 } else if (isTraining) {
                     phaseLabel = L"Training";
-                    if (totalEp > 0)
+                    if (totalEp > 0) {
                         progressDetail = L"  Epoch: " + std::to_wstring(curEp) + L"/" + std::to_wstring(totalEp);
+                        if (totalBatches > 0)
+                            progressDetail += L"  Batch: " + std::to_wstring(curBatch) + L"/" + std::to_wstring(totalBatches);
+                    }
                 } else if (isElo) {
                     phaseLabel = L"ELO Validation";
                 } else {
@@ -3706,12 +3768,13 @@ static LRESULT CALLBACK WndProc(HWND hw, UINT msg, WPARAM wp, LPARAM lp) {
                     long long bLeft = countdown(bEta, bStamp);
                     long long eLeft = countdown(eEta, eStamp);
                     long long nLeft = countdown(nEta, nStamp);
+
                     if (bLeft >= 0)
-                        bs << L"  |  Batch done in: ~" << fmtDur(bLeft);
+                        bs << L"  |  Batch ETA: ~" << fmtDur(bLeft);
                     if (nLeft >= 0)
                         bs << L"  |  Next epoch in: ~" << fmtDur(nLeft);
                     if (eLeft >= 0)
-                        bs << L"  |  Gen training done in: ~" << fmtDur(eLeft);
+                        bs << L"  |  Training done in: ~" << fmtDur(eLeft);
                 }
 
                 // 4. Total pipeline elapsed
@@ -3744,6 +3807,46 @@ static LRESULT CALLBACK WndProc(HWND hw, UINT msg, WPARAM wp, LPARAM lp) {
             }
 
             FlushLog();
+
+            // Live training countdown: update the last log line with a countdown
+            // every 500ms so the output window shows live ETA during training.
+            if (running && phase == "training") {
+                auto now2 = std::chrono::steady_clock::now();
+                int bEta2 = 0, eEta2 = 0;
+                std::chrono::steady_clock::time_point bStamp2, eStamp2;
+                int cb = 0, tb = 0, ce = 0, te = 0;
+                {
+                    std::lock_guard<std::mutex> lk(g_st.mtx);
+                    bEta2 = g_st.batchEtaSec; bStamp2 = g_st.batchEtaStamp;
+                    eEta2 = g_st.epochEtaSec; eStamp2 = g_st.epochEtaStamp;
+                    cb = g_st.curBatch; tb = g_st.totalBatches;
+                    ce = g_st.curEpoch; te = g_st.totalEpochs;
+                }
+                auto cdSec = [&](int eta, std::chrono::steady_clock::time_point stamp) -> long long {
+                    if (eta <= 0) return -1;
+                    long long el = std::chrono::duration_cast<std::chrono::seconds>(now2 - stamp).count();
+                    return std::max(0LL, (long long)eta - el);
+                };
+                long long bLeft2 = cdSec(bEta2, bStamp2);
+                long long eLeft2 = cdSec(eEta2, eStamp2);
+                if (bLeft2 >= 0 || eLeft2 >= 0) {
+                    // Build a status line to inject as the last log entry
+                    std::string statusLine = "[Training]";
+                    if (te > 0) statusLine += " Epoch " + std::to_string(ce) + "/" + std::to_string(te);
+                    if (tb > 0) statusLine += "  Batch " + std::to_string(cb) + "/" + std::to_string(tb);
+                    if (bLeft2 >= 0) {
+                        int bm = (int)(bLeft2 / 60), bs2 = (int)(bLeft2 % 60);
+                        statusLine += "  Batch ETA: " + std::to_string(bm) + "m" + std::to_string(bs2) + "s";
+                    }
+                    if (eLeft2 >= 0) {
+                        int em = (int)(eLeft2 / 60), es2 = (int)(eLeft2 % 60);
+                        statusLine += "  Training ETA: " + std::to_string(em) + "m" + std::to_string(es2) + "s";
+                    }
+                    // Push as \r line so it overwrites the previous countdown
+                    g_st.pushLog("\r" + statusLine);
+                    FlushLog();
+                }
+            }
 
             // Live NPS: during self-play, inject curNps into current gen's points
             // so the NPS panel updates in real time (every 500ms timer tick).
