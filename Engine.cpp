@@ -436,7 +436,7 @@ int Engine::see(const Board& board, const Move& m) {
     }
 
     bool removed[8][8] = {};
-    int gain[32];
+    int gain[32] = {};
     int d = 0;
 
     gain[0] = SEE_VAL[(int)victim.type];
@@ -782,7 +782,7 @@ void Engine::orderMoves(MoveList& moves, const Board& board,
     // Stack-allocated scored array — avoids heap allocation on every node
     // MoveList max is 256 moves; use a fixed array to stay on the stack.
     const int n = (int)moves.size();
-    int scores[256];
+    int scores[256] = {};
     for (int i = 0; i < n; i++)
         scores[i] = scoreMove(moves[i], board, ply, hashMove);
 
@@ -835,14 +835,15 @@ int Engine::qsearch(Board& board, int alpha, int beta, int ply) {
 
         Board::UndoInfo undo;
         // Propagate accumulator for qsearch captures
-        if (nnue_ && !board.isDuckChess && ply + 1 < MAX_PLY + 4 && accStack_[ply].valid) {
+        const int nextPly = ply + 1;
+        if (nnue_ && !board.isDuckChess && nextPly < MAX_PLY + 4 && accStack_[ply].valid) {
             Piece moving   = board.getPiece(m.from);
             Piece captured = board.getPiece(m.to);
-            nnue_->fusedCopyAndUpdateQ(board, accStack_[ply], accStack_[ply + 1],
+            nnue_->fusedCopyAndUpdateQ(board, accStack_[ply], accStack_[nextPly],
                 m.from.rank, m.from.col, m.to.rank, m.to.col,
                 moving.type, moving.color, captured.type, captured.color);
-        } else if (ply + 1 < MAX_PLY + 4) {
-            accStack_[ply + 1].valid = false;
+        } else if (nextPly < MAX_PLY + 4) {
+            accStack_[nextPly].valid = false;
         }
         board.makeMove(m, undo);
         int score = -qsearch(board, -beta, -alpha, ply + 1);
@@ -1200,7 +1201,7 @@ void Engine::orderDuckPlacements(SquareList& placements, const Board& board, Col
     if (n <= 1) return;
     const int keep = (topN > 0 && topN < n) ? topN : n;
 
-    int scores[64];
+    int scores[64] = {};
     for (int i = 0; i < n; i++)
         scores[i] = scoreDuckPlacement(board, placements[i], myColor);
 
@@ -1277,7 +1278,9 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply,
     int bestScore = -INF;
 
     // Post-chess accumulator scratch slot (heap, one per ply to avoid aliasing)
-    DuckNNUE::QAccumulator& postChess = duckAccStack_[MAX_PLY + ply];
+    // Clamp to valid range — duckAccStack_ has MAX_PLY*2 slots
+    const int postChessIdx = std::min(MAX_PLY + ply, MAX_PLY * 2 - 1);
+    DuckNNUE::QAccumulator& postChess = duckAccStack_[postChessIdx];
 
     for (int i = 0; i < (int)chessMoves.size(); i++) {
         if (shouldStop()) return 0;
@@ -1456,6 +1459,8 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply,
 #endif // DUCK_CHESS
 
 // =============================================================
+#pragma warning(push)
+#pragma warning(disable: 6262)  // large stack frame — getBestMove called from 8MB stack threads only
 Move Engine::getBestMove(Board& board, int maxDepth) {
     stop_.store(false, std::memory_order_relaxed);
     nodes_ = 0;
@@ -1898,3 +1903,4 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
 
     return bestMove;
 }
+#pragma warning(pop)

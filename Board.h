@@ -57,24 +57,22 @@ public:
     // ----------------------------------------------------------------
     struct UndoInfo {
         // Scalar state that changes every move
-        Square   enPassantTarget;
-        bool     castlingRights[2][2];
-        int      halfMoveClock;
-        int      fullMoveNumber;
-        uint64_t hash;
-        Square   duckSquare;
-        // Piece state: what was on the from/to squares (and EP capture square)
-        Piece    movedPiece;
-        Piece    capturedPiece;
-        Piece    capturedEP;
-        Square   capturedEPSq;
-        // Bitboard snapshot
-        Bitboard occupiedBB;
-        Bitboard colorBB[2];
-        Bitboard pieceBBs[7];
-        Square   whiteKingSq;
-        Square   blackKingSq;
-        int      phase;
+        Square   enPassantTarget  = {-1, -1};
+        bool     castlingRights[2][2] = {};
+        int      halfMoveClock   = 0;
+        int      fullMoveNumber  = 1;
+        uint64_t hash            = 0;
+        Square   duckSquare      = {-1, -1};
+        Piece    movedPiece      = {};
+        Piece    capturedPiece   = {};
+        Piece    capturedEP      = {};
+        Square   capturedEPSq    = {-1, -1};
+        Bitboard occupiedBB      = 0;
+        Bitboard colorBB[2]      = {};
+        Bitboard pieceBBs[7]     = {};
+        Square   whiteKingSq     = {0, 4};
+        Square   blackKingSq     = {7, 4};
+        int      phase           = 0;
         // squares[][] is reconstructed from bitboards on unmake — no snapshot needed
     };
 

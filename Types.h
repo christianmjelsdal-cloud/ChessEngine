@@ -113,11 +113,11 @@ static_assert(std::is_trivially_copyable_v<Square>, "Square must be trivially co
 inline uint16_t packMove(const Move& m) {
     int from = m.from.rank * 8 + m.from.col;
     int to   = m.to.rank * 8 + m.to.col;
-    // FIX 5.20: Assert valid square range — if rank/col > 7, from/to > 63
-    // and the bit packing would silently overflow the 16-bit field.
     assert(from >= 0 && from < 64 && "packMove: 'from' square out of range");
     assert(to >= 0 && to < 64 && "packMove: 'to' square out of range");
-    return (uint16_t)((from << 10) | (to << 4) | (int)m.promotion);
+    // Clamp to valid range in release builds to prevent silent bit corruption
+    if (from < 0 || from >= 64 || to < 0 || to >= 64) return 0;
+    return (uint16_t)((from << 10) | (to << 4) | ((int)m.promotion & 0xF));
 }
 inline Move unpackMove(uint16_t packed) {
     Move m;
@@ -162,7 +162,7 @@ struct MoveList {
 // Stack-allocated square list (e.g., duck placements) — mirrors MoveList pattern
 struct SquareList {
     static constexpr int MAX_SQUARES = 64;
-    Square squares[MAX_SQUARES];
+    Square squares[MAX_SQUARES] = {};
     int    count = 0;
 
     void add(const Square& s) {
@@ -182,6 +182,5 @@ struct SquareList {
     const Square* end()   const { return squares + count; }
 };
 
-// Undo information for make/unmake move pattern — LEGACY, not used.
-// All code uses Board::UndoInfo instead. Kept for reference only.
-// TODO: remove this struct entirely.
+// NOTE: Board::UndoInfo (defined in Board.h) is the undo struct used everywhere.
+// The legacy UndoInfo that was here has been removed.
