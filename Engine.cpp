@@ -775,16 +775,23 @@ int Engine::scoreMove(const Move& m, const Board& board,
 
 void Engine::orderMoves(MoveList& moves, const Board& board,
                         int ply, const Move& hashMove) const {
-    std::vector<std::pair<int, int>> scored(moves.size());
-    for (int i = 0; i < (int)moves.size(); i++)
-        scored[i] = { scoreMove(moves[i], board, ply, hashMove), i };
+    // Stack-allocated scored array — avoids heap allocation on every node
+    // MoveList max is 256 moves; use a fixed array to stay on the stack.
+    const int n = (int)moves.size();
+    int scores[256];
+    for (int i = 0; i < n; i++)
+        scores[i] = scoreMove(moves[i], board, ply, hashMove);
 
-    std::sort(scored.begin(), scored.end(),
-              [](const auto& a, const auto& b) { return a.first > b.first; });
-
-    MoveList sorted;
-    for (int i = 0; i < (int)moves.size(); i++) sorted.add(moves[scored[i].second]);
-    moves = std::move(sorted);
+    // Insertion sort — faster than std::sort for small n (typically 20-35 moves)
+    for (int i = 1; i < n; i++) {
+        Move m = moves[i]; int s = scores[i];
+        int j = i - 1;
+        while (j >= 0 && scores[j] < s) {
+            moves[j + 1] = moves[j]; scores[j + 1] = scores[j];
+            j--;
+        }
+        moves[j + 1] = m; scores[j + 1] = s;
+    }
 }
 
 // =============================================================
@@ -1183,17 +1190,21 @@ int Engine::scoreDuckPlacement(const Board& board, Square duckSq, Color myColor)
 }
 
 void Engine::orderDuckPlacements(SquareList& placements, const Board& board, Color myColor) const {
-    std::vector<std::pair<int, int>> scored(placements.size());
-    for (int i = 0; i < (int)placements.size(); i++)
-        scored[i] = { scoreDuckPlacement(board, placements[i], myColor), i };
+    const int n = (int)placements.size();
+    int scores[64];
+    for (int i = 0; i < n; i++)
+        scores[i] = scoreDuckPlacement(board, placements[i], myColor);
 
-    std::sort(scored.begin(), scored.end(),
-              [](const auto& a, const auto& b) { return a.first > b.first; });
-
-    SquareList sorted;
-    for (int i = 0; i < (int)placements.size(); i++)
-        sorted.add(placements[scored[i].second]);
-    placements = sorted;
+    // Insertion sort — n is at most 63, typically 50-60
+    for (int i = 1; i < n; i++) {
+        Square sq = placements[i]; int s = scores[i];
+        int j = i - 1;
+        while (j >= 0 && scores[j] < s) {
+            placements[j + 1] = placements[j]; scores[j + 1] = scores[j];
+            j--;
+        }
+        placements[j + 1] = sq; scores[j + 1] = s;
+    }
 }
 
 #endif // DUCK_CHESS
