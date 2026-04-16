@@ -836,7 +836,7 @@ int Engine::qsearch(Board& board, int alpha, int beta, int ply) {
         Board::UndoInfo undo;
         // Propagate accumulator for qsearch captures
         const int nextPly = ply + 1;
-        if (nnue_ && !board.isDuckChess && nextPly < MAX_PLY + 4 && accStack_[ply].valid) {
+        if (nnue_ && !board.isDuckChess && ply < MAX_PLY + 4 && nextPly < MAX_PLY + 4 && accStack_[ply].valid) {
             Piece moving   = board.getPiece(m.from);
             Piece captured = board.getPiece(m.to);
             nnue_->fusedCopyAndUpdateQ(board, accStack_[ply], accStack_[nextPly],
