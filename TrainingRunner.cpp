@@ -2212,13 +2212,24 @@ static void DrawGraph(HWND hw) {
                 g.DrawString(ss.str().c_str(),-1,&gridFnt,PointF(2,y2-6),&gridBr);
             }
 
+            // Build (gen, step) -> x map from training points for aligned NPS positioning.
+            std::map<std::pair<int,int>, float> stepToX;
+            for (size_t i = 0; i < pts.size(); i++) {
+                if (pts[i].hasLoss && pts[i].step > 0)
+                    stepToX[{pts[i].gen, pts[i].step}] = xf((int)i);
+            }
+            auto npsX = [&](size_t i) -> float {
+                auto it = stepToX.find({pts[i].gen, pts[i].step});
+                return (it != stepToX.end()) ? it->second : xf((int)i);
+            };
+
             // Continuous line through NPS sample points (one per epoch slot).
             Pen npsPen(Color(255,80,220,180),1.8f);
             SolidBrush dotBr(Color(255,80,220,180));
             bool started=false; float px5=0,py5=0; int lastGen=-1;
             for (size_t i=0;i<pts.size();i++){
                 if (!pts[i].hasNps) continue;
-                float cx=xf((int)i), cy=yf(pts[i].nps);
+                float cx=npsX(i), cy=yf(pts[i].nps);
                 if (started) {
                     if (pts[i].gen==lastGen)
                         g.DrawLine(&npsPen,px5,py5,cx,cy);

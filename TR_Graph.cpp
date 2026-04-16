@@ -2,6 +2,7 @@
 #include "TR_Types.h"
 #include "TR_Globals.h"
 #include "TR_Fwd.h"
+#include <map>
 
 // ── Graph drawing ─────────────────────────────────────────────────
 LRESULT CALLBACK GraphProc(HWND hw, UINT msg, WPARAM wp, LPARAM lp);
@@ -387,25 +388,38 @@ static void DrawGraph(HWND hw) {
             }
             drawGenBounds(pt_top, pt_h, xfLeft);
 
+            // Build a (gen, step) -> x position map using training points (hasLoss=true).
+            // NPS points have the same step numbers as training epochs, so we can
+            // align them on the x-axis by matching step within each gen.
+            std::map<std::pair<int,int>, float> stepToX;
+            for (size_t i = 0; i < pts.size(); i++) {
+                if (pts[i].hasLoss && pts[i].step > 0)
+                    stepToX[{pts[i].gen, pts[i].step}] = xfLeft((int)i);
+            }
+            // For NPS points, find x by matching (gen, step) to training points.
+            // If no match, fall back to array index.
+            auto npsX = [&](size_t i) -> float {
+                const auto& p = pts[i];
+                auto it = stepToX.find({p.gen, p.step});
+                if (it != stepToX.end()) return it->second;
+                return xfLeft((int)i);
+            };
+
             // Continuous line through NPS sample points (one per epoch slot).
-            // Points within the same gen are connected; gen boundaries get a dot.
             Pen npsPen(Color(255,80,220,180),1.8f);
             SolidBrush dotBr(Color(255,80,220,180));
             bool started=false; float px5=0,py5=0;
             int lastGen=-1;
             for (size_t i=0;i<pts.size();i++){
                 if (!pts[i].hasNps) continue;
-                float cx=xfLeft((int)i), cy=yf(pts[i].nps);
+                float cx=npsX(i), cy=yf(pts[i].nps);
                 if (started) {
                     if (pts[i].gen==lastGen) {
-                        // Same gen: connect with a line
                         g.DrawLine(&npsPen,px5,py5,cx,cy);
                     } else {
-                        // New gen: draw a dot at the start of the new gen's data
                         g.FillEllipse(&dotBr,cx-3.0f,cy-3.0f,6.0f,6.0f);
                     }
                 } else {
-                    // First point ever: draw a dot
                     g.FillEllipse(&dotBr,cx-3.0f,cy-3.0f,6.0f,6.0f);
                 }
                 px5=cx; py5=cy; started=true; lastGen=pts[i].gen;
