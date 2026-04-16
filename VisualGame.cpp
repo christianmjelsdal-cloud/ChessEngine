@@ -685,8 +685,8 @@ void VisualGame::executeMove(const Move& move, bool animate) {
     pieceSelected = false;
     selectedMoves.clear();
 
-    // In fast mode during bot-vs-bot, skip animation
-    if (fastMode && botVsBot)
+    // In fast mode during bot-vs-bot or bot-vs-NNUE, skip animation
+    if (fastMode && (botVsBot || botVsNNUE_))
         animate = false;
 
     if (animate) {
@@ -957,7 +957,7 @@ void VisualGame::startEngineThinking() {
     } else {
         eng = &engine_;
     }
-    eng->setTimeLimit((botVsBot || botVsNNUE_) ? botThinkMs : engineTimeMs);
+    eng->setTimeLimit((botVsBot || botVsNNUE_) ? (fastMode ? 50 : botThinkMs) : engineTimeMs);
 
     // Pass position history for repetition detection
     eng->setPositionHistory(positionHistory_);
@@ -1026,7 +1026,7 @@ void VisualGame::checkEngineResult() {
         hasLastMove = true;
         activeEngine_ = nullptr;
 
-        if (fastMode && botVsBot) {
+        if (fastMode && (botVsBot || botVsNNUE_)) {
             finishMove(move);
         } else {
             startAnimation(move, p);
