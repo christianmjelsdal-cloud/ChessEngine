@@ -1954,9 +1954,10 @@ static void DrawGraph(HWND hw) {
         }
 
         Pen trainPen(Color(255,65,125,245), 1.8f);
-        for (size_t i=1; i<pts.size(); i++)
+        for (size_t i=1; i<pts.size(); i++) {
             if (!pts[i].hasLoss || !pts[i-1].hasLoss) continue;
             g.DrawLine(&trainPen, xf((int)i-1), yf(pts[i-1].train), xf((int)i), yf(pts[i].train));
+        }
 
         Pen valPen(Color(255,245,160,60), 1.8f);
         { bool st=false; float px2=0,py2=0;
