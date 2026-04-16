@@ -69,7 +69,10 @@ public:
         Square   capturedEPSq    = {-1, -1};
         Bitboard occupiedBB      = 0;
         Bitboard colorBB[2]      = {};
-        Bitboard pieceBBs[7]     = {};
+        // Partial pieceBBs snapshot: only changed piece-type BBs (≤3 entries vs 7).
+        // changedMask bits 0-6 mark which pieceBBs[i] were saved in savedBBs[].
+        uint8_t  changedMask     = 0;
+        Bitboard savedBBs[3]     = {};   // up to 3 changed BBs (moving, captured, promo/rook)
         Square   whiteKingSq     = {0, 4};
         Square   blackKingSq     = {7, 4};
         int      phase           = 0;

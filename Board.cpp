@@ -557,7 +557,31 @@ void Board::makeMove(const Move& m, UndoInfo& undo) {
     undo.occupiedBB     = occupiedBB;
     undo.colorBB[0]     = colorBB[0];
     undo.colorBB[1]     = colorBB[1];
-    for (int i = 0; i < 7; i++) undo.pieceBBs[i] = pieceBBs[i];
+    // Partial pieceBBs snapshot: save only the piece types that will change.
+    // Quiet: movingType. Capture: movingType + capturedType. Promo: Pawn + promoType.
+    // Castle: King + Rook. En-passant: Pawn (moving and captured are both Pawn).
+    {
+        int mv   = (int)undo.movedPiece.type;
+        int cap  = (int)undo.capturedPiece.type;
+        int promo= (int)m.promotion;
+        undo.changedMask = 0;
+        int slot = 0;
+        auto saveBB = [&](int pt) {
+            if (pt <= 0 || pt > 6) return;
+            uint8_t bit = (uint8_t)(1 << pt);
+            if (undo.changedMask & bit) return;  // already saved
+            undo.savedBBs[slot++] = pieceBBs[pt];
+            undo.changedMask |= bit;
+        };
+        if (mv >= 1 && mv <= 6)   saveBB(mv);
+        if (cap >= 1 && cap <= 6) saveBB(cap);
+        if (promo >= 1 && promo <= 6) saveBB(promo);
+        // Castling: also save Rook BB
+        bool isCastle = (undo.movedPiece.type == PieceType::King &&
+                         std::abs(m.to.col - m.from.col) == 2);
+        if (isCastle) saveBB((int)PieceType::Rook);
+        // En-passant: captured pawn BB same as moving pawn BB → already covered
+    }
     undo.whiteKingSq   = whiteKingSq;
     undo.blackKingSq   = blackKingSq;
     undo.phase         = phase;
@@ -593,7 +617,15 @@ void Board::unmakeMove(const Move& /*m*/, const UndoInfo& undo) {
     occupiedBB     = undo.occupiedBB;
     colorBB[0]     = undo.colorBB[0];
     colorBB[1]     = undo.colorBB[1];
-    for (int i = 0; i < 7; i++) pieceBBs[i] = undo.pieceBBs[i];
+    // Restore only the pieceBBs that were changed (partial snapshot).
+    {
+        int slot = 0;
+        for (int pt = 1; pt <= 6; pt++) {
+            uint8_t bit = (uint8_t)(1 << pt);
+            if (undo.changedMask & bit)
+                pieceBBs[pt] = undo.savedBBs[slot++];
+        }
+    }
     whiteKingSq    = undo.whiteKingSq;
     blackKingSq    = undo.blackKingSq;
     phase          = undo.phase;
