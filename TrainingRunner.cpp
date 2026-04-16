@@ -159,6 +159,7 @@ struct TrainPoint {
     bool   hasPhase = false;
     double nps    = 0.0;
     bool   hasNps = false;
+    bool   hasLoss = true;
 };
 
 struct AppState {

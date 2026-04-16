@@ -255,6 +255,7 @@ static bool SelfPlay(const Config& cfg, int gen) {
                         npt.train  = 0.0;   // no loss data — NPS-only point
                         npt.nps    = npsVal;
                         npt.hasNps = true;
+                        npt.hasLoss = false;  // NPS-only point — skip in loss panel
                         g_st.pushPt(npt);
                         // Also update curNps for live graph
                         std::lock_guard<std::mutex> lk(g_st.mtx);

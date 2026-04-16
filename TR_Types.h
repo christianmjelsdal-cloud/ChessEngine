@@ -240,6 +240,7 @@ struct TrainPoint {
     bool   hasPhase = false;
     double nps = 0.0;   // nodes per second from self-play (stored per gen, same value for all steps in gen)
     bool   hasNps = false;
+    bool   hasLoss = true;  // false for NPS-only points (train=0, no loss data)
 };
 
 struct GraphPanelBounds {

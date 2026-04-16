@@ -40,7 +40,8 @@ VisualGame::~VisualGame() {
     engine_.stop();
     engine2_.stop();
     analysisEngine_.stop();
-    // Don't join analysisThread_ — it may be detached
+    if (analysisThread_.joinable())
+        analysisThread_.join();
     if (engineThread.joinable())
         engineThread.join();
 }

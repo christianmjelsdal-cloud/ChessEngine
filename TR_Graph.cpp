@@ -148,6 +148,7 @@ static void DrawGraph(HWND hw) {
 
         double minV=1e9, maxV=-1e9;
         for (auto& p2 : pts) {
+            if (!p2.hasLoss) continue;
             minV = (std::min)(minV, p2.train); maxV = (std::max)(maxV, p2.train);
             if (p2.hasVal) { minV = (std::min)(minV, p2.val); maxV = (std::max)(maxV, p2.val); }
         }
@@ -172,12 +173,14 @@ static void DrawGraph(HWND hw) {
         int bestTrainIdx=-1, bestValIdx=-1;
         double bestTrain=1e9, bestVal=1e9;
         for (size_t i=0; i<pts.size(); i++) {
+            if (!pts[i].hasLoss) continue;
             if (pts[i].train < bestTrain) { bestTrain=pts[i].train; bestTrainIdx=(int)i; }
             if (pts[i].hasVal && pts[i].val < bestVal) { bestVal=pts[i].val; bestValIdx=(int)i; }
         }
 
         Pen trainPen(Color(255,65,125,245), 1.8f);
         for (size_t i=1; i<pts.size(); i++)
+            if (!pts[i].hasLoss || !pts[i-1].hasLoss) continue;
             g.DrawLine(&trainPen, xfLeft((int)i-1), yf(pts[i-1].train), xfLeft((int)i), yf(pts[i].train));
 
         Pen valPen(Color(255,245,160,60), 1.8f);
@@ -700,6 +703,7 @@ void SaveGraphPng(const std::string& dataDir) {
 
         double minV=1e9, maxV=-1e9;
         for (auto& p2 : pts) {
+            if (!p2.hasLoss) continue;
             minV = (std::min)(minV, p2.train); maxV = (std::max)(maxV, p2.train);
             if (p2.hasVal) { minV = (std::min)(minV, p2.val); maxV = (std::max)(maxV, p2.val); }
         }
@@ -723,12 +727,14 @@ void SaveGraphPng(const std::string& dataDir) {
         int bestTrainIdx=-1, bestValIdx=-1;
         double bestTrain=1e9, bestVal=1e9;
         for (size_t i=0; i<pts.size(); i++) {
+            if (!pts[i].hasLoss) continue;
             if (pts[i].train < bestTrain) { bestTrain=pts[i].train; bestTrainIdx=(int)i; }
             if (pts[i].hasVal && pts[i].val < bestVal) { bestVal=pts[i].val; bestValIdx=(int)i; }
         }
 
         Pen trainPen(Color(255,65,125,245), 1.8f);
         for (size_t i=1; i<pts.size(); i++)
+            if (!pts[i].hasLoss || !pts[i-1].hasLoss) continue;
             g.DrawLine(&trainPen, xfLeft((int)i-1), yf(pts[i-1].train), xfLeft((int)i), yf(pts[i].train));
 
         Pen valPen(Color(255,245,160,60), 1.8f);
