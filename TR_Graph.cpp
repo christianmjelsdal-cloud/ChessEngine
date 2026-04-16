@@ -391,17 +391,50 @@ static void DrawGraph(HWND hw) {
             // Build a (gen, step) -> x position map using training points (hasLoss=true).
             // NPS points have the same step numbers as training epochs, so we can
             // align them on the x-axis by matching step within each gen.
+            // For live NPS (no training points yet), distribute evenly across the gen's x range.
             std::map<std::pair<int,int>, float> stepToX;
             for (size_t i = 0; i < pts.size(); i++) {
                 if (pts[i].hasLoss && pts[i].step > 0)
                     stepToX[{pts[i].gen, pts[i].step}] = xfLeft((int)i);
             }
-            // For NPS points, find x by matching (gen, step) to training points.
-            // If no match, fall back to array index.
+
+            // For each gen that has NPS but no training points, compute a linear spread.
+            std::map<int, std::pair<float,float>> genXRange;  // gen -> (xStart, xEnd)
+            {
+                std::map<int, std::pair<int,int>> genIdxRange;  // gen -> (firstIdx, lastIdx)
+                for (size_t i = 0; i < pts.size(); i++) {
+                    int g = pts[i].gen;
+                    if (genIdxRange.find(g) == genIdxRange.end())
+                        genIdxRange[g] = {(int)i, (int)i};
+                    else
+                        genIdxRange[g].second = (int)i;
+                }
+                for (auto& kv : genIdxRange)
+                    genXRange[kv.first] = {xfLeft(kv.second.first), xfLeft(kv.second.second)};
+            }
+
             auto npsX = [&](size_t i) -> float {
                 const auto& p = pts[i];
+                // Try exact step match first
                 auto it = stepToX.find({p.gen, p.step});
                 if (it != stepToX.end()) return it->second;
+                // Fall back: spread NPS points linearly across the gen's x range
+                auto rng = genXRange.find(p.gen);
+                if (rng != genXRange.end()) {
+                    // Count NPS points for this gen to determine position
+                    int npsCount = 0, npsIdx = 0;
+                    for (size_t j = 0; j < pts.size(); j++) {
+                        if (pts[j].gen == p.gen && pts[j].hasNps) {
+                            if (j == i) npsIdx = npsCount;
+                            npsCount++;
+                        }
+                    }
+                    if (npsCount > 1) {
+                        float xStart = rng->second.first, xEnd = rng->second.second;
+                        return xStart + (xEnd - xStart) * npsIdx / (npsCount - 1);
+                    }
+                    return (rng->second.first + rng->second.second) * 0.5f;
+                }
                 return xfLeft((int)i);
             };
 

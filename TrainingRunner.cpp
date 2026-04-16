@@ -1170,6 +1170,25 @@ static bool SelfPlay(const Config& cfg, int gen) {
     { std::lock_guard<std::mutex> lk(g_st.mtx); g_st.curEpoch=0; g_st.totalEpochs=cfg.gamesPerGen; }
     int lastLoggedPct = -1;  // track last logged progress percentage
     bool spOk = RunProc(cmd, d, [&](const std::string& ln){
+        // NPS_SAMPLE lines are internal data for the graph — don't show in output window
+        if (ln.find("NPS_SAMPLE") != std::string::npos) {
+            // Parse and store, but skip pushLog
+            auto stepPos = ln.find("step=");
+            auto npsPos3 = ln.find("nps=");
+            if (stepPos != std::string::npos && npsPos3 != std::string::npos) {
+                try {
+                    int step = std::stoi(ln.substr(stepPos + 5));
+                    double npsVal = std::stod(ln.substr(npsPos3 + 4));
+                    if (npsVal > 0.0 && step > 0) {
+                        TrainPoint npt; npt.gen = gen; npt.step = step;
+                        npt.nps = npsVal; npt.hasNps = true; npt.hasLoss = false;
+                        g_st.pushPt(npt);
+                        std::lock_guard<std::mutex> lk(g_st.mtx); g_st.curNps = npsVal;
+                    }
+                } catch (...) {}
+            }
+            return;  // don't push to output window
+        }
         g_st.pushLog(ln);
         // Always log errors, tracebacks, important lines
         if (ln.find("[ERR]")     != std::string::npos || ln.find("[STOP]")    != std::string::npos ||
@@ -2213,14 +2232,41 @@ static void DrawGraph(HWND hw) {
             }
 
             // Build (gen, step) -> x map from training points for aligned NPS positioning.
+            // For live NPS (no training points yet), distribute evenly across the gen's x range.
             std::map<std::pair<int,int>, float> stepToX;
             for (size_t i = 0; i < pts.size(); i++) {
                 if (pts[i].hasLoss && pts[i].step > 0)
                     stepToX[{pts[i].gen, pts[i].step}] = xf((int)i);
             }
+            std::map<int, std::pair<float,float>> genXRange;
+            {
+                std::map<int, std::pair<int,int>> genIdxRange;
+                for (size_t i = 0; i < pts.size(); i++) {
+                    int g = pts[i].gen;
+                    if (genIdxRange.find(g) == genIdxRange.end()) genIdxRange[g] = {(int)i, (int)i};
+                    else genIdxRange[g].second = (int)i;
+                }
+                for (auto& kv : genIdxRange) genXRange[kv.first] = {xf(kv.second.first), xf(kv.second.second)};
+            }
             auto npsX = [&](size_t i) -> float {
                 auto it = stepToX.find({pts[i].gen, pts[i].step});
-                return (it != stepToX.end()) ? it->second : xf((int)i);
+                if (it != stepToX.end()) return it->second;
+                auto rng = genXRange.find(pts[i].gen);
+                if (rng != genXRange.end()) {
+                    int npsCount = 0, npsIdx = 0;
+                    for (size_t j = 0; j < pts.size(); j++) {
+                        if (pts[j].gen == pts[i].gen && pts[j].hasNps) {
+                            if (j == i) npsIdx = npsCount;
+                            npsCount++;
+                        }
+                    }
+                    if (npsCount > 1) {
+                        float xStart = rng->second.first, xEnd = rng->second.second;
+                        return xStart + (xEnd - xStart) * npsIdx / (npsCount - 1);
+                    }
+                    return (rng->second.first + rng->second.second) * 0.5f;
+                }
+                return xf((int)i);
             };
 
             // Continuous line through NPS sample points (one per epoch slot).
