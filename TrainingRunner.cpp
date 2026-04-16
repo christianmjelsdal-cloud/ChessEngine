@@ -192,41 +192,21 @@ struct AppState {
     static const size_t MAX_LOG = 800;
 
     void pushLog(const std::string& s) {
+        if (s.empty()) return;
         std::lock_guard<std::mutex> lk(mtx);
 
-        // Overwrite-if-similar: if the new line has the same "type prefix" as
-        // the last line, replace it (running update) instead of appending.
-        // Similarity = both lines share the same leading tag token AND both
-        // look like dynamic progress lines (contain digits after the tag).
-        auto lineTag = [](const std::string& ln) -> std::string {
-            // Extract the first whitespace-delimited token, e.g. "[SelfPlay]", "Epoch", "[Train]"
-            size_t start = 0;
-            // skip leading \r
-            while (start < ln.size() && ln[start] == '\r') start++;
-            size_t end = ln.find_first_of(" \t", start);
-            if (end == std::string::npos) end = ln.size();
-            return ln.substr(start, end - start);
-        };
-        auto isDynamic = [](const std::string& ln) -> bool {
-            // A "dynamic" line contains digits and at least one / or % — typical of progress lines
-            bool hasDigit = false, hasSlashOrPct = false;
-            for (char c : ln) {
-                if (std::isdigit((unsigned char)c)) hasDigit = true;
-                if (c == '/' || c == '%') hasSlashOrPct = true;
-            }
-            return hasDigit && hasSlashOrPct;
-        };
-
-        bool replaced = false;
-        if (!log.empty() && isDynamic(s)) {
-            const std::string& last = log.back();
-            if (isDynamic(last) && lineTag(s) == lineTag(last)) {
-                log.back() = s;
+        // \r prefix = overwrite last line (running progress update)
+        // No \r prefix = append as new line (distinct event)
+        if (s[0] == '\r') {
+            std::string clean = s.substr(1);
+            if (!log.empty()) {
+                log.back() = clean;
                 logLastReplaced = true;
-                replaced = true;
+            } else {
+                log.push_back(clean);
+                logLastReplaced = false;
             }
-        }
-        if (!replaced) {
+        } else {
             log.push_back(s);
             if (log.size() > MAX_LOG) log.pop_front();
             logLastReplaced = false;
@@ -1010,10 +990,15 @@ static bool RunProc(const std::wstring& cmd, const std::string& dir,
             buf = buf.substr(p+1);
             // Strip trailing \r (CRLF line ending)
             if (!ln.empty() && ln.back()=='\r') ln.pop_back();
-            // Handle interior \r (progress overwrite): keep text after last \r
-            auto cr = ln.rfind('\r');
-            if (cr != std::string::npos) ln = ln.substr(cr+1);
-            if (!ln.empty()) cb(ln);
+            // Handle interior \r (progress overwrite): keep text after last \r,
+            // but preserve a leading \r so pushLog knows to overwrite the last line.
+            {
+                auto cr = ln.rfind('\r');
+                if (cr != std::string::npos) {
+                    ln = "\r" + ln.substr(cr + 1);  // re-add leading \r as overwrite signal
+                }
+            }
+            if (!ln.empty() && ln != "\r") cb(ln);
         }
         if (stop.load()) {
             GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pi.dwProcessId);
@@ -1031,8 +1016,8 @@ static bool RunProc(const std::wstring& cmd, const std::string& dir,
     if (!buf.empty()) {
         if (buf.back()=='\r') buf.pop_back();
         auto cr = buf.rfind('\r');
-        if (cr != std::string::npos) buf = buf.substr(cr+1);
-        if (!buf.empty()) cb(buf);
+        if (cr != std::string::npos) buf = "\r" + buf.substr(cr + 1);
+        if (!buf.empty() && buf != "\r") cb(buf);
     }
     WaitForSingleObject(pi.hProcess, INFINITE);
     DWORD ex=1; GetExitCodeProcess(pi.hProcess, &ex);
