@@ -732,6 +732,10 @@ int Engine::scoreMove(const Move& m, const Board& board,
         return 10000000;
 
     if (isCapture(board, m)) {
+        // Duck chess: SEE is expensive and less meaningful (no check concept).
+        // Use MVV-LVA directly — same ordering quality, much cheaper.
+        if (board.isDuckChess)
+            return 5000000 + mvvLva(board, m);
         int seeVal = see(board, m);
         if (seeVal >= 0)
             return 5000000 + seeVal;
