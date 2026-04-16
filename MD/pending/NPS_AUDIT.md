@@ -193,9 +193,9 @@ Requires auditing all arithmetic on rank/col to ensure no overflow with int8_t.
 | INT8 L2/L3 in forwardQ — fix #6 | Low | ~2-3x eval | ✅ Done |
 | Partial sort for duck placements — fix #7 | Low | ~3-5% | ✅ Done |
 | Null duck move pruning — fix #8a | Medium | ~10-20% nodes | ✅ Done |
-| Pack `TTEntry.best` to uint16_t — new #1 | Medium | ~15-25% | Pending |
-| Delete dead `UndoInfo` from Types.h — new #2 | Trivial | cleanup | Pending |
-| Snapshot only changed `pieceBBs` — new #3 | Medium | ~3-5% | Pending |
-| Reduce `contHist_` dimensions — new #6 | Low | ~2-5% | Pending |
+| Pack `TTEntry.best` to uint16_t — new #1 | Medium | ~15-25% | ✅ Done |
+| Delete dead `UndoInfo` from Types.h — new #2 | Trivial | cleanup | ✅ Done |
+| Snapshot only changed `pieceBBs` — new #3 | Medium | ~3-5% | ✅ Done |
+| Reduce `contHist_` dimensions — new #6 | Low | ~2-5% | ✅ Done |
 | Reduce `Square` to int8_t — new #10 | Medium/High | ~10-20% | Pending |
 | Duck placement TT — fix #8c | Medium | unknown | Pending |
