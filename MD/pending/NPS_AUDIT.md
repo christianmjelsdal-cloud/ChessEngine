@@ -198,4 +198,4 @@ Requires auditing all arithmetic on rank/col to ensure no overflow with int8_t.
 | Snapshot only changed `pieceBBs` — new #3 | Medium | ~3-5% | ✅ Done |
 | Reduce `contHist_` dimensions — new #6 | Low | ~2-5% | ✅ Done |
 | Reduce `Square` to int8_t — new #10 | Medium/High | ~10-20% | Pending |
-| Duck placement TT — fix #8c | Medium | unknown | Pending |
+| Duck placement TT — fix #8c | Medium | unknown | ✅ Done |
