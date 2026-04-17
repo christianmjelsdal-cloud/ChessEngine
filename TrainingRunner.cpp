@@ -1614,8 +1614,9 @@ static bool Training(const Config& cfg, int gen) {
                     }
                 } catch (...) {}
             }
-            // Epoch line: "Epoch N/M" — update curEpoch immediately (not waiting for loss parse)
-            // and reset curBatch so banner shows "Batch 0/total" at the start of each epoch
+            // Epoch line: "Epoch N/M" — update curEpoch immediately.
+            // Reset curBatch only when triggered by a batch line (epoch changed mid-epoch),
+            // NOT when triggered by the epoch summary line (which fires at epoch end).
             auto epos = ln.find("Epoch ");
             if (epos != std::string::npos) {
                 try {
@@ -1625,8 +1626,12 @@ static bool Training(const Config& cfg, int gen) {
                         int en = std::stoi(ln.substr(numStart, slashPos - numStart));
                         if (en > 0) {
                             std::lock_guard<std::mutex> lk(g_st.mtx);
-                            // Only reset batch counter when epoch number changes
-                            if (en != g_st.curEpoch) {
+                            // Reset batch counter only when epoch changes AND this is a
+                            // batch-level line (contains "batch "), not an epoch summary.
+                            // Epoch summary fires at epoch END — curBatch should show 555/555,
+                            // not reset to 0 until the first batch of the next epoch arrives.
+                            bool isBatchLine = (bpos != std::string::npos);
+                            if (en != g_st.curEpoch && isBatchLine) {
                                 g_st.curBatch = 0;
                             }
                             g_st.curEpoch = en;
