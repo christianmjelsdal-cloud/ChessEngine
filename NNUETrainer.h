@@ -97,6 +97,10 @@ namespace NNUE {
         // Mirror positions horizontally to double training data
         static std::vector<TrainingPosition> mirrorData(const std::vector<TrainingPosition>& data);
 
+        // Color-swap vertical mirror for duck chess: flips board vertically and swaps
+        // piece colors, balancing white/black perspective in training data.
+        static std::vector<TrainingPosition> colorSwapMirrorData(const std::vector<TrainingPosition>& data);
+
         // Game phase classification from active features
         // Uses material-based phase: Knight/Bishop=1, Rook=2, Queen=4 (max 24)
         enum class GamePhase { Opening, Middlegame, Endgame };

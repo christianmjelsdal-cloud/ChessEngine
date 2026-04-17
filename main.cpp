@@ -451,6 +451,12 @@ int main(int argc, char* argv[]) {
         }
         std::cerr << "[TrainDuck] Total positions: " << allData.size() << "\n";
 
+        // Color-swap mirror: double the dataset by adding a vertically-mirrored
+        // copy of every position with colors swapped. Balances white/black
+        // perspective coverage regardless of W/D/B ratio in self-play.
+        allData = NNUE::Trainer::colorSwapMirrorData(allData);
+        std::cerr << "[TrainDuck] After color-swap mirror: " << allData.size() << " positions\n";
+
         // Load or create DuckNNUE network
         auto net = std::make_unique<DuckNNUE::Network>();
         const char* loadWeights = flagValue(argc, argv, "--load-weights");

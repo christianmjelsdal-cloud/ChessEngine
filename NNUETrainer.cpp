@@ -291,6 +291,47 @@ namespace NNUE {
             return DuckNNUE::DUCK_FEATURE_OFFSET + rank * 8 + mirroredCol;
         }
 
+        // Color-swap vertical mirror for duck chess training data.
+        // Flips the board vertically (rank 0 ↔ rank 7) and swaps piece colors,
+        // producing a position where the original black side now moves first.
+        // This doubles the dataset and balances white/black perspective coverage.
+        //
+        // Feature encoding (768): pieceIndex * 64 + rank * 8 + col
+        //   White pieces: pieceIndex 0-5  (Pawn=0, Knight=1, Bishop=2, Rook=3, Queen=4, King=5)
+        //   Black pieces: pieceIndex 6-11
+        // Duck features (768-831): DUCK_FEATURE_OFFSET + rank * 8 + col
+        //
+        // Transform: rank → (7-rank), pieceIndex → (pieceIndex XOR 6), duck rank → (7-rank)
+        // Also: sideToMove flipped, searchEval negated, gameResult flipped (1↔0, 0.5 stays)
+        TrainingPosition colorSwapMirror(const TrainingPosition& pos) {
+            TrainingPosition mp;
+            mp.activeFeatures.reserve(pos.activeFeatures.size());
+            for (int feat : pos.activeFeatures) {
+                if (feat < DuckNNUE::DUCK_FEATURE_OFFSET) {
+                    // Standard piece feature: flip rank, swap color
+                    int pieceIdx  = feat / 64;
+                    int squareIdx = feat % 64;
+                    int rank2     = squareIdx / 8;
+                    int col2      = squareIdx % 8;
+                    int newPiece  = pieceIdx ^ 6;          // swap White↔Black (0-5 ↔ 6-11)
+                    int newRank   = 7 - rank2;             // flip rank
+                    mp.activeFeatures.push_back(newPiece * 64 + newRank * 8 + col2);
+                } else {
+                    // Duck feature: flip rank only (duck has no color)
+                    int sq      = feat - DuckNNUE::DUCK_FEATURE_OFFSET;
+                    int rank2   = sq / 8;
+                    int col2    = sq % 8;
+                    int newRank = 7 - rank2;
+                    mp.activeFeatures.push_back(DuckNNUE::DUCK_FEATURE_OFFSET + newRank * 8 + col2);
+                }
+            }
+            mp.sideToMove = (pos.sideToMove == Color::White) ? Color::Black : Color::White;
+            mp.searchEval = -pos.searchEval;   // negate: was white POV, now black POV
+            // Flip game result: white win (1.0) → black win (0.0), draw (0.5) stays
+            mp.gameResult = 1.0f - pos.gameResult;
+            return mp;
+        }
+
         // Count total pieces on board
         int countBoardPieces(const Board& board) {
             int count = 0;
@@ -733,6 +774,22 @@ namespace NNUE {
         }
 
         return mirrored;
+    }
+
+    // -------------------------------------------------------------------------
+    // colorSwapMirrorData: vertical mirror + color swap for duck chess
+    // Doubles the dataset and balances white/black perspective coverage.
+    // -------------------------------------------------------------------------
+    std::vector<TrainingPosition> Trainer::colorSwapMirrorData(
+        const std::vector<TrainingPosition>& data)
+    {
+        std::vector<TrainingPosition> result;
+        result.reserve(data.size() * 2);
+        result.insert(result.end(), data.begin(), data.end());
+        for (const auto& pos : data) {
+            result.push_back(colorSwapMirror(pos));
+        }
+        return result;
     }
 
     // -------------------------------------------------------------------------

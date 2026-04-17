@@ -308,6 +308,16 @@ SelfPlayGen::GameOutcome SelfPlayGen::playGame(
         board.setStartingPosition();
     }
 
+    // Color alternation: odd-seeded games start with Black to move.
+    // This balances W/D/B rates across the dataset — white's first-move
+    // advantage is cancelled out over the full game pool.
+    // Only applies when starting from the standard position (not opening book,
+    // which already provides diverse starting colors via FEN).
+    if (openings.empty() && (gameSeed % 2 == 1)) {
+        board.turn = Color::Black;
+        board.hash = Engine::computeHash(board);
+    }
+
     // Initialize Zobrist hash — applyMove now maintains it incrementally
     board.hash = Engine::computeHash(board);
 
