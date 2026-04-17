@@ -14,7 +14,9 @@ int Engine::drawScore() const {
     // biased (white-favoring early in training), which would make both sides
     // avoid draws asymmetrically and amplify the white-win bias in self-play.
     if (duckNnue_) return 0;
-    int bias = -rootEval_ / 4;
+    // Dynamic contempt: avoid draws when winning, seek draws when losing.
+    // Also add the fixed contempt_ offset set via setContempt().
+    int bias = (-rootEval_ / 4) + contempt_;
     return std::max(-50, std::min(50, bias));
 }
 
