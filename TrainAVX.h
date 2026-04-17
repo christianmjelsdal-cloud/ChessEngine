@@ -253,3 +253,122 @@ inline void avx_matvec_T_add(float* __restrict out,         // [ROWS]
 }
 
 } // namespace TrainAVX
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Post-batch serial operations — AVX2 vectorized
+// These run on the main thread between batch dispatches.
+// ─────────────────────────────────────────────────────────────────────────────
+namespace TrainAVX {
+
+// avx_reduce_add: dst[i] += src[i]  for N floats  (gradient reduction, one thread at a time)
+inline void avx_reduce_add(float* __restrict dst, const float* __restrict src, int N) {
+#if TRAIN_HAS_AVX2
+    int i = 0;
+    for (; i <= N - 8; i += 8) {
+        __m256 d = _mm256_loadu_ps(dst + i);
+        __m256 s = _mm256_loadu_ps(src + i);
+        _mm256_storeu_ps(dst + i, _mm256_add_ps(d, s));
+    }
+    for (; i < N; ++i) dst[i] += src[i];
+#else
+    for (int i = 0; i < N; ++i) dst[i] += src[i];
+#endif
+}
+
+// avx_scale: dst[i] *= scale  for N floats  (gradient normalization)
+inline void avx_scale(float* __restrict dst, float scale, int N) {
+#if TRAIN_HAS_AVX2
+    __m256 vs = _mm256_set1_ps(scale);
+    int i = 0;
+    for (; i <= N - 8; i += 8) {
+        __m256 d = _mm256_loadu_ps(dst + i);
+        _mm256_storeu_ps(dst + i, _mm256_mul_ps(d, vs));
+    }
+    for (; i < N; ++i) dst[i] *= scale;
+#else
+    for (int i = 0; i < N; ++i) dst[i] *= scale;
+#endif
+}
+
+// avx_fill_zero: zero N floats  (gradient buffer reset after Adam step)
+inline void avx_fill_zero(float* __restrict dst, int N) {
+#if TRAIN_HAS_AVX2
+    __m256 z = _mm256_setzero_ps();
+    int i = 0;
+    for (; i <= N - 8; i += 8) _mm256_storeu_ps(dst + i, z);
+    for (; i < N; ++i) dst[i] = 0.f;
+#else
+    std::memset(dst, 0, N * sizeof(float));
+#endif
+}
+
+// avx_adam_update: AdamW update for N parameters.
+// params[i] -= lr * (m_hat / (sqrt(v_hat) + eps)) + lr * wd * params[i]
+// m[i] = b1*m[i] + (1-b1)*g[i]
+// v[i] = b2*v[i] + (1-b2)*g[i]^2
+inline void avx_adam_update(float* __restrict params,
+                             float* __restrict grads,
+                             float* __restrict m,
+                             float* __restrict v,
+                             int N,
+                             float lr, float b1, float b2,
+                             float bc1_inv, float bc2_inv,  // 1/(1-b1^t), 1/(1-b2^t)
+                             float eps, float wd) {
+#if TRAIN_HAS_AVX2
+    const __m256 vb1     = _mm256_set1_ps(b1);
+    const __m256 vb2     = _mm256_set1_ps(b2);
+    const __m256 v1mb1   = _mm256_set1_ps(1.f - b1);
+    const __m256 v1mb2   = _mm256_set1_ps(1.f - b2);
+    const __m256 vbc1inv = _mm256_set1_ps(bc1_inv);
+    const __m256 vbc2inv = _mm256_set1_ps(bc2_inv);
+    const __m256 veps    = _mm256_set1_ps(eps);
+    const __m256 vlr     = _mm256_set1_ps(lr);
+    const __m256 vwd     = _mm256_set1_ps(lr * wd);
+    int i = 0;
+    for (; i <= N - 8; i += 8) {
+        __m256 g  = _mm256_loadu_ps(grads  + i);
+        __m256 mi = _mm256_loadu_ps(m      + i);
+        __m256 vi = _mm256_loadu_ps(v      + i);
+        __m256 p  = _mm256_loadu_ps(params + i);
+
+        // m = b1*m + (1-b1)*g
+        mi = _mm256_fmadd_ps(vb1, mi, _mm256_mul_ps(v1mb1, g));
+        // v = b2*v + (1-b2)*g^2
+        vi = _mm256_fmadd_ps(vb2, vi, _mm256_mul_ps(v1mb2, _mm256_mul_ps(g, g)));
+
+        _mm256_storeu_ps(m + i, mi);
+        _mm256_storeu_ps(v + i, vi);
+
+        // mHat = m / bc1,  vHat = v / bc2
+        __m256 mHat = _mm256_mul_ps(mi, vbc1inv);
+        __m256 vHat = _mm256_mul_ps(vi, vbc2inv);
+
+        // step = lr * mHat / (sqrt(vHat) + eps)
+        __m256 denom = _mm256_add_ps(_mm256_sqrt_ps(vHat), veps);
+        __m256 step  = _mm256_div_ps(_mm256_mul_ps(vlr, mHat), denom);
+
+        // AdamW decay: p -= step + lr*wd*p
+        p = _mm256_sub_ps(p, _mm256_fmadd_ps(vwd, p, step));
+        _mm256_storeu_ps(params + i, p);
+    }
+    // scalar tail
+    for (; i < N; ++i) {
+        m[i] = b1 * m[i] + (1.f - b1) * grads[i];
+        v[i] = b2 * v[i] + (1.f - b2) * grads[i] * grads[i];
+        float mHat = m[i] * bc1_inv;
+        float vHat = v[i] * bc2_inv;
+        params[i] -= lr * mHat / (std::sqrt(vHat) + eps) + lr * wd * params[i];
+    }
+#else
+    constexpr float epsilon = 1e-8f;
+    for (int i = 0; i < N; ++i) {
+        m[i] = b1 * m[i] + (1.f - b1) * grads[i];
+        v[i] = b2 * v[i] + (1.f - b2) * grads[i] * grads[i];
+        float mHat = m[i] * bc1_inv;
+        float vHat = v[i] * bc2_inv;
+        params[i] -= lr * mHat / (std::sqrt(vHat) + epsilon) + lr * wd * params[i];
+    }
+#endif
+}
+
+} // namespace TrainAVX  (second block — same namespace, appended)

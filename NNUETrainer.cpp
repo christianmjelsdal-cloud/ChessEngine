@@ -1219,47 +1219,45 @@ namespace NNUE {
 
         auto packWeights = [&](std::vector<float>& params) {
             params.resize(totalParams);
-            int idx = 0;
-            for (int f = 0; f < DNUM; ++f)
-                for (int j = 0; j < L1_SIZE; ++j)
-                    params[idx++] = net.L1_weights[f][j];
-            for (int j = 0; j < L1_SIZE; ++j)
-                params[idx++] = net.L1_biases[j];
-            for (int i = 0; i < L1_SIZE * 2; ++i)
-                for (int j = 0; j < L2_SIZE; ++j)
-                    params[idx++] = net.L2_weights[i][j];
-            for (int j = 0; j < L2_SIZE; ++j)
-                params[idx++] = net.L2_biases[j];
-            for (int i = 0; i < L2_SIZE; ++i)
-                for (int j = 0; j < L3_SIZE; ++j)
-                    params[idx++] = net.L3_weights[i][j];
-            for (int j = 0; j < L3_SIZE; ++j)
-                params[idx++] = net.L3_biases[j];
-            for (int i = 0; i < L3_SIZE; ++i)
-                params[idx++] = net.output_weights[i];
-            params[idx++] = net.output_bias;
+            float* dst = params.data();
+            std::memcpy(dst, net.L1_weights.data(), DNUM * L1_SIZE * sizeof(float));
+            dst += DNUM * L1_SIZE;
+            std::memcpy(dst, net.L1_biases.data(), L1_SIZE * sizeof(float));
+            dst += L1_SIZE;
+            std::memcpy(dst, net.L2_weights.data(), L1_SIZE * 2 * L2_SIZE * sizeof(float));
+            dst += L1_SIZE * 2 * L2_SIZE;
+            std::memcpy(dst, net.L2_biases.data(), L2_SIZE * sizeof(float));
+            dst += L2_SIZE;
+            std::memcpy(dst, net.L3_weights.data(), L2_SIZE * L3_SIZE * sizeof(float));
+            dst += L2_SIZE * L3_SIZE;
+            std::memcpy(dst, net.L3_biases.data(), L3_SIZE * sizeof(float));
+            dst += L3_SIZE;
+            std::memcpy(dst, net.output_weights.data(), L3_SIZE * sizeof(float));
+            dst += L3_SIZE;
+            *dst = net.output_bias;
         };
 
         auto unpackWeights = [&](const std::vector<float>& params) {
-            int idx = 0;
-            for (int f = 0; f < DNUM; ++f)
-                for (int j = 0; j < L1_SIZE; ++j)
-                    net.L1_weights[f][j] = params[idx++];
-            for (int j = 0; j < L1_SIZE; ++j)
-                net.L1_biases[j] = params[idx++];
-            for (int i = 0; i < L1_SIZE * 2; ++i)
-                for (int j = 0; j < L2_SIZE; ++j)
-                    net.L2_weights[i][j] = params[idx++];
-            for (int j = 0; j < L2_SIZE; ++j)
-                net.L2_biases[j] = params[idx++];
-            for (int i = 0; i < L2_SIZE; ++i)
-                for (int j = 0; j < L3_SIZE; ++j)
-                    net.L3_weights[i][j] = params[idx++];
-            for (int j = 0; j < L3_SIZE; ++j)
-                net.L3_biases[j] = params[idx++];
-            for (int i = 0; i < L3_SIZE; ++i)
-                net.output_weights[i] = params[idx++];
-            net.output_bias = params[idx++];
+            // Use memcpy for contiguous array blocks — ~8x faster than element loops
+            const float* src = params.data();
+            // L1 weights: DNUM * L1_SIZE floats (contiguous: array<array<float,512>,832>)
+            std::memcpy(net.L1_weights.data(), src, DNUM * L1_SIZE * sizeof(float));
+            src += DNUM * L1_SIZE;
+            std::memcpy(net.L1_biases.data(), src, L1_SIZE * sizeof(float));
+            src += L1_SIZE;
+            // L2 weights: (L1_SIZE*2) * L2_SIZE floats
+            std::memcpy(net.L2_weights.data(), src, L1_SIZE * 2 * L2_SIZE * sizeof(float));
+            src += L1_SIZE * 2 * L2_SIZE;
+            std::memcpy(net.L2_biases.data(), src, L2_SIZE * sizeof(float));
+            src += L2_SIZE;
+            // L3 weights: L2_SIZE * L3_SIZE floats
+            std::memcpy(net.L3_weights.data(), src, L2_SIZE * L3_SIZE * sizeof(float));
+            src += L2_SIZE * L3_SIZE;
+            std::memcpy(net.L3_biases.data(), src, L3_SIZE * sizeof(float));
+            src += L3_SIZE;
+            std::memcpy(net.output_weights.data(), src, L3_SIZE * sizeof(float));
+            src += L3_SIZE;
+            net.output_bias = *src;
             // Keep transposed weight caches in sync — used by AVX2 forward pass
             net.transposeWeights();
         };
@@ -1560,20 +1558,16 @@ namespace NNUE {
                 dispatchBatch(batchStart, batchEnd);
                 int numChunks = poolNumChunks;  // set by dispatchBatch
 
-                // Sum gradients and loss across threads into thread 0's buffer (reuse as accumulator)
+                // Gradient reduction: sum all thread buffers into thread 0 using AVX2
                 float batchLoss = 0.0f;
                 for (int t = 0; t < numChunks; ++t) {
                     batchLoss += threadLoss[t];
-                    if (t > 0) {
-                        for (int i = 0; i < totalParams; ++i)
-                            threadGrads[0][i] += threadGrads[t][i];
-                    }
+                    if (t > 0)
+                        TrainAVX::avx_reduce_add(threadGrads[0].data(), threadGrads[t].data(), totalParams);
                 }
                 std::vector<float>& grads = threadGrads[0];
 
-                float invBatch = 1.0f / static_cast<float>(batchActualSize);
-                for (int i = 0; i < totalParams; ++i)
-                    grads[i] *= invBatch;
+                TrainAVX::avx_scale(grads.data(), 1.0f / static_cast<float>(batchActualSize), totalParams);
 
                 epochLoss += batchLoss / static_cast<float>(batchActualSize);
                 ++numBatches;
@@ -1587,9 +1581,19 @@ namespace NNUE {
                     if (config.warmupSteps > 0 && totalBatchesSoFar <= config.warmupSteps)
                         effectiveLr = lr * float(totalBatchesSoFar) / float(config.warmupSteps);
 
-                    adamUpdate(params, grads, adamState, effectiveLr, 0.9f, 0.999f,
-                               config.weightDecay);
-                    std::fill(grads.begin(), grads.end(), 0.0f);
+                    // AVX2 Adam update — replaces scalar adamUpdate() call
+                    adamState.t++;
+                    float bc1 = 1.0f - std::pow(0.9f,   static_cast<float>(adamState.t));
+                    float bc2 = 1.0f - std::pow(0.999f, static_cast<float>(adamState.t));
+                    TrainAVX::avx_adam_update(
+                        params.data(), grads.data(),
+                        adamState.m.data(), adamState.v.data(),
+                        totalParams,
+                        effectiveLr, 0.9f, 0.999f,
+                        1.0f / bc1, 1.0f / bc2,
+                        1e-8f, config.weightDecay);
+
+                    TrainAVX::avx_fill_zero(grads.data(), totalParams);
                     // Unpack updated weights into net struct — only after an actual Adam step
                     unpackWeights(params);
                 }
