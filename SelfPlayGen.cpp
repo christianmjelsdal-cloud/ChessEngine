@@ -752,15 +752,8 @@ int SelfPlayGen::generate(const Config& cfg) {
     double pauseAdjustSec  = 0.0;   // accumulated dead time from OS thread suspension (pause/resume)
     static constexpr double EWMA_ALPHA = 0.15; // smoothing factor (lower = more stable ETA)
 
-    // -- Countdown display state (protected by printMtx) -------------------------
-    // The countdown thread reads these to reprint the status line every second.
-    std::atomic<bool> countdownStop{false};
-    std::chrono::steady_clock::time_point etaTarget{};   // predicted completion time
-    // Thread safety: lastStatusPrefix and lastEwmaGpsForDisplay are protected by printMtx.
-    // Do NOT read these without holding the lock.
-    char   lastStatusPrefix[256] = {};  // status line before the ETA portion
-    double lastEwmaGpsForDisplay = 0.0; // ewmaGps at last progress report
-    std::atomic<bool> countdownReady{false}; // FIX M-8: atomic to prevent data race with countdown thread
+    // Status prefix buffer (protected by printMtx) — used to build the progress line.
+    char   lastStatusPrefix[256] = {};
 
     // Capture openings by const-ref for threads
     const auto& openings = m_openings;
@@ -991,12 +984,7 @@ int SelfPlayGen::generate(const Config& cfg) {
                     (wallElapsed > 0.1 ? totalPos / wallElapsed : 0.0),
                     ww, dr, bw, winPct, drawPct, lossPct, depthBuf, ewmaGps, rawGps, npsBuf);
 
-                // Set the countdown target time
-                etaTarget = std::chrono::steady_clock::now() + std::chrono::seconds(etaSec);
-                lastEwmaGpsForDisplay = ewmaGps;
-                countdownReady = true;
-
-                // Print the line immediately too
+                // Print the progress line with ETA
                 int    etaH = etaSec / 3600;
                 int    etaM = (etaSec % 3600) / 60;
                 int    etaS = etaSec % 60;
@@ -1028,46 +1016,6 @@ int SelfPlayGen::generate(const Config& cfg) {
             }
         }
     };
-    // -- Countdown thread (ticks every second to update ETA display) ----------
-    auto countdownFn = [&]() {
-        auto nextTick = std::chrono::steady_clock::now() + std::chrono::seconds(1);
-        while (!countdownStop.load(std::memory_order_relaxed)) {
-            std::this_thread::sleep_until(nextTick);
-            nextTick += std::chrono::seconds(1);
-            if (countdownStop.load(std::memory_order_relaxed)) break;
-
-            std::lock_guard<std::mutex> lk(printMtx);
-            if (!countdownReady) continue;
-
-            auto now = std::chrono::steady_clock::now();
-            int remSec = static_cast<int>(
-                std::chrono::duration<double>(etaTarget - now).count());
-
-            // FIX: When ETA goes negative (overtime), display as count-up with + prefix
-            bool overtime = (remSec < 0);
-            int dispSec = overtime ? -remSec : remSec;
-
-            int h = dispSec / 3600;
-            int m = (dispSec % 3600) / 60;
-            int s = dispSec % 60;
-
-            char lineBuf[256];
-            int len = std::snprintf(lineBuf, sizeof(lineBuf),
-                "\r%s  ETA %s%02d:%02d:%02d", lastStatusPrefix,
-                overtime ? "+" : "", h, m, s);
-            if (len > 0 && len < (int)sizeof(lineBuf) - 1) {
-                int pad = 120 - len;
-                for (int p = 0; p < pad && len < (int)sizeof(lineBuf) - 1; ++p)
-                    lineBuf[len++] = ' ';
-                lineBuf[len] = '\0';
-            }
-            std::fwrite(lineBuf, 1, static_cast<size_t>(len), stdout);
-            std::fflush(stdout);
-        }
-    };
-
-    std::thread countdownThread(countdownFn);
-
     // -- Launch worker threads -------------------------------------------------
     // Use 8 MB stack per thread — the enlarged Board struct (with bitboards +
     // UndoInfo snapshots) uses ~270 bytes per makeMove call. At depth 9 with
@@ -1132,10 +1080,6 @@ int SelfPlayGen::generate(const Config& cfg) {
         }
         for (auto& t : threads) t.join();
     }
-
-    // Stop the countdown thread
-    countdownStop.store(true, std::memory_order_relaxed);
-    countdownThread.join();
 
     std::cout << "\n";  // newline after \r progress line
     std::cout.flush();
