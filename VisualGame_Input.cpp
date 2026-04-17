@@ -486,17 +486,27 @@ void VisualGame::handleKeyPress(sf::Keyboard::Key key) {
             { std::lock_guard<std::mutex> lk(nnueStatusMutex_); nnueStatus_ = nnueEnabled_ ? "NNUE eval ON" : "NNUE eval OFF (handcrafted)"; }
         }
         else if (!nnueNet_) {
-            // Try loading saved weights
+            // Try loading saved weights — use duck weights if in duck chess mode
             nnueNet_ = std::make_unique<NNUE::Network>();
-            std::string debugPath2 = assetPath("assets/nnue_weights.bin");
-            if (nnueNet_->loadWeights(debugPath2)) {
+            std::string weightsFile = isDuckChess_
+                ? assetPath("assets/duck_nnue_weights.bin")
+                : assetPath("assets/nnue_weights.bin");
+            if (nnueNet_->loadWeights(weightsFile)) {
                 nnueEnabled_ = true;
                 engine_.setNNUE(nnueNet_.get());
                 engine2_.setNNUE(nnueNet_.get());
+                // For duck chess, also wire up the DuckNNUE network
+                if (isDuckChess_) {
+                    if (!duckNnueNet_) duckNnueNet_ = std::make_unique<DuckNNUE::Network>();
+                    if (duckNnueNet_->loadWeights(weightsFile)) {
+                        engine_.setDuckNNUE(duckNnueNet_.get());
+                        engine2_.setDuckNNUE(duckNnueNet_.get());
+                    }
+                }
                 { std::lock_guard<std::mutex> lk(nnueStatusMutex_); nnueStatus_ = "NNUE loaded and enabled!"; }
             } else {
                 nnueNet_.reset();
-                { std::lock_guard<std::mutex> lk(nnueStatusMutex_); nnueStatus_ = "No weights at: " + debugPath2; }
+                { std::lock_guard<std::mutex> lk(nnueStatusMutex_); nnueStatus_ = "No weights at: " + weightsFile; }
             }
         }
         updateStatus();
@@ -504,14 +514,22 @@ void VisualGame::handleKeyPress(sf::Keyboard::Key key) {
     else if (key == sf::Keyboard::Key::V) {
         // Toggle Bot vs NNUE mode (White=classical, Black=NNUE)
         if (!botVsNNUE_) {
-            // Ensure NNUE weights are loaded
+            // Ensure NNUE weights are loaded — use duck weights if in duck chess mode
             if (!nnueNet_) {
                 nnueNet_ = std::make_unique<NNUE::Network>();
-                std::string debugPath = assetPath("assets/nnue_weights.bin");
-                if (!nnueNet_->loadWeights(debugPath)) {
+                std::string weightsPath = isDuckChess_
+                    ? assetPath("assets/duck_nnue_weights.bin")
+                    : assetPath("assets/nnue_weights.bin");
+                if (!nnueNet_->loadWeights(weightsPath)) {
                     nnueNet_.reset();
-                    { std::lock_guard<std::mutex> lk(nnueStatusMutex_); nnueStatus_ = "No NNUE weights found at: " + debugPath; }
+                    { std::lock_guard<std::mutex> lk(nnueStatusMutex_); nnueStatus_ = "No NNUE weights found at: " + weightsPath; }
                     return;
+                }
+                if (isDuckChess_) {
+                    if (!duckNnueNet_) duckNnueNet_ = std::make_unique<DuckNNUE::Network>();
+                    duckNnueNet_->loadWeights(weightsPath);
+                    engine_.setDuckNNUE(duckNnueNet_.get());
+                    engine2_.setDuckNNUE(duckNnueNet_.get());
                 }
             }
             // Cancel any active bot-vs-bot first
