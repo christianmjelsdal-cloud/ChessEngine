@@ -5,6 +5,7 @@
 #include "Bitboard.h"
 #include "NNUETrainer.h"
 #include "DuckNNUE.h"
+#include "TrainAVX.h"
 #include <memory>
 #include <string>
 #include <cstring>
@@ -519,7 +520,6 @@ int main(int argc, char* argv[]) {
                 int etaSec = (int)(etaSecs) % 60;
 
                 auto sigmoid = [](float x) { return 1.0f / (1.0f + std::exp(-x)); };
-                auto screlu  = [](float x) { float c = x < 0.f ? 0.f : x > 1.f ? 1.f : x; return c*c; };
 
                 float valLoss = 0.0f;
                 float opLoss = 0.0f, mgLoss = 0.0f, egLoss = 0.0f;
@@ -527,34 +527,29 @@ int main(int argc, char* argv[]) {
                 int correct = 0;
 
                 for (const auto& pos : valData) {
-                    // Forward pass
-                    std::array<float, DuckNNUE::L1_SIZE> wAcc, bAcc;
-                    for (int j = 0; j < DuckNNUE::L1_SIZE; ++j) { wAcc[j] = bAcc[j] = net->L1_biases[j]; }
+                    // Forward pass — AVX2 vectorized
+                    alignas(32) float wAcc[DuckNNUE::L1_SIZE], bAcc[DuckNNUE::L1_SIZE];
+                    std::memcpy(wAcc, net->L1_biases.data(), DuckNNUE::L1_SIZE * sizeof(float));
+                    std::memcpy(bAcc, net->L1_biases.data(), DuckNNUE::L1_SIZE * sizeof(float));
                     for (int feat : pos.activeFeatures) {
                         int mir = DuckNNUE::mirrorDuckFeature(feat);
-                        for (int j = 0; j < DuckNNUE::L1_SIZE; ++j) {
-                            wAcc[j] += net->L1_weights[feat][j];
-                            bAcc[j] += net->L1_weights[mir][j];
-                        }
+                        TrainAVX::avx_add_row<DuckNNUE::L1_SIZE>(wAcc, net->L1_weights[feat].data());
+                        TrainAVX::avx_add_row<DuckNNUE::L1_SIZE>(bAcc, net->L1_weights[mir].data());
                     }
-                    const auto& stm = (pos.sideToMove == Color::White) ? wAcc : bAcc;
-                    const auto& opp = (pos.sideToMove == Color::White) ? bAcc : wAcc;
-                    std::array<float, DuckNNUE::L1_SIZE*2> l1;
-                    for (int i = 0; i < DuckNNUE::L1_SIZE; ++i) { l1[i] = screlu(stm[i]); l1[DuckNNUE::L1_SIZE+i] = screlu(opp[i]); }
-                    std::array<float, DuckNNUE::L2_SIZE> l2;
-                    for (int j = 0; j < DuckNNUE::L2_SIZE; ++j) {
-                        float s = net->L2_biases[j];
-                        for (int i = 0; i < DuckNNUE::L1_SIZE*2; ++i) s += l1[i] * net->L2_weights[i][j];
-                        l2[j] = screlu(s);
-                    }
-                    std::array<float, DuckNNUE::L3_SIZE> l3;
-                    for (int j = 0; j < DuckNNUE::L3_SIZE; ++j) {
-                        float s = net->L3_biases[j];
-                        for (int i = 0; i < DuckNNUE::L2_SIZE; ++i) s += l2[i] * net->L3_weights[i][j];
-                        l3[j] = screlu(s);
-                    }
-                    float raw = net->output_bias;
-                    for (int i = 0; i < DuckNNUE::L3_SIZE; ++i) raw += l3[i] * net->output_weights[i];
+                    const float* stmPtr = (pos.sideToMove == Color::White) ? wAcc : bAcc;
+                    const float* oppPtr = (pos.sideToMove == Color::White) ? bAcc : wAcc;
+                    alignas(32) float l1pre[DuckNNUE::L1_SIZE*2], l1[DuckNNUE::L1_SIZE*2];
+                    TrainAVX::avx_screlu<DuckNNUE::L1_SIZE>(stmPtr, l1pre,                      l1);
+                    TrainAVX::avx_screlu<DuckNNUE::L1_SIZE>(oppPtr, l1pre + DuckNNUE::L1_SIZE,  l1 + DuckNNUE::L1_SIZE);
+                    alignas(32) float l2pre[DuckNNUE::L2_SIZE], l2[DuckNNUE::L2_SIZE];
+                    TrainAVX::avx_gemv_T<DuckNNUE::L2_SIZE, DuckNNUE::L1_SIZE*2>(
+                        &net->L2_weights_T[0][0], net->L2_biases.data(), l1, l2pre);
+                    TrainAVX::avx_screlu<DuckNNUE::L2_SIZE>(l2pre, l2pre, l2);
+                    alignas(32) float l3pre[DuckNNUE::L3_SIZE], l3[DuckNNUE::L3_SIZE];
+                    TrainAVX::avx_gemv_T<DuckNNUE::L3_SIZE, DuckNNUE::L2_SIZE>(
+                        &net->L3_weights_T[0][0], net->L3_biases.data(), l2, l3pre);
+                    TrainAVX::avx_screlu<DuckNNUE::L3_SIZE>(l3pre, l3pre, l3);
+                    float raw = TrainAVX::avx_dot<DuckNNUE::L3_SIZE>(net->output_weights.data(), l3) + net->output_bias;
                     float whitePred = (pos.sideToMove == Color::White) ? raw * 400.f : -raw * 400.f;
 
                     float sp = sigmoid(whitePred / tcfg.evalScale);

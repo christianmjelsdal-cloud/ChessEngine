@@ -3968,45 +3968,10 @@ static LRESULT CALLBACK WndProc(HWND hw, UINT msg, WPARAM wp, LPARAM lp) {
 
             FlushLog();
 
-            // Live training countdown: update the last log line with a countdown
-            // every 500ms so the output window shows live ETA during training.
-            if (running && phase == "training") {
-                auto now2 = std::chrono::steady_clock::now();
-                int bEta2 = 0, eEta2 = 0;
-                std::chrono::steady_clock::time_point bStamp2, eStamp2;
-                int cb = 0, tb = 0, ce = 0, te = 0;
-                {
-                    std::lock_guard<std::mutex> lk(g_st.mtx);
-                    bEta2 = g_st.batchEtaSec; bStamp2 = g_st.batchEtaStamp;
-                    eEta2 = g_st.epochEtaSec; eStamp2 = g_st.epochEtaStamp;
-                    cb = g_st.curBatch; tb = g_st.totalBatches;
-                    ce = g_st.curEpoch; te = g_st.totalEpochs;
-                }
-                auto cdSec = [&](int eta, std::chrono::steady_clock::time_point stamp) -> long long {
-                    if (eta <= 0) return -1;
-                    long long el = std::chrono::duration_cast<std::chrono::seconds>(now2 - stamp).count();
-                    return std::max(0LL, (long long)eta - el);
-                };
-                long long bLeft2 = cdSec(bEta2, bStamp2);
-                long long eLeft2 = cdSec(eEta2, eStamp2);
-                if (bLeft2 >= 0 || eLeft2 >= 0) {
-                    // Build a status line to inject as the last log entry
-                    std::string statusLine = "[Training]";
-                    if (te > 0) statusLine += " Epoch " + std::to_string(ce) + "/" + std::to_string(te);
-                    if (tb > 0) statusLine += "  Batch " + std::to_string(cb) + "/" + std::to_string(tb);
-                    if (bLeft2 >= 0) {
-                        int bm = (int)(bLeft2 / 60), bs2 = (int)(bLeft2 % 60);
-                        statusLine += "  Batch ETA: " + std::to_string(bm) + "m" + std::to_string(bs2) + "s";
-                    }
-                    if (eLeft2 >= 0) {
-                        int em = (int)(eLeft2 / 60), es2 = (int)(eLeft2 % 60);
-                        statusLine += "  Training ETA: " + std::to_string(em) + "m" + std::to_string(es2) + "s";
-                    }
-                    // Push as \r line so it overwrites the previous countdown
-                    g_st.pushLog("\r" + statusLine);
-                    FlushLog();
-                }
-            }
+            // Training ETA is shown in the banner — no countdown injection needed in the
+            // output window. The trainer's own batch lines (\r  batch N/TOTAL ...) arrive
+            // every batch and update naturally. Injecting a separate countdown line here
+            // causes the two to fight, creating a wall effect and a stuck batch counter.
 
             // Self-play ETA is shown in the banner (countdown(spEta, spStamp)).
             // The engine's own [SelfPlay] progress line already contains the full stats
