@@ -1125,7 +1125,7 @@ namespace NNUE {
         assert(!(movedPiece == PieceType::Pawn && (toRank == 0 || toRank == 7))
             && "incrementalUpdateQ called for promotion — use refreshAccumulatorQ");
         if (movedPiece == PieceType::Pawn && capturedPiece == PieceType::Pawn) {
-            assert(fromRank != toRank - 1 || fromCol == toCol || board.getPiece(toRank, toCol).type != PieceType::None
+            assert(fromRank != toRank - 1 || fromCol == toCol || board.getPiece({toRank, toCol}).type != PieceType::None
                 && "incrementalUpdateQ called for en passant — use refreshAccumulatorQ");
         }
 #endif
