@@ -439,7 +439,7 @@ static std::string exeDir() {
     return N(i != std::wstring::npos ? p.substr(0,i) : L".");
 }
 static std::string dbl2s(double v, int p=6) {
-    std::ostringstream ss; ss << std::setprecision(p) << v; return ss.str();
+    std::ostringstream ss; ss << std::fixed << std::setprecision(p) << v; return ss.str();
 }
 
 // ── Sound playback (non-blocking, fire-and-forget via MCI) ────────
