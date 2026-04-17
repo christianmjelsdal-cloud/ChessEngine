@@ -188,6 +188,7 @@ struct AppState {
     std::chrono::steady_clock::time_point nextEpochStamp;
     std::chrono::steady_clock::time_point selfPlayEtaStamp;
     std::chrono::steady_clock::time_point lastSelfPlayPrint;  // when engine last printed a [SelfPlay] line
+    std::string lastSelfPlayLine;  // last full [SelfPlay] stats line (for countdown re-injection)
     bool   running   = false;
     std::atomic<bool> stopFlag{false};
     double curNps    = 0.0;  // latest NPS parsed from self-play output
@@ -1195,7 +1196,7 @@ static bool SelfPlay(const Config& cfg, int gen) {
     g_log.event("selfplay", gen, "PHASE_START games=" + std::to_string(cfg.gamesPerGen)
                 + " depth=" + std::to_string(cfg.depth)
                 + " workers=" + std::to_string(cfg.workers));
-    { std::lock_guard<std::mutex> lk(g_st.mtx); g_st.curEpoch=0; g_st.totalEpochs=cfg.gamesPerGen; g_st.curNps=0.0; g_st.selfPlayEtaSec=0; }
+    { std::lock_guard<std::mutex> lk(g_st.mtx); g_st.curEpoch=0; g_st.totalEpochs=cfg.gamesPerGen; g_st.curNps=0.0; g_st.selfPlayEtaSec=0; g_st.lastSelfPlayLine.clear(); }
     int lastLoggedPct = -1;  // track last logged progress percentage
     bool spOk = RunProc(cmd, d, [&](const std::string& ln){
         // NPS_SAMPLE lines are internal data for the graph — don't show in output window
@@ -1245,9 +1246,12 @@ static bool SelfPlay(const Config& cfg, int gen) {
         // Parse "[SelfPlay] done/total (pct%) pos=N W/D/B=w/d/b ... X games/s ... Y nps"
         auto p = ln.find("[SelfPlay] ");
         if (p != std::string::npos) {
-            // Track when the engine last printed a [SelfPlay] line
+            // Store the full stats line and timestamp for countdown re-injection
             { std::lock_guard<std::mutex> lk(g_st.mtx);
-              g_st.lastSelfPlayPrint = std::chrono::steady_clock::now(); }
+              g_st.lastSelfPlayPrint = std::chrono::steady_clock::now();
+              // Store the clean line (strip leading \r if present)
+              g_st.lastSelfPlayLine = (ln[0] == '\r') ? ln.substr(1) : ln;
+            }
 
             // Update games counter
             try { size_t n; int g2=std::stoi(ln.substr(p+11), &n);
@@ -3998,6 +4002,44 @@ static LRESULT CALLBACK WndProc(HWND hw, UINT msg, WPARAM wp, LPARAM lp) {
             // Self-play ETA is shown in the banner (countdown(spEta, spStamp)).
             // The engine's own [SelfPlay] progress line already contains the full stats
             // and ETA — no need to inject a separate countdown line in the output window.
+
+            // Live self-play countdown: re-inject the last full [SelfPlay] stats line
+            // every second with the ETA ticked down. This gives a per-second countdown
+            // while preserving all the stats (pos/s, W/D/B, nps, etc.).
+            if (running && phase == "selfplay") {
+                auto now3 = std::chrono::steady_clock::now();
+                int spEta2 = 0;
+                std::chrono::steady_clock::time_point spStamp2;
+                std::string lastLine;
+                {
+                    std::lock_guard<std::mutex> lk(g_st.mtx);
+                    spEta2    = g_st.selfPlayEtaSec;
+                    spStamp2  = g_st.selfPlayEtaStamp;
+                    lastLine  = g_st.lastSelfPlayLine;
+                }
+                if (spEta2 > 0 && !lastLine.empty()) {
+                    long long el3 = std::chrono::duration_cast<std::chrono::seconds>(now3 - spStamp2).count();
+                    long long spLeft2 = std::max(0LL, (long long)spEta2 - el3);
+                    long long sh = spLeft2 / 3600;
+                    long long sm = (spLeft2 % 3600) / 60;
+                    long long ss2 = spLeft2 % 60;
+                    char etaBuf[16];
+                    if (sh > 0)
+                        std::snprintf(etaBuf, sizeof(etaBuf), "%lld:%02lld:%02lld", sh, sm, ss2);
+                    else
+                        std::snprintf(etaBuf, sizeof(etaBuf), "%02lld:%02lld", sm, ss2);
+
+                    // Replace the ETA portion in the stored line with the ticked-down value.
+                    // The engine prints "ETA HH:MM:SS" — find and replace it.
+                    std::string updated = lastLine;
+                    auto etaPos = updated.rfind("ETA ");
+                    if (etaPos != std::string::npos) {
+                        updated = updated.substr(0, etaPos + 4) + etaBuf;
+                    }
+                    g_st.pushLog("\r" + updated);
+                    FlushLog();
+                }
+            }
 
             // Live NPS: during self-play, maintain a single step=0 placeholder point
             // so the NPS panel shows the current NPS in real time (every 500ms timer tick).
