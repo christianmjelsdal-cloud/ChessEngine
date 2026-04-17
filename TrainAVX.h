@@ -137,32 +137,30 @@ inline void avx_screlu_deriv_mul(const float* __restrict dLdOut,
 //   Equivalent to: out = bias + mat^T * in
 // Used for L2/L3 forward pass with transposed weight matrices.
 // ─────────────────────────────────────────────────────────────────────────────
-template<int OUT, int IN>
-inline void avx_gemv_T(const float* __restrict mat_T,  // [OUT][IN]
+template<int NOUT, int NIN>
+inline void avx_gemv_T(const float* __restrict mat_T,  // [NOUT][NIN]
                         const float* __restrict bias,
-                        const float* __restrict in,
-                        float* __restrict out) {
+                        const float* __restrict src,
+                        float* __restrict dst) {
 #if TRAIN_HAS_AVX2
-    static_assert(IN  % 8 == 0, "IN must be multiple of 8");
-    static_assert(OUT % 8 == 0, "OUT must be multiple of 8");
-    for (int j = 0; j < OUT; ++j) {
-        const float* row = mat_T + j * IN;
+    for (int j = 0; j < NOUT; ++j) {
+        const float* row = mat_T + j * NIN;
         __m256 acc = _mm256_setzero_ps();
-        for (int i = 0; i < IN; i += 8)
-            acc = _mm256_fmadd_ps(_mm256_loadu_ps(row + i), _mm256_loadu_ps(in + i), acc);
+        for (int i = 0; i < NIN; i += 8)
+            acc = _mm256_fmadd_ps(_mm256_loadu_ps(row + i), _mm256_loadu_ps(src + i), acc);
         // Horizontal sum of 8 floats
         __m128 lo  = _mm256_castps256_ps128(acc);
         __m128 hi  = _mm256_extractf128_ps(acc, 1);
         __m128 sum = _mm_add_ps(lo, hi);
         sum = _mm_hadd_ps(sum, sum);
         sum = _mm_hadd_ps(sum, sum);
-        out[j] = _mm_cvtss_f32(sum) + bias[j];
+        dst[j] = _mm_cvtss_f32(sum) + bias[j];
     }
 #else
-    for (int j = 0; j < OUT; ++j) {
+    for (int j = 0; j < NOUT; ++j) {
         float s = bias[j];
-        for (int i = 0; i < IN; ++i) s += mat_T[j * IN + i] * in[i];
-        out[j] = s;
+        for (int i = 0; i < NIN; ++i) s += mat_T[j * NIN + i] * src[i];
+        dst[j] = s;
     }
 #endif
 }
