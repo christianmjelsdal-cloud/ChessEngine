@@ -1816,6 +1816,7 @@ Move Engine::getBestMove(Board& board, int maxDepth) {
         }
 
         MoveList moves; MoveGen::getLegalMoves(board, moves);
+        if (moves.empty()) break;  // terminal position — no moves to search
         uint64_t hash = computeHash(board);
         size_t ttIdx = hash % activeTT().size();
         Move hashMove = (activeTT()[ttIdx].key == hash) ? unpackMove(activeTT()[ttIdx].best) : Move{};
