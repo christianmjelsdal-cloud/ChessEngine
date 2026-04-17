@@ -1219,6 +1219,7 @@ static bool SelfPlay(const Config& cfg, int gen) {
                                         && p.hasNps && !p.hasLoss;
                                 }), pts.end());
                         }
+                        if (g_hGraph) InvalidateRect(g_hGraph, nullptr, FALSE);
                     }
                 } catch (...) {}
             }
@@ -1718,8 +1719,10 @@ static bool Training(const Config& cfg, int gen) {
                     " middlegame=" + dbl2s(pt.middlegameLoss, 6) +
                     " endgame=" + dbl2s(pt.endgameLoss, 6));
             }
-            std::lock_guard<std::mutex> lk(g_st.mtx);
-            if (pt.step > 0) g_st.curEpoch = pt.step;
+            { std::lock_guard<std::mutex> lk(g_st.mtx);
+              if (pt.step > 0) g_st.curEpoch = pt.step; }
+            // Immediately redraw graph when a new epoch point arrives
+            if (g_hGraph) InvalidateRect(g_hGraph, nullptr, FALSE);
         }
     }, g_st.stopFlag);
     if (ok) {
