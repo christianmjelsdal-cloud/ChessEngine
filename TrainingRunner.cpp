@@ -1411,7 +1411,8 @@ static bool Training(const Config& cfg, int gen) {
         " --warmup-steps "  + std::to_string(cfg.warmupSteps) +
         " --draw-weight "   + dbl2s(cfg.drawWeight) +
         " --mate-boost "    + dbl2s(cfg.mateBoost) +
-        " --early-stop "    + std::to_string(cfg.earlyStop) +
+        // overfitDetect=false disables early stopping (set patience to 0)
+        " --early-stop "    + std::to_string(cfg.overfitDetect ? cfg.earlyStop : 0) +
         " --enhanced --plot";
     if (cfg.labelSmooth > 0.0)
         args += " --label-smoothing " + dbl2s(cfg.labelSmooth);
@@ -1451,7 +1452,7 @@ static bool Training(const Config& cfg, int gen) {
             " --epochs "   + std::to_string(cfg.epochsPerGen) +
             " --batch-size " + std::to_string(cfg.batchSize) +
             " --lr "       + dbl2s(cfg.lr, 8) +
-            " --early-stop " + std::to_string(cfg.earlyStop) +
+            " --early-stop " + std::to_string(cfg.overfitDetect ? cfg.earlyStop : 0) +
             " --weight-decay " + dbl2s(cfg.weightDecay, 8) +
             " --grad-accum " + std::to_string(cfg.gradAccum) +
             " --warmup-steps " + std::to_string(cfg.warmupSteps) +
@@ -1783,7 +1784,7 @@ static void EloVal(const Config& cfg, int gen) {
         " -engine name=Gen" + std::to_string(gen-1) + " cmd=uci_engine.bat"
         " option.WeightsFile=\"" + prevWt.string() + "\""
         " -each proto=uci tc=1+0.1"
-        " -rounds 50"
+        " -rounds " + std::to_string(cfg.eloGames / 2) +  // rounds = games/2 (each round = 2 games, one per color)
         " -pgnout \"" + pgnOut.string() + "\""
         " -recover"
     );
