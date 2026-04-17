@@ -439,7 +439,15 @@ static std::string exeDir() {
     return N(i != std::wstring::npos ? p.substr(0,i) : L".");
 }
 static std::string dbl2s(double v, int p=6) {
-    std::ostringstream ss; ss << std::fixed << std::setprecision(p) << v; return ss.str();
+    std::ostringstream ss;
+    ss << std::setprecision(p) << v;
+    std::string s = ss.str();
+    // Remove trailing zeros after decimal point, but keep at least one decimal place
+    if (s.find('.') != std::string::npos && s.find('e') == std::string::npos) {
+        s.erase(s.find_last_not_of('0') + 1);
+        if (s.back() == '.') s += '0';
+    }
+    return s;
 }
 
 // ── Sound playback (non-blocking, fire-and-forget via MCI) ────────
@@ -676,7 +684,7 @@ static std::string SerializePreset(const Preset& p) {
       << dbl2s(p.drawPct,2) << "|" << dbl2s(p.frcMix,3) << "|" << p.replayWindow << "|" << dbl2s(p.replayDecay,2) << "|"
       << p.resignCp << "|" << p.contemptCp << "|" << p.maxPlies << "|" << p.drawCp
       << "|" << p.mixedDepthLow << "|" << dbl2s(p.mixedDepthRatio,3)
-      << "|" << dbl2s(p.wdlAlpha,4) << "|" << dbl2s(p.wdlDrawElo,2)
+      << "|" << dbl2s(p.wdlAlpha,4) << "|" << dbl2s(p.wdlDrawElo,6)
       << "|" << (p.depthShuffle?1:0) << "|" << dbl2s(p.depthShuffleBias,2)
       << "|" << dbl2s(p.openingTemp,2) << "|" << p.openingPlies
       << "|" << p.softmaxPlies << "|" << dbl2s(p.softmaxTemp,2)
