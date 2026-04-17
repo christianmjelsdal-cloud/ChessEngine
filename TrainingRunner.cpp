@@ -1866,7 +1866,7 @@ static void DrawGraph(HWND hw) {
     PAINTSTRUCT ps; HDC hdc = BeginPaint(hw, &ps);
     HDC memDC = CreateCompatibleDC(hdc);
     HBITMAP bmp = CreateCompatibleBitmap(hdc, W2, H2);
-    SelectObject(memDC, bmp);
+    HBITMAP oldBmp = (HBITMAP)SelectObject(memDC, bmp);
 
     Graphics g(memDC);
     g.SetSmoothingMode(SmoothingModeAntiAlias);
@@ -1881,6 +1881,7 @@ static void DrawGraph(HWND hw) {
         SolidBrush tb(Color(255,80,80,100));
         g.DrawString(L"No data yet", -1, &fnt, PointF((float)W2/2-40,(float)H2/2-8), &tb);
         BitBlt(hdc,0,0,W2,H2,memDC,0,0,SRCCOPY);
+        SelectObject(memDC, oldBmp);
         DeleteObject(bmp); DeleteDC(memDC);
         EndPaint(hw, &ps); return;
     }
@@ -2333,7 +2334,7 @@ static void DrawGraph(HWND hw) {
         ss << L"Step: " << hp.step << L"  Gen: " << hp.gen;
         ss << L"\nTrain: " << std::fixed << std::setprecision(6) << hp.train;
         if (hp.hasVal) ss << L"\nVal: " << std::fixed << std::setprecision(6) << hp.val;
-        if (hp.hasLR)  ss << L"\nLR: " << std::scientific << std::setprecision(4) << hp.lr;
+        if (hp.hasLR)  ss << L"\nLR: " << std::fixed << std::setprecision(8) << hp.lr;
         if (hp.hasAcc) ss << L"\nAcc: " << std::fixed << std::setprecision(4) << hp.accuracy;
         if (hp.hasPhase) ss << L"\nOp: " << std::fixed << std::setprecision(5) << hp.openingLoss
                             << L"  Mg: " << hp.middlegameLoss
@@ -2358,6 +2359,7 @@ static void DrawGraph(HWND hw) {
     }
 
     BitBlt(hdc,0,0,W2,H2,memDC,0,0,SRCCOPY);
+    SelectObject(memDC, oldBmp);
     DeleteObject(bmp); DeleteDC(memDC);
     EndPaint(hw,&ps);
 }
@@ -3903,7 +3905,7 @@ static LRESULT CALLBACK WndProc(HWND hw, UINT msg, WPARAM wp, LPARAM lp) {
             if (running) {
                 std::lock_guard<std::mutex> lk(g_st.mtx);
                 if (g_st.curNps > 0.0 && phase == "selfplay") {
-                    int liveGen = g_st.curGen + 1;  // curGen is 0-based offset, gen numbers are 1-based
+                    int liveGen = g_cfg.startGen + 1 + g_st.curGen;  // startGen+1 = firstGen, offset by curGen
                     bool updated = false;
                     for (auto& p : g_st.pts) {
                         if (p.gen == liveGen) {

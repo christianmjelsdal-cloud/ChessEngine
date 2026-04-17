@@ -180,9 +180,10 @@ static void DrawGraph(HWND hw) {
         }
 
         Pen trainPen(Color(255,65,125,245), 1.8f);
-        for (size_t i=1; i<pts.size(); i++)
+        for (size_t i=1; i<pts.size(); i++) {
             if (!pts[i].hasLoss || !pts[i-1].hasLoss) continue;
             g.DrawLine(&trainPen, xfLeft((int)i-1), yf(pts[i-1].train), xfLeft((int)i), yf(pts[i].train));
+        }
 
         Pen valPen(Color(255,245,160,60), 1.8f);
         { bool st=false; float px2=0,py2=0;
@@ -611,7 +612,7 @@ static void DrawGraph(HWND hw) {
         ss << L"Step: " << hp.step << L"  Gen: " << hp.gen;
         ss << L"\nTrain: " << std::fixed << std::setprecision(6) << hp.train;
         if (hp.hasVal) ss << L"\nVal: " << std::fixed << std::setprecision(6) << hp.val;
-        if (hp.hasLR)  ss << L"\nLR: " << std::scientific << std::setprecision(4) << hp.lr;
+        if (hp.hasLR)  ss << L"\nLR: " << std::fixed << std::setprecision(8) << hp.lr;
         if (hp.hasAcc) ss << L"\nAcc: " << std::fixed << std::setprecision(4) << hp.accuracy;
         if (hp.hasPhase) {
             ss << L"\nOpen: " << std::fixed << std::setprecision(6) << hp.openingLoss;
@@ -787,9 +788,10 @@ void SaveGraphPng(const std::string& dataDir) {
         }
 
         Pen trainPen(Color(255,65,125,245), 1.8f);
-        for (size_t i=1; i<pts.size(); i++)
+        for (size_t i=1; i<pts.size(); i++) {
             if (!pts[i].hasLoss || !pts[i-1].hasLoss) continue;
             g.DrawLine(&trainPen, xfLeft((int)i-1), yf(pts[i-1].train), xfLeft((int)i), yf(pts[i].train));
+        }
 
         Pen valPen(Color(255,245,160,60), 1.8f);
         { bool st=false; float px2=0,py2=0;
