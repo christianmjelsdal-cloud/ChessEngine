@@ -1,6 +1,7 @@
 #include "NNUETrainer.h"
 #include "DuckNNUE.h"
 #include "MoveGen.h"
+#include "TrainAVX.h"
 #include <random>
 #include <algorithm>
 #include <fstream>
@@ -1202,6 +1203,8 @@ namespace NNUE {
             for (int i = 0; i < L3_SIZE; ++i)
                 net.output_weights[i] = params[idx++];
             net.output_bias = params[idx++];
+            // Keep transposed weight caches in sync — used by AVX2 forward pass
+            net.transposeWeights();
         };
 
         // Duck-aware mirror feature for perspective flip
@@ -1330,59 +1333,43 @@ namespace NNUE {
                         for (int bi = tStart; bi < tEnd; ++bi) {
                             const TrainingPosition& pos = (*trainingData)[indices[bi]];
 
-                            // ---- FORWARD PASS (with SCReLU) ----
-                            std::array<float, L1_SIZE> whiteAcc;
-                            std::array<float, L1_SIZE> blackAcc;
-                            for (int j = 0; j < L1_SIZE; ++j) {
-                                whiteAcc[j] = net.L1_biases[j];
-                                blackAcc[j] = net.L1_biases[j];
-                            }
+                            // ---- FORWARD PASS (AVX2) ----
+                            alignas(32) float whiteAcc[L1_SIZE];
+                            alignas(32) float blackAcc[L1_SIZE];
+                            // Init accumulators to L1 biases
+                            std::memcpy(whiteAcc, net.L1_biases.data(), L1_SIZE * sizeof(float));
+                            std::memcpy(blackAcc, net.L1_biases.data(), L1_SIZE * sizeof(float));
 
+                            // L1 accumulate: acc += L1_weights[feat]  (512 floats, AVX2 x64)
                             for (int feat : pos.activeFeatures) {
                                 int mirFeat = mirrorDuckFeature(feat);
-                                for (int j = 0; j < L1_SIZE; ++j) {
-                                    whiteAcc[j] += net.L1_weights[feat][j];
-                                }
-                                for (int j = 0; j < L1_SIZE; ++j) {
-                                    blackAcc[j] += net.L1_weights[mirFeat][j];
-                                }
+                                TrainAVX::avx_add_row<L1_SIZE>(whiteAcc, net.L1_weights[feat].data());
+                                TrainAVX::avx_add_row<L1_SIZE>(blackAcc, net.L1_weights[mirFeat].data());
                             }
 
-                            std::array<float, L1_SIZE * 2> l1Out;
-                            std::array<float, L1_SIZE * 2> l1Pre;
-                            const auto& stmAcc = (pos.sideToMove == Color::White) ? whiteAcc : blackAcc;
-                            const auto& oppAcc = (pos.sideToMove == Color::White) ? blackAcc : whiteAcc;
+                            // SCReLU on both perspectives → l1Pre[0..1023], l1Out[0..1023]
+                            alignas(32) float l1Pre[L1_SIZE * 2];
+                            alignas(32) float l1Out[L1_SIZE * 2];
+                            const float* stmAcc = (pos.sideToMove == Color::White) ? whiteAcc : blackAcc;
+                            const float* oppAcc = (pos.sideToMove == Color::White) ? blackAcc : whiteAcc;
+                            TrainAVX::avx_screlu<L1_SIZE>(stmAcc, l1Pre,           l1Out);
+                            TrainAVX::avx_screlu<L1_SIZE>(oppAcc, l1Pre + L1_SIZE, l1Out + L1_SIZE);
 
-                            for (int i = 0; i < L1_SIZE; ++i) {
-                                l1Pre[i] = stmAcc[i];
-                                l1Out[i] = screlu(stmAcc[i]);
-                            }
-                            for (int i = 0; i < L1_SIZE; ++i) {
-                                l1Pre[L1_SIZE + i] = oppAcc[i];
-                                l1Out[L1_SIZE + i] = screlu(oppAcc[i]);
-                            }
+                            // L2: l2Pre[j] = L2_biases[j] + dot(L2_weights_T[j], l1Out)
+                            alignas(32) float l2Pre[L2_SIZE], l2Out[L2_SIZE];
+                            TrainAVX::avx_gemv_T<L2_SIZE, L1_SIZE * 2>(
+                                &net.L2_weights_T[0][0], net.L2_biases.data(), l1Out, l2Pre);
+                            TrainAVX::avx_screlu<L2_SIZE>(l2Pre, l2Pre, l2Out);  // in-place pre storage
 
-                            std::array<float, L2_SIZE> l2Pre, l2Out;
-                            for (int j = 0; j < L2_SIZE; ++j) {
-                                float sum = net.L2_biases[j];
-                                for (int i = 0; i < L1_SIZE * 2; ++i)
-                                    sum += l1Out[i] * net.L2_weights[i][j];
-                                l2Pre[j] = sum;
-                                l2Out[j] = screlu(sum);
-                            }
+                            // L3: l3Pre[j] = L3_biases[j] + dot(L3_weights_T[j], l2Out)
+                            alignas(32) float l3Pre[L3_SIZE], l3Out[L3_SIZE];
+                            TrainAVX::avx_gemv_T<L3_SIZE, L2_SIZE>(
+                                &net.L3_weights_T[0][0], net.L3_biases.data(), l2Out, l3Pre);
+                            TrainAVX::avx_screlu<L3_SIZE>(l3Pre, l3Pre, l3Out);
 
-                            std::array<float, L3_SIZE> l3Pre, l3Out;
-                            for (int j = 0; j < L3_SIZE; ++j) {
-                                float sum = net.L3_biases[j];
-                                for (int i = 0; i < L2_SIZE; ++i)
-                                    sum += l2Out[i] * net.L3_weights[i][j];
-                                l3Pre[j] = sum;
-                                l3Out[j] = screlu(sum);
-                            }
-
-                            float rawOutput = net.output_bias;
-                            for (int i = 0; i < L3_SIZE; ++i)
-                                rawOutput += l3Out[i] * net.output_weights[i];
+                            // Output: dot(output_weights, l3Out) + bias
+                            float rawOutput = TrainAVX::avx_dot<L3_SIZE>(
+                                net.output_weights.data(), l3Out) + net.output_bias;
 
                             float predicted = rawOutput * 400.0f;
                             float predictedWhitePOV = (pos.sideToMove == Color::White) ? predicted : -predicted;
@@ -1390,7 +1377,6 @@ namespace NNUE {
                             // ---- LOSS ----
                             float sigPred   = sigmoid(predictedWhitePOV / config.evalScale);
                             float sigTarget = sigmoid(pos.searchEval / config.evalScale);
-                            // Label smoothing: blend result toward 0.5
                             float result = pos.gameResult;
                             if (config.labelSmoothing > 0.0f)
                                 result = result * (1.0f - config.labelSmoothing)
@@ -1398,94 +1384,90 @@ namespace NNUE {
                             float evalLoss   = (sigPred - sigTarget) * (sigPred - sigTarget);
                             float resultLoss = (sigPred - result)    * (sigPred - result);
                             float posLoss = config.lambda * evalLoss + (1.0f - config.lambda) * resultLoss;
-                            // Mate boost: upweight positions with high absolute eval
+                            float boost = 1.0f;
                             if (config.mateBoost > 1.0f && std::abs(pos.searchEval) > 300.0f) {
-                                float boost = 1.0f + (config.mateBoost - 1.0f) *
-                                              std::min(1.0f, (std::abs(pos.searchEval) - 300.0f) / 700.0f);
+                                boost = 1.0f + (config.mateBoost - 1.0f) *
+                                        std::min(1.0f, (std::abs(pos.searchEval) - 300.0f) / 700.0f);
                                 posLoss *= boost;
                             }
                             tLoss += posLoss;
 
-                            // ---- BACKWARD PASS ----
-                            float dLdSigPred    = 2.0f * config.lambda * (sigPred - sigTarget)
-                                                + 2.0f * (1.0f - config.lambda) * (sigPred - result);
-                            // Apply mate boost to gradient too
-                            if (config.mateBoost > 1.0f && std::abs(pos.searchEval) > 300.0f) {
-                                float boost = 1.0f + (config.mateBoost - 1.0f) *
-                                              std::min(1.0f, (std::abs(pos.searchEval) - 300.0f) / 700.0f);
-                                dLdSigPred *= boost;
-                            }
+                            // ---- BACKWARD PASS (AVX2) ----
+                            float dLdSigPred = (2.0f * config.lambda * (sigPred - sigTarget)
+                                             + 2.0f * (1.0f - config.lambda) * (sigPred - result)) * boost;
                             float dSigPred_dPredW = sigPred * (1.0f - sigPred) / config.evalScale;
                             float dLdPredW  = dLdSigPred * dSigPred_dPredW;
                             float dLdPred   = (pos.sideToMove == Color::White) ? dLdPredW : -dLdPredW;
                             float dLdRawOut = dLdPred * 400.0f;
 
-                            for (int i = 0; i < L3_SIZE; ++i)
-                                tGrads[offOutW + i] += dLdRawOut * l3Out[i];
+                            // Output layer grads
+                            TrainAVX::avx_axpy<L3_SIZE>(tGrads.data() + offOutW, l3Out, dLdRawOut);
                             tGrads[offOutB] += dLdRawOut;
 
-                            std::array<float, L3_SIZE> dLdL3Out;
+                            // dLdL3Out[i] = dLdRawOut * output_weights[i]
+                            alignas(32) float dLdL3Out[L3_SIZE];
+                            TrainAVX::avx_axpy<L3_SIZE>(dLdL3Out, net.output_weights.data(), dLdRawOut);
+                            // (init to zero first — avx_axpy adds, we need assignment)
                             for (int i = 0; i < L3_SIZE; ++i)
                                 dLdL3Out[i] = dLdRawOut * net.output_weights[i];
 
-                            std::array<float, L3_SIZE> dLdL3Pre;
-                            for (int j = 0; j < L3_SIZE; ++j)
-                                dLdL3Pre[j] = dLdL3Out[j] * screlu_derivative(l3Pre[j]);
+                            // dLdL3Pre = dLdL3Out * screlu'(l3Pre)
+                            alignas(32) float dLdL3Pre[L3_SIZE];
+                            TrainAVX::avx_screlu_deriv_mul<L3_SIZE>(dLdL3Out, l3Pre, dLdL3Pre);
 
-                            for (int i = 0; i < L2_SIZE; ++i)
-                                for (int j = 0; j < L3_SIZE; ++j)
-                                    tGrads[offL3w + i * L3_SIZE + j] += dLdL3Pre[j] * l2Out[i];
-                            for (int j = 0; j < L3_SIZE; ++j)
-                                tGrads[offL3b + j] += dLdL3Pre[j];
+                            // L3 weight grads: grad_L3w[i*L3_SIZE + j] += l2Out[i] * dLdL3Pre[j]
+                            TrainAVX::avx_outer_add<L2_SIZE, L3_SIZE>(
+                                tGrads.data() + offL3w, l2Out, dLdL3Pre);
+                            TrainAVX::avx_axpy<L3_SIZE>(tGrads.data() + offL3b, dLdL3Pre, 1.0f);
 
-                            std::array<float, L2_SIZE> dLdL2Out;
-                            dLdL2Out.fill(0.0f);
-                            for (int i = 0; i < L2_SIZE; ++i)
-                                for (int j = 0; j < L3_SIZE; ++j)
-                                    dLdL2Out[i] += dLdL3Pre[j] * net.L3_weights[i][j];
+                            // dLdL2Out[i] = sum_j(dLdL3Pre[j] * L3_weights[i][j])
+                            // L3_weights is [L2_SIZE][L3_SIZE] row-major → avx_matvec_T_add
+                            alignas(32) float dLdL2Out[L2_SIZE] = {};
+                            TrainAVX::avx_matvec_T_add<L2_SIZE, L3_SIZE>(
+                                dLdL2Out, &net.L3_weights[0][0], dLdL3Pre);
 
-                            std::array<float, L2_SIZE> dLdL2Pre;
-                            for (int j = 0; j < L2_SIZE; ++j)
-                                dLdL2Pre[j] = dLdL2Out[j] * screlu_derivative(l2Pre[j]);
+                            // dLdL2Pre = dLdL2Out * screlu'(l2Pre)
+                            alignas(32) float dLdL2Pre[L2_SIZE];
+                            TrainAVX::avx_screlu_deriv_mul<L2_SIZE>(dLdL2Out, l2Pre, dLdL2Pre);
 
-                            for (int i = 0; i < L1_SIZE * 2; ++i)
-                                for (int j = 0; j < L2_SIZE; ++j)
-                                    tGrads[offL2w + i * L2_SIZE + j] += dLdL2Pre[j] * l1Out[i];
-                            for (int j = 0; j < L2_SIZE; ++j)
-                                tGrads[offL2b + j] += dLdL2Pre[j];
+                            // L2 weight grads: grad_L2w[i*L2_SIZE + j] += l1Out[i] * dLdL2Pre[j]
+                            TrainAVX::avx_outer_add<L1_SIZE * 2, L2_SIZE>(
+                                tGrads.data() + offL2w, l1Out, dLdL2Pre);
+                            TrainAVX::avx_axpy<L2_SIZE>(tGrads.data() + offL2b, dLdL2Pre, 1.0f);
 
-                            std::array<float, L1_SIZE * 2> dLdL1Out;
-                            dLdL1Out.fill(0.0f);
-                            for (int i = 0; i < L1_SIZE * 2; ++i)
-                                for (int j = 0; j < L2_SIZE; ++j)
-                                    dLdL1Out[i] += dLdL2Pre[j] * net.L2_weights[i][j];
+                            // dLdL1Out[i] += sum_j(dLdL2Pre[j] * L2_weights[i][j])
+                            // L2_weights is [L1_SIZE*2][L2_SIZE] row-major → avx_matvec_T_add
+                            alignas(32) float dLdL1Out[L1_SIZE * 2] = {};
+                            TrainAVX::avx_matvec_T_add<L1_SIZE * 2, L2_SIZE>(
+                                dLdL1Out, &net.L2_weights[0][0], dLdL2Pre);
 
-                            std::array<float, L1_SIZE * 2> dLdL1Pre;
-                            for (int i = 0; i < L1_SIZE * 2; ++i)
-                                dLdL1Pre[i] = dLdL1Out[i] * screlu_derivative(l1Pre[i]);
+                            // dLdL1Pre = dLdL1Out * screlu'(l1Pre)
+                            alignas(32) float dLdL1Pre[L1_SIZE * 2];
+                            TrainAVX::avx_screlu_deriv_mul<L1_SIZE * 2>(dLdL1Out, l1Pre, dLdL1Pre);
 
-                            std::array<float, L1_SIZE> dLdWhiteAcc, dLdBlackAcc;
-                            if (pos.sideToMove == Color::White) {
-                                for (int j = 0; j < L1_SIZE; ++j) {
-                                    dLdWhiteAcc[j] = dLdL1Pre[j];
-                                    dLdBlackAcc[j] = dLdL1Pre[L1_SIZE + j];
-                                }
-                            } else {
-                                for (int j = 0; j < L1_SIZE; ++j) {
-                                    dLdBlackAcc[j] = dLdL1Pre[j];
-                                    dLdWhiteAcc[j] = dLdL1Pre[L1_SIZE + j];
-                                }
+                            // Split back into white/black perspectives
+                            const float* dLdWhiteAcc = (pos.sideToMove == Color::White)
+                                ? dLdL1Pre : dLdL1Pre + L1_SIZE;
+                            const float* dLdBlackAcc = (pos.sideToMove == Color::White)
+                                ? dLdL1Pre + L1_SIZE : dLdL1Pre;
+
+                            // L1 bias grads: sum of both perspectives
+                            alignas(32) float dLdBias[L1_SIZE];
+                            for (int j = 0; j < L1_SIZE; j += 8) {
+                                __m256 w = _mm256_add_ps(
+                                    _mm256_loadu_ps(dLdWhiteAcc + j),
+                                    _mm256_loadu_ps(dLdBlackAcc + j));
+                                __m256 g = _mm256_loadu_ps(tGrads.data() + offL1b + j);
+                                _mm256_storeu_ps(tGrads.data() + offL1b + j, _mm256_add_ps(g, w));
                             }
 
-                            for (int j = 0; j < L1_SIZE; ++j)
-                                tGrads[offL1b + j] += dLdWhiteAcc[j] + dLdBlackAcc[j];
-
+                            // L1 weight grads: tGrads[feat*L1..] += dLdWhiteAcc/BlackAcc
                             for (int feat : pos.activeFeatures) {
                                 int mirFeat = mirrorDuckFeature(feat);
-                                for (int j = 0; j < L1_SIZE; ++j)
-                                    tGrads[offL1w + feat * L1_SIZE + j] += dLdWhiteAcc[j];
-                                for (int j = 0; j < L1_SIZE; ++j)
-                                    tGrads[offL1w + mirFeat * L1_SIZE + j] += dLdBlackAcc[j];
+                                TrainAVX::avx_axpy<L1_SIZE>(
+                                    tGrads.data() + offL1w + feat    * L1_SIZE, dLdWhiteAcc, 1.0f);
+                                TrainAVX::avx_axpy<L1_SIZE>(
+                                    tGrads.data() + offL1w + mirFeat * L1_SIZE, dLdBlackAcc, 1.0f);
                             }
                         } // end sample loop
 

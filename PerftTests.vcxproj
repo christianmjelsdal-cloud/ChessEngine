@@ -178,6 +178,7 @@
     <ClInclude Include="MoveGen.h" />
     <ClInclude Include="NNUE.h" />
     <ClInclude Include="NNUETrainer.h" />
+    <ClInclude Include="TrainAVX.h" />
     <ClInclude Include="SelfPlayGen.h" />
     <ClInclude Include="Types.h" />
     <ClInclude Include="UCI.h" />
