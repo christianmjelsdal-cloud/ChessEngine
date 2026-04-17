@@ -187,6 +187,7 @@ struct AppState {
     std::chrono::steady_clock::time_point epochEtaStamp;
     std::chrono::steady_clock::time_point nextEpochStamp;
     std::chrono::steady_clock::time_point selfPlayEtaStamp;
+    std::chrono::steady_clock::time_point lastSelfPlayPrint;  // when engine last printed a [SelfPlay] line
     bool   running   = false;
     std::atomic<bool> stopFlag{false};
     double curNps    = 0.0;  // latest NPS parsed from self-play output
@@ -1246,6 +1247,10 @@ static bool SelfPlay(const Config& cfg, int gen) {
         // Parse "[SelfPlay] done/total (pct%) pos=N W/D/B=w/d/b ... X games/s ... Y nps"
         auto p = ln.find("[SelfPlay] ");
         if (p != std::string::npos) {
+            // Track when the engine last printed a [SelfPlay] line
+            { std::lock_guard<std::mutex> lk(g_st.mtx);
+              g_st.lastSelfPlayPrint = std::chrono::steady_clock::now(); }
+
             // Update games counter
             try { size_t n; int g2=std::stoi(ln.substr(p+11), &n);
                 std::lock_guard<std::mutex> lk(g_st.mtx); g_st.curEpoch=g2; }
@@ -3994,23 +3999,24 @@ static LRESULT CALLBACK WndProc(HWND hw, UINT msg, WPARAM wp, LPARAM lp) {
 
             // Live self-play countdown: inject a \r line every 500ms so the output
             // window shows a ticking ETA during self-play (same pattern as training).
+            // Only inject when the engine hasn't printed its own [SelfPlay] line recently
+            // (within 1.5s) — the engine's line has full stats and should be preserved.
             if (running && phase == "selfplay") {
                 auto now3 = std::chrono::steady_clock::now();
                 int spEta2 = 0;
-                std::chrono::steady_clock::time_point spStamp2;
+                std::chrono::steady_clock::time_point spStamp2, lastPrint;
                 int cg2 = 0, tg2 = 0;
                 {
                     std::lock_guard<std::mutex> lk(g_st.mtx);
-                    spEta2   = g_st.selfPlayEtaSec;
-                    spStamp2 = g_st.selfPlayEtaStamp;
+                    spEta2     = g_st.selfPlayEtaSec;
+                    spStamp2   = g_st.selfPlayEtaStamp;
+                    lastPrint  = g_st.lastSelfPlayPrint;
                     cg2 = g_st.curEpoch;
                     tg2 = g_st.totalEpochs;
                 }
-                // Always inject a countdown line — even before first ETA arrives,
-                // show games progress so the output window stays live.
-                std::string spLine = "[SelfPlay]";
-                if (tg2 > 0) spLine += " " + std::to_string(cg2) + "/" + std::to_string(tg2);
-                if (spEta2 > 0) {
+                // Only inject if engine hasn't printed in the last 1.5 seconds
+                double sinceLastPrint = std::chrono::duration<double>(now3 - lastPrint).count();
+                if (sinceLastPrint > 1.5 && spEta2 > 0) {
                     long long el3 = std::chrono::duration_cast<std::chrono::seconds>(now3 - spStamp2).count();
                     long long spLeft2 = std::max(0LL, (long long)spEta2 - el3);
                     long long sh = spLeft2 / 3600;
@@ -4021,10 +4027,12 @@ static LRESULT CALLBACK WndProc(HWND hw, UINT msg, WPARAM wp, LPARAM lp) {
                         std::snprintf(etaBuf, sizeof(etaBuf), "%lld:%02lld:%02lld", sh, sm, ss2);
                     else
                         std::snprintf(etaBuf, sizeof(etaBuf), "%02lld:%02lld", sm, ss2);
+                    std::string spLine = "[SelfPlay]";
+                    if (tg2 > 0) spLine += " " + std::to_string(cg2) + "/" + std::to_string(tg2);
                     spLine += "  ETA " + std::string(etaBuf);
+                    g_st.pushLog("\r" + spLine);
+                    FlushLog();
                 }
-                g_st.pushLog("\r" + spLine);
-                FlushLog();
             }
 
             // Live NPS: during self-play, maintain a single step=0 placeholder point
