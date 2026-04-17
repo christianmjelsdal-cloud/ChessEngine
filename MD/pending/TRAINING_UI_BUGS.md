@@ -101,3 +101,57 @@ After all threads complete, the reduction loop sums 16 gradient vectors of 560K 
 | 2 | Self-play ETA not counted down in banner | Medium | Low |
 | 3 | Epoch 0/N and Batch total/total stuck in training log | Medium | Low |
 | 4 | CPU ~16%: per-batch thread spawn dominates compute time | High | Medium |
+
+---
+
+## Bug 5 — Gap in Training Loss Line During Active Generation
+
+**Symptom (screenshot):** A visible break in the blue train loss line appears mid-gen while training is in progress. The line continues correctly after the gap. The gap may persist even after the gen completes if NPS points remain interleaved.
+
+**Root cause — NPS-only points (`hasLoss=false`) sort between training points, breaking the line draw loop.**
+
+`pushPt` sorts all points by `(gen, step)` after every insertion. NPS_SAMPLE points are pushed with `hasLoss=false` and `step=N` (1-based, one per epoch slot). Training loss points are also pushed with `step=N` (epoch number). Both share the same step numbering space within a gen.
+
+Because the deduplication check matches on `(gen, step)`, an NPS point at step=3 and a training point at step=3 are considered duplicates — the later arrival overwrites the earlier. But NPS points arrive during self-play (before training) and training points arrive during training. If both are present and the NPS point happens to land at a step where no training point exists yet, the sort interleaves them:
+
+```
+sorted pts = [
+  {gen=5, step=2, hasLoss=true},   // training point
+  {gen=5, step=3, hasNps=true, hasLoss=false},  // NPS point — no loss
+  {gen=5, step=4, hasLoss=true},   // training point
+]
+```
+
+The train line draw loop:
+
+```cpp
+for (size_t i=1; i<pts.size(); i++) {
+    if (!pts[i].hasLoss || !pts[i-1].hasLoss) continue;  // ← breaks here
+    g.DrawLine(...);
+}
+```
+
+When `pts[i-1]` is the NPS point (`hasLoss=false`), `continue` skips the segment between step 3 and step 4, creating the gap.
+
+**Why it may not self-heal after gen completes:**  
+If the training point for step=3 arrives and the dedup replaces the NPS point with the training point, the gap closes. But if the NPS was at step=3 and training has no point at step=3 (epoch numbers don't always match NPS sample numbers exactly), the NPS point stays permanently interleaved and the gap persists.
+
+**Fix — two-part:**
+
+1. **Separate step namespaces for NPS and training points.** NPS points should use a distinct step offset (e.g. `step = -(sampleIndex)` or store in a separate field) so they never conflict with or interleave with training epoch steps in the sort. The NPS graph draws from `hasNps` points regardless of step ordering, so the sort key doesn't need to match epoch numbers.
+
+2. **Fix the train line draw loop to skip non-loss points without breaking continuity.** Change the draw loop to track the last valid loss point's position rather than requiring consecutive array indices to both have `hasLoss=true`:
+
+```cpp
+bool started = false; float px_last = 0, py_last = 0;
+for (size_t i = 0; i < pts.size(); i++) {
+    if (!pts[i].hasLoss) continue;  // skip NPS-only points, don't break line
+    float cx = xf((int)i), cy = yf(pts[i].train);
+    if (started) g.DrawLine(&trainPen, px_last, py_last, cx, cy);
+    px_last = cx; py_last = cy; started = true;
+}
+```
+
+This is the same pattern already used for the val, accuracy, LR, and NPS lines — only the train line uses the broken two-index pattern. Fix 2 alone resolves the visual gap immediately; fix 1 removes the underlying data model conflict.
+
+**Files:** `TrainingRunner.cpp` → `AppState::pushPt` sort (fix 1), `DrawGraph` train line loop (fix 2). Same issue exists in `TR_Graph.cpp` `DrawGraph` and `SaveGraphPng`.
