@@ -3991,19 +3991,28 @@ static LRESULT CALLBACK WndProc(HWND hw, UINT msg, WPARAM wp, LPARAM lp) {
                     std::lock_guard<std::mutex> lk(g_st.mtx);
                     spEta2   = g_st.selfPlayEtaSec;
                     spStamp2 = g_st.selfPlayEtaStamp;
-                    cg2 = g_st.curEpoch;    // curEpoch = games completed during self-play
-                    tg2 = g_st.totalEpochs; // totalEpochs = total games
+                    cg2 = g_st.curEpoch;
+                    tg2 = g_st.totalEpochs;
                 }
+                // Always inject a countdown line — even before first ETA arrives,
+                // show games progress so the output window stays live.
+                std::string spLine = "[SelfPlay]";
+                if (tg2 > 0) spLine += " " + std::to_string(cg2) + "/" + std::to_string(tg2);
                 if (spEta2 > 0) {
                     long long el3 = std::chrono::duration_cast<std::chrono::seconds>(now3 - spStamp2).count();
                     long long spLeft2 = std::max(0LL, (long long)spEta2 - el3);
-                    int sm = (int)(spLeft2 / 60), ss2 = (int)(spLeft2 % 60);
-                    std::string spLine = "[SelfPlay]";
-                    if (tg2 > 0) spLine += " " + std::to_string(cg2) + "/" + std::to_string(tg2);
-                    spLine += "  ETA: " + std::to_string(sm) + "m" + std::to_string(ss2) + "s";
-                    g_st.pushLog("\r" + spLine);
-                    FlushLog();
+                    long long sh = spLeft2 / 3600;
+                    long long sm = (spLeft2 % 3600) / 60;
+                    long long ss2 = spLeft2 % 60;
+                    char etaBuf[16];
+                    if (sh > 0)
+                        std::snprintf(etaBuf, sizeof(etaBuf), "%lld:%02lld:%02lld", sh, sm, ss2);
+                    else
+                        std::snprintf(etaBuf, sizeof(etaBuf), "%02lld:%02lld", sm, ss2);
+                    spLine += "  ETA " + std::string(etaBuf);
                 }
+                g_st.pushLog("\r" + spLine);
+                FlushLog();
             }
 
             // Live NPS: during self-play, maintain a single step=0 placeholder point
