@@ -365,7 +365,10 @@ int main(int argc, char* argv[]) {
         }
 
         cfg.isDuckChess = isDuckChess;
-        SelfPlayGen gen(nnue.get(), duckNnue.get());
+        // For duck chess, don't pass the uninitialized standard NNUE — pass nullptr.
+        // The standard NNUE was never loaded for duck chess (only DuckNNUE is used).
+        // Passing an uninitialized network causes crashes in evaluateMovesNNUE.
+        SelfPlayGen gen(isDuckChess ? nullptr : nnue.get(), duckNnue.get());
         int result = gen.generate(cfg);
 
         Syzygy::free();
