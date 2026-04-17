@@ -848,6 +848,11 @@ namespace NNUE {
         float bestLoss = 1e9f;
         int epochsWithoutImprovement = 0;
 
+        // Pre-allocate gradient buffer once outside the epoch loop — zeroed at the start of each batch
+        std::vector<float> grads(totalParams, 0.0f);
+        // Unpack weights into net struct before first batch
+        unpackWeights(params);
+
         for (int epoch = 0; epoch < config.epochs; ++epoch) {
             if (cancelFlag && cancelFlag->load()) break;
 
@@ -887,9 +892,7 @@ namespace NNUE {
                 int batchEnd = std::min(batchStart + config.batchSize, static_cast<int>(indices.size()));
                 int batchActualSize = batchEnd - batchStart;
 
-                unpackWeights(params);
-
-                std::vector<float> grads(totalParams, 0.0f);
+                std::fill(grads.begin(), grads.end(), 0.0f);
                 float batchLoss = 0.0f;
 
                 for (int bi = batchStart; bi < batchEnd; ++bi) {
@@ -1077,6 +1080,8 @@ namespace NNUE {
                 ++numBatches;
 
                 adamUpdate(params, grads, adamState, lr);
+                // Unpack updated weights for the next batch's forward pass
+                unpackWeights(params);
 
                 // Check cancel flag every 50 batches for responsive cancellation
                 if (cancelFlag && (numBatches % 50 == 0) && cancelFlag->load()) break;
@@ -1252,6 +1257,17 @@ namespace NNUE {
         // Total batch count for warmup/cosine scheduling
         int totalBatchesSoFar = 0;
 
+        // Determine thread count once — hardware concurrency doesn't change between epochs
+        int numTrainThreads = std::max(1, (int)std::thread::hardware_concurrency());
+        numTrainThreads = std::min(numTrainThreads, 16);
+
+        // Pre-allocate gradient buffers and loss accumulators outside epoch/batch loops
+        std::vector<std::vector<float>> threadGrads(numTrainThreads, std::vector<float>(totalParams, 0.0f));
+        std::vector<float> threadLoss(numTrainThreads, 0.0f);
+
+        // Unpack initial weights before first batch
+        unpackWeights(params);
+
         for (int epoch = 0; epoch < config.epochs; ++epoch) {
             if (cancelFlag && cancelFlag->load()) break;
 
@@ -1286,22 +1302,21 @@ namespace NNUE {
             float epochLoss = 0.0f;
             int numBatches = 0;
 
-            // Determine thread count for parallel gradient accumulation
-            int numTrainThreads = std::max(1, (int)std::thread::hardware_concurrency());
-            numTrainThreads = std::min(numTrainThreads, 16);
-
             for (int batchStart = 0; batchStart < static_cast<int>(indices.size()); batchStart += config.batchSize) {
                 int batchEnd = std::min(batchStart + config.batchSize, static_cast<int>(indices.size()));
                 int batchActualSize = batchEnd - batchStart;
 
-                unpackWeights(params);
-
                 // Parallel gradient accumulation — each thread processes a chunk of the batch
                 int chunkSize = std::max(1, batchActualSize / numTrainThreads);
                 int numChunks = (batchActualSize + chunkSize - 1) / chunkSize;
+                // Clamp to pre-allocated buffer count
+                numChunks = std::min(numChunks, numTrainThreads);
 
-                std::vector<std::vector<float>> threadGrads(numChunks, std::vector<float>(totalParams, 0.0f));
-                std::vector<float> threadLoss(numChunks, 0.0f);
+                // Zero the pre-allocated buffers (no heap allocation)
+                for (int t = 0; t < numChunks; ++t) {
+                    std::fill(threadGrads[t].begin(), threadGrads[t].end(), 0.0f);
+                    threadLoss[t] = 0.0f;
+                }
                 std::vector<std::thread> trainThreads;
                 trainThreads.reserve(numChunks);
 
@@ -1480,14 +1495,16 @@ namespace NNUE {
 
                 for (auto& th : trainThreads) th.join();
 
-                // Sum gradients and loss across threads
-                std::vector<float> grads(totalParams, 0.0f);
+                // Sum gradients and loss across threads into thread 0's buffer (reuse as accumulator)
                 float batchLoss = 0.0f;
                 for (int t = 0; t < numChunks; ++t) {
                     batchLoss += threadLoss[t];
-                    for (int i = 0; i < totalParams; ++i)
-                        grads[i] += threadGrads[t][i];
+                    if (t > 0) {
+                        for (int i = 0; i < totalParams; ++i)
+                            threadGrads[0][i] += threadGrads[t][i];
+                    }
                 }
+                std::vector<float>& grads = threadGrads[0];
 
                 float invBatch = 1.0f / static_cast<float>(batchActualSize);
                 for (int i = 0; i < totalParams; ++i)
@@ -1508,6 +1525,8 @@ namespace NNUE {
                     adamUpdate(params, grads, adamState, effectiveLr, 0.9f, 0.999f,
                                config.weightDecay);
                     std::fill(grads.begin(), grads.end(), 0.0f);
+                    // Unpack updated weights into net struct — only after an actual Adam step
+                    unpackWeights(params);
                 }
 
                 if (cancelFlag && (numBatches % 50 == 0) && cancelFlag->load()) break;
