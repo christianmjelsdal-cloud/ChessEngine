@@ -350,8 +350,10 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        // Auto-detect Syzygy tablebases next to the exe
-        if (Syzygy::maxPieces() == 0) {
+        // Auto-detect Syzygy tablebases — standard chess only.
+        // Duck chess has different win conditions (king capture, no check),
+        // so Syzygy results are invalid and should not be loaded.
+        if (!isDuckChess && Syzygy::maxPieces() == 0) {
             std::string tbPath = assetPath("Syzygy345");
             if (std::filesystem::is_directory(tbPath)) {
                 if (Syzygy::init(tbPath)) {

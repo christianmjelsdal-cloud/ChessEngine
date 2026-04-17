@@ -1014,7 +1014,9 @@ void VisualGame::drawMoveList() {
         // Tablebase probe (show when ≤5 pieces)
         const Board& vb = viewBoard();
         int pc = Syzygy::pieceCount(vb);
-        if (Syzygy::maxPieces() > 0 && pc <= Syzygy::maxPieces()) {
+        // Syzygy tablebases are for standard chess only — duck chess has different
+        // win conditions (king capture, no check) so TB results are meaningless.
+        if (!isDuckChess_ && Syzygy::maxPieces() > 0 && pc <= Syzygy::maxPieces()) {
             int tbScore = 0;
             std::string tbStr;
             if (Syzygy::probeWDL(vb, tbScore)) {
