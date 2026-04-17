@@ -1208,7 +1208,17 @@ static bool SelfPlay(const Config& cfg, int gen) {
                         TrainPoint npt; npt.gen = gen; npt.step = step;
                         npt.nps = npsVal; npt.hasNps = true; npt.hasLoss = false;
                         g_st.pushPt(npt);
-                        std::lock_guard<std::mutex> lk(g_st.mtx); g_st.curNps = npsVal;
+                        {
+                            std::lock_guard<std::mutex> lk(g_st.mtx);
+                            g_st.curNps = npsVal;
+                            // Remove the step=0 live placeholder now that a real sample exists
+                            auto& pts = g_st.pts;
+                            pts.erase(std::remove_if(pts.begin(), pts.end(),
+                                [&](const TrainPoint& p) {
+                                    return p.gen == gen && p.step == 0
+                                        && p.hasNps && !p.hasLoss;
+                                }), pts.end());
+                        }
                     }
                 } catch (...) {}
             }
@@ -3970,27 +3980,31 @@ static LRESULT CALLBACK WndProc(HWND hw, UINT msg, WPARAM wp, LPARAM lp) {
                 }
             }
 
-            // Live NPS: during self-play, inject curNps into current gen's points
-            // so the NPS panel updates in real time (every 500ms timer tick).
+            // Live NPS: during self-play, maintain a single step=0 placeholder point
+            // so the NPS panel shows the current NPS in real time (every 500ms timer tick).
+            // Real NPS_SAMPLE points (step > 0) are pushed by the RunProc callback and
+            // must NOT be overwritten here — they carry individual per-sample values.
             if (running) {
                 std::lock_guard<std::mutex> lk(g_st.mtx);
                 if (g_st.curNps > 0.0 && phase == "selfplay") {
-                    int liveGen = g_cfg.startGen + 1 + g_st.curGen;  // startGen+1 = firstGen, offset by curGen
-                    bool updated = false;
+                    int liveGen = g_cfg.startGen + 1 + g_st.curGen;
+                    // Find or create the step=0 placeholder for this gen
+                    bool found = false;
                     for (auto& p : g_st.pts) {
-                        if (p.gen == liveGen) {
-                            p.nps = g_st.curNps;
+                        if (p.gen == liveGen && p.step == 0) {
+                            p.nps    = g_st.curNps;
                             p.hasNps = true;
-                            updated = true;
+                            found    = true;
+                            break;
                         }
                     }
-                    // If no points exist yet for this gen (self-play still running, no training yet),
-                    // create a placeholder point so the graph has something to show.
-                    if (!updated && g_st.curNps > 0.0) {
+                    if (!found) {
                         TrainPoint live;
-                        live.gen = liveGen; live.step = 0;
-                        live.train = 0.0;
-                        live.nps = g_st.curNps; live.hasNps = true;
+                        live.gen    = liveGen;
+                        live.step   = 0;
+                        live.train  = 0.0;
+                        live.nps    = g_st.curNps;
+                        live.hasNps = true;
                         g_st.pts.push_back(live);
                     }
                 }
