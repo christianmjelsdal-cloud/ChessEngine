@@ -404,12 +404,51 @@ void VisualGame::handleKeyPress(sf::Keyboard::Key key) {
         // Toggle duck chess mode
         isDuckChess_ = !isDuckChess_;
         isAutomateChess_ = false;
+        // Clear loaded networks — variant changed, weights are no longer valid
+        nnueNet_.reset();
+        duckNnueNet_.reset();
+        nnueEnabled_ = false;
+        engine_.setNNUE(nullptr);
+        engine2_.setNNUE(nullptr);
+        engine_.setDuckNNUE(nullptr);
+        engine2_.setDuckNNUE(nullptr);
+        // Auto-load the correct weights for the new variant
+        {
+            std::string wPath = isDuckChess_
+                ? assetPath("assets/duck_nnue_weights.bin")
+                : assetPath("assets/nnue_weights.bin");
+            if (isDuckChess_) {
+                duckNnueNet_ = std::make_unique<DuckNNUE::Network>();
+                if (duckNnueNet_->loadWeights(wPath)) {
+                    engine_.setDuckNNUE(duckNnueNet_.get());
+                    engine2_.setDuckNNUE(duckNnueNet_.get());
+                    { std::lock_guard<std::mutex> lk(nnueStatusMutex_); nnueStatus_ = "Duck NNUE loaded (press N to enable eval)"; }
+                } else {
+                    duckNnueNet_.reset();
+                    { std::lock_guard<std::mutex> lk(nnueStatusMutex_); nnueStatus_ = "No duck weights at: " + wPath; }
+                }
+            } else {
+                nnueNet_ = std::make_unique<NNUE::Network>();
+                if (nnueNet_->loadWeights(wPath)) {
+                    { std::lock_guard<std::mutex> lk(nnueStatusMutex_); nnueStatus_ = "NNUE loaded (press N to enable eval)"; }
+                } else {
+                    nnueNet_.reset();
+                    { std::lock_guard<std::mutex> lk(nnueStatusMutex_); nnueStatus_ = "No weights at: " + wPath; }
+                }
+            }
+        }
         resetGame();
     }
 #endif
     else if (key == sf::Keyboard::Key::M) {
         // Toggle Automate Chess mode (M for "Muster your army")
         isAutomateChess_ = !isAutomateChess_;
+        if (isDuckChess_) {
+            // Switching away from duck chess — clear duck networks
+            duckNnueNet_.reset();
+            engine_.setDuckNNUE(nullptr);
+            engine2_.setDuckNNUE(nullptr);
+        }
         isDuckChess_ = false;
         if (isAutomateChess_)
             enterAutomateSetup();
