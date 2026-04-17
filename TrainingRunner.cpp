@@ -216,22 +216,45 @@ struct AppState {
     void setPhase (const std::string& s) { std::lock_guard<std::mutex> lk(mtx); phase  = s; }
     void pushPt(TrainPoint p) {
         std::lock_guard<std::mutex> lk(mtx);
-        // Replace existing point with same gen+step, or append
-        bool replaced = false;
+        // Merge with existing point at same (gen, step) rather than wholesale replace.
+        // This preserves NPS fields when a training loss point arrives for the same step,
+        // and preserves loss fields when an NPS point arrives for the same step.
+        bool merged = false;
         for (auto& existing : pts) {
             if (existing.gen == p.gen && existing.step == p.step) {
-                existing = p;
-                replaced = true;
+                // Incoming has loss data → update all loss fields, keep existing NPS
+                if (p.hasLoss) {
+                    existing.train        = p.train;
+                    existing.val          = p.val;
+                    existing.hasVal       = p.hasVal;
+                    existing.accuracy     = p.accuracy;
+                    existing.hasAcc       = p.hasAcc;
+                    existing.lr           = p.lr;
+                    existing.hasLR        = p.hasLR;
+                    existing.openingLoss    = p.openingLoss;
+                    existing.middlegameLoss = p.middlegameLoss;
+                    existing.endgameLoss    = p.endgameLoss;
+                    existing.hasPhase     = p.hasPhase;
+                    existing.hasLoss      = true;
+                }
+                // Incoming has NPS data → update NPS fields, keep existing loss
+                if (p.hasNps) {
+                    existing.nps    = p.nps;
+                    existing.hasNps = true;
+                }
+                merged = true;
                 break;
             }
         }
-        if (!replaced) pts.push_back(p);
+        if (!merged) pts.push_back(p);
         // Keep sorted by (gen, step) so graph always renders in order
         std::sort(pts.begin(), pts.end(), [](const TrainPoint& a, const TrainPoint& b) {
             return a.gen != b.gen ? a.gen < b.gen : a.step < b.step;
         });
-        lastTrain = p.train;
-        if (p.hasVal) lastVal = p.val;
+        if (p.hasLoss) {
+            lastTrain = p.train;
+            if (p.hasVal) lastVal = p.val;
+        }
     }
 };
 

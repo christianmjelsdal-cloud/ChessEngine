@@ -322,9 +322,38 @@ struct AppState {
     void setPhase (const std::string& s) { std::lock_guard<std::mutex> lk(mtx); phase  = s; }
     void pushPt(TrainPoint p) {
         std::lock_guard<std::mutex> lk(mtx);
-        pts.push_back(p);
-        lastTrain = p.train;
-        if (p.hasVal) lastVal = p.val;
+        // Merge with existing point at same (gen, step) — preserves NPS when loss arrives
+        // and preserves loss when NPS arrives, instead of wholesale replacement.
+        bool merged = false;
+        for (auto& existing : pts) {
+            if (existing.gen == p.gen && existing.step == p.step) {
+                if (p.hasLoss) {
+                    existing.train          = p.train;
+                    existing.val            = p.val;
+                    existing.hasVal         = p.hasVal;
+                    existing.accuracy       = p.accuracy;
+                    existing.hasAcc         = p.hasAcc;
+                    existing.lr             = p.lr;
+                    existing.hasLR          = p.hasLR;
+                    existing.openingLoss    = p.openingLoss;
+                    existing.middlegameLoss = p.middlegameLoss;
+                    existing.endgameLoss    = p.endgameLoss;
+                    existing.hasPhase       = p.hasPhase;
+                    existing.hasLoss        = true;
+                }
+                if (p.hasNps) {
+                    existing.nps    = p.nps;
+                    existing.hasNps = true;
+                }
+                merged = true;
+                break;
+            }
+        }
+        if (!merged) pts.push_back(p);
+        if (p.hasLoss) {
+            lastTrain = p.train;
+            if (p.hasVal) lastVal = p.val;
+        }
         // FIX 7: Signal graph needs redraw
         extern GraphState g_graph;
         g_graph.dirty.store(true, std::memory_order_relaxed);
