@@ -3995,43 +3995,9 @@ static LRESULT CALLBACK WndProc(HWND hw, UINT msg, WPARAM wp, LPARAM lp) {
                 }
             }
 
-            // Live self-play countdown: inject a \r line every 500ms so the output
-            // window shows a ticking ETA during self-play (same pattern as training).
-            // Only inject when the engine hasn't printed its own [SelfPlay] line recently
-            // (within 1.5s) — the engine's line has full stats and should be preserved.
-            if (running && phase == "selfplay") {
-                auto now3 = std::chrono::steady_clock::now();
-                int spEta2 = 0;
-                std::chrono::steady_clock::time_point spStamp2, lastPrint;
-                int cg2 = 0, tg2 = 0;
-                {
-                    std::lock_guard<std::mutex> lk(g_st.mtx);
-                    spEta2     = g_st.selfPlayEtaSec;
-                    spStamp2   = g_st.selfPlayEtaStamp;
-                    lastPrint  = g_st.lastSelfPlayPrint;
-                    cg2 = g_st.curEpoch;
-                    tg2 = g_st.totalEpochs;
-                }
-                // Only inject if engine hasn't printed in the last 1.5 seconds
-                double sinceLastPrint = std::chrono::duration<double>(now3 - lastPrint).count();
-                if (sinceLastPrint > 1.5 && spEta2 > 0) {
-                    long long el3 = std::chrono::duration_cast<std::chrono::seconds>(now3 - spStamp2).count();
-                    long long spLeft2 = std::max(0LL, (long long)spEta2 - el3);
-                    long long sh = spLeft2 / 3600;
-                    long long sm = (spLeft2 % 3600) / 60;
-                    long long ss2 = spLeft2 % 60;
-                    char etaBuf[16];
-                    if (sh > 0)
-                        std::snprintf(etaBuf, sizeof(etaBuf), "%lld:%02lld:%02lld", sh, sm, ss2);
-                    else
-                        std::snprintf(etaBuf, sizeof(etaBuf), "%02lld:%02lld", sm, ss2);
-                    std::string spLine = "[SelfPlay]";
-                    if (tg2 > 0) spLine += " " + std::to_string(cg2) + "/" + std::to_string(tg2);
-                    spLine += "  ETA " + std::string(etaBuf);
-                    g_st.pushLog("\r" + spLine);
-                    FlushLog();
-                }
-            }
+            // Self-play ETA is shown in the banner (countdown(spEta, spStamp)).
+            // The engine's own [SelfPlay] progress line already contains the full stats
+            // and ETA — no need to inject a separate countdown line in the output window.
 
             // Live NPS: during self-play, maintain a single step=0 placeholder point
             // so the NPS panel shows the current NPS in real time (every 500ms timer tick).
