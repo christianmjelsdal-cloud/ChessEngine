@@ -557,6 +557,17 @@ void Board::makeMove(const Move& m, UndoInfo& undo) {
     undo.occupiedBB     = occupiedBB;
     undo.colorBB[0]     = colorBB[0];
     undo.colorBB[1]     = colorBB[1];
+    // movedPiece/capturedPiece must be set before the BB snapshot so we know which BBs to save
+    undo.movedPiece    = getPiece(m.from);
+    undo.capturedPiece = getPiece(m.to);
+    // En-passant capture square
+    undo.capturedEP   = Piece{};
+    undo.capturedEPSq = {-1, -1};
+    if (undo.movedPiece.type == PieceType::Pawn &&
+        m.to.col != m.from.col && undo.capturedPiece.isNone()) {
+        undo.capturedEPSq = {m.from.rank, m.to.col};
+        undo.capturedEP   = getPiece(undo.capturedEPSq);
+    }
     // Partial pieceBBs snapshot: save only the piece types that will change.
     // Quiet: movingType. Capture: movingType + capturedType. Promo: Pawn + promoType.
     // Castle: King + Rook. En-passant: Pawn (moving and captured are both Pawn).
@@ -585,16 +596,6 @@ void Board::makeMove(const Move& m, UndoInfo& undo) {
     undo.whiteKingSq   = whiteKingSq;
     undo.blackKingSq   = blackKingSq;
     undo.phase         = phase;
-    undo.movedPiece    = getPiece(m.from);
-    undo.capturedPiece = getPiece(m.to);
-    // En-passant capture square
-    undo.capturedEP   = Piece{};
-    undo.capturedEPSq = {-1, -1};
-    if (undo.movedPiece.type == PieceType::Pawn &&
-        m.to.col != m.from.col && undo.capturedPiece.isNone()) {
-        undo.capturedEPSq = {m.from.rank, m.to.col};
-        undo.capturedEP   = getPiece(undo.capturedEPSq);
-    }
 
     // Full squares[][] snapshot for reliable unmake
     // NOTE: squares[][] is reconstructed from bitboards on unmake — no snapshot needed.
