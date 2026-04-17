@@ -1133,9 +1133,7 @@ static bool SelfPlay(const Config& cfg, int gen) {
     fs::create_directories(assetsDir);
     fs::path outFile = assetsDir/(cfg.selfplayPrefix()+std::to_string(gen)+".bin");
     std::string weightsArg;
-    if (gen > cfg.startGen + 1 && cfg.variant != ChessVariant::DuckChess) {
-        // Duck Chess self-play uses handcrafted eval — DuckNNUE weights can't be
-        // loaded by --generate (it expects standard NNUE format)
+    if (gen > cfg.startGen + 1) {
         fs::path prev = assetsDir/(cfg.weightsBaseName()+"_gen"+std::to_string(gen-1)+".bin");
         if (fs::exists(prev)) weightsArg = " --weights \""+prev.string()+"\"";
     }
