@@ -3980,6 +3980,32 @@ static LRESULT CALLBACK WndProc(HWND hw, UINT msg, WPARAM wp, LPARAM lp) {
                 }
             }
 
+            // Live self-play countdown: inject a \r line every 500ms so the output
+            // window shows a ticking ETA during self-play (same pattern as training).
+            if (running && phase == "selfplay") {
+                auto now3 = std::chrono::steady_clock::now();
+                int spEta2 = 0;
+                std::chrono::steady_clock::time_point spStamp2;
+                int cg2 = 0, tg2 = 0;
+                {
+                    std::lock_guard<std::mutex> lk(g_st.mtx);
+                    spEta2   = g_st.selfPlayEtaSec;
+                    spStamp2 = g_st.selfPlayEtaStamp;
+                    cg2 = g_st.curEpoch;    // curEpoch = games completed during self-play
+                    tg2 = g_st.totalEpochs; // totalEpochs = total games
+                }
+                if (spEta2 > 0) {
+                    long long el3 = std::chrono::duration_cast<std::chrono::seconds>(now3 - spStamp2).count();
+                    long long spLeft2 = std::max(0LL, (long long)spEta2 - el3);
+                    int sm = (int)(spLeft2 / 60), ss2 = (int)(spLeft2 % 60);
+                    std::string spLine = "[SelfPlay]";
+                    if (tg2 > 0) spLine += " " + std::to_string(cg2) + "/" + std::to_string(tg2);
+                    spLine += "  ETA: " + std::to_string(sm) + "m" + std::to_string(ss2) + "s";
+                    g_st.pushLog("\r" + spLine);
+                    FlushLog();
+                }
+            }
+
             // Live NPS: during self-play, maintain a single step=0 placeholder point
             // so the NPS panel shows the current NPS in real time (every 500ms timer tick).
             // Real NPS_SAMPLE points (step > 0) are pushed by the RunProc callback and
