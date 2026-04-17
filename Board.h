@@ -124,6 +124,17 @@ public:
     // Validation: checks that both kings are present
     bool hasValidKings() const;
 
+    // Equality comparison (used by debug tests)
+    bool operator==(const Board& o) const {
+        if (turn != o.turn || halfMoveClock != o.halfMoveClock) return false;
+        if (hash != o.hash) return false;
+        if (occupiedBB != o.occupiedBB) return false;
+        for (int i = 0; i < 7; ++i) if (pieceBBs[i] != o.pieceBBs[i]) return false;
+        for (int i = 0; i < 2; ++i) if (colorBB[i] != o.colorBB[i]) return false;
+        return true;
+    }
+    bool operator!=(const Board& o) const { return !(*this == o); }
+
     // ----------------------------------------------------------------
     // Bitboard query helpers (derived from pieceBBs / colorBB)
     // ----------------------------------------------------------------
