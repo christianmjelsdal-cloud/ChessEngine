@@ -1175,8 +1175,12 @@ static bool SelfPlay(const Config& cfg, int gen) {
         (cfg.depthShuffle ? " --depth-shuffle --depth-shuffle-bias " + dbl2s(cfg.depthShuffleBias, 2) : "") +
         // FRC mix
         (cfg.frcMix > 0.0 ? " --frc-mix " + dbl2s(cfg.frcMix, 3) : "") +
-        // Openings file
+        // Openings file — only for standard chess.
+        // Duck chess openings.txt contains standard chess FENs with no duck placed,
+        // which are irrelevant to duck chess strategy and reduce position diversity.
+        // Duck chess uses random opening plies (openingTemp/openingPlies) instead.
         [&]() -> std::string {
+            if (cfg.variant != ChessVariant::Standard) return "";
             fs::path openings = fs::path(d) / cfg.dataDir / "openings.txt";
             if (!fs::exists(openings)) openings = fs::path(d) / "assets" / "openings.txt";
             if (fs::exists(openings)) return " --openings \"" + openings.string() + "\"";
