@@ -575,22 +575,24 @@ void Board::makeMove(const Move& m, UndoInfo& undo) {
         int mv   = (int)undo.movedPiece.type;
         int cap  = (int)undo.capturedPiece.type;
         int promo= (int)m.promotion;
-        undo.changedMask = 0;
-        int slot = 0;
-        auto saveBB = [&](int pt) {
-            if (pt <= 0 || pt > 6) return;
-            uint8_t bit = (uint8_t)(1 << pt);
-            if (undo.changedMask & bit) return;  // already saved
-            undo.savedBBs[slot++] = pieceBBs[pt];
-            undo.changedMask |= bit;
-        };
-        if (mv >= 1 && mv <= 6)   saveBB(mv);
-        if (cap >= 1 && cap <= 6) saveBB(cap);
-        if (promo >= 1 && promo <= 6) saveBB(promo);
-        // Castling: also save Rook BB
         bool isCastle = (undo.movedPiece.type == PieceType::King &&
                          std::abs(m.to.col - m.from.col) == 2);
-        if (isCastle) saveBB((int)PieceType::Rook);
+        // Build the set of piece-type indices that will change
+        uint8_t needSave = 0;
+        auto markBB = [&](int pt) {
+            if (pt >= 1 && pt <= 6) needSave |= (uint8_t)(1 << pt);
+        };
+        markBB(mv);
+        markBB(cap);
+        markBB(promo);
+        if (isCastle) markBB((int)PieceType::Rook);
+        // Save in ascending pt order — MUST match the restore loop in unmakeMove
+        undo.changedMask = needSave;
+        int slot = 0;
+        for (int pt = 1; pt <= 6; pt++) {
+            if (needSave & (uint8_t)(1 << pt))
+                undo.savedBBs[slot++] = pieceBBs[pt];
+        }
         // En-passant: captured pawn BB same as moving pawn BB → already covered
     }
     undo.whiteKingSq   = whiteKingSq;
