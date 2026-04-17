@@ -95,12 +95,13 @@ After all threads complete, the reduction loop sums 16 gradient vectors of 560K 
 
 ## Summary Table
 
-| # | Bug | Severity | Fix Effort |
-|---|-----|----------|------------|
-| 1 | NPS graph: pushPt overwrites NPS fields, wrong liveGen | Medium | Low |
-| 2 | Self-play ETA not counted down in banner | Medium | Low |
-| 3 | Epoch 0/N and Batch total/total stuck in training log | Medium | Low |
-| 4 | CPU ~16%: per-batch thread spawn dominates compute time | High | Medium |
+| # | Bug | Severity | Status |
+|---|-----|----------|--------|
+| 1 | NPS graph: pushPt overwrites NPS fields, wrong liveGen | Medium | ✅ Fixed |
+| 2 | Self-play ETA not counted down in banner | Medium | ✅ Fixed |
+| 3 | Epoch 0/N and Batch total/total stuck in training log | Medium | ✅ Fixed |
+| 4 | CPU ~16%: per-batch thread spawn dominates compute time | High | ✅ Fixed |
+| 5 | Gap in loss line: NPS-only points interleave and break draw loop | Medium | ✅ Fixed |
 
 ---
 

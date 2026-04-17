@@ -180,11 +180,13 @@ struct AppState {
     int batchEtaSec  = 0;
     int epochEtaSec  = 0;
     int nextEpochSec = 0;
-    int curBatch     = 0;   // current batch within epoch (for --train-duck)
-    int totalBatches = 0;   // total batches per epoch (for --train-duck)
+    int selfPlayEtaSec = 0;   // countdown: self-play ETA from "[SelfPlay] ... ETA HH:MM:SS"
+    int curBatch     = 0;
+    int totalBatches = 0;
     std::chrono::steady_clock::time_point batchEtaStamp;
     std::chrono::steady_clock::time_point epochEtaStamp;
     std::chrono::steady_clock::time_point nextEpochStamp;
+    std::chrono::steady_clock::time_point selfPlayEtaStamp;
     bool   running   = false;
     std::atomic<bool> stopFlag{false};
     double curNps    = 0.0;  // latest NPS parsed from self-play output
@@ -1190,7 +1192,7 @@ static bool SelfPlay(const Config& cfg, int gen) {
     g_log.event("selfplay", gen, "PHASE_START games=" + std::to_string(cfg.gamesPerGen)
                 + " depth=" + std::to_string(cfg.depth)
                 + " workers=" + std::to_string(cfg.workers));
-    { std::lock_guard<std::mutex> lk(g_st.mtx); g_st.curEpoch=0; g_st.totalEpochs=cfg.gamesPerGen; g_st.curNps=0.0; }
+    { std::lock_guard<std::mutex> lk(g_st.mtx); g_st.curEpoch=0; g_st.totalEpochs=cfg.gamesPerGen; g_st.curNps=0.0; g_st.selfPlayEtaSec=0; }
     int lastLoggedPct = -1;  // track last logged progress percentage
     bool spOk = RunProc(cmd, d, [&](const std::string& ln){
         // NPS_SAMPLE lines are internal data for the graph — don't show in output window
@@ -1233,6 +1235,21 @@ static bool SelfPlay(const Config& cfg, int gen) {
             try { size_t n; int g2=std::stoi(ln.substr(p+11), &n);
                 std::lock_guard<std::mutex> lk(g_st.mtx); g_st.curEpoch=g2; }
             catch(...) {}
+
+            // Parse self-play ETA: "ETA HH:MM:SS"
+            {
+                auto ep = ln.find("ETA ");
+                if (ep != std::string::npos) {
+                    int hh = 0, mm = 0, ss = 0;
+                    if (std::sscanf(ln.c_str() + ep + 4, "%d:%d:%d", &hh, &mm, &ss) >= 2) {
+                        int totalSec = hh * 3600 + mm * 60 + ss;
+                        auto now = std::chrono::steady_clock::now();
+                        std::lock_guard<std::mutex> lk(g_st.mtx);
+                        g_st.selfPlayEtaSec   = totalSec;
+                        g_st.selfPlayEtaStamp = now;
+                    }
+                }
+            }
 
             // Parse NPS from every progress line for live graph (not just milestones)
             {
@@ -1583,6 +1600,26 @@ static bool Training(const Config& cfg, int gen) {
                             std::lock_guard<std::mutex> lk(g_st.mtx);
                             g_st.curBatch     = bn;
                             g_st.totalBatches = tb;
+                        }
+                    }
+                } catch (...) {}
+            }
+            // Epoch line: "Epoch N/M" — update curEpoch immediately (not waiting for loss parse)
+            // and reset curBatch so banner shows "Batch 0/total" at the start of each epoch
+            auto epos = ln.find("Epoch ");
+            if (epos != std::string::npos) {
+                try {
+                    size_t numStart = epos + 6;
+                    size_t slashPos = ln.find('/', numStart);
+                    if (slashPos != std::string::npos) {
+                        int en = std::stoi(ln.substr(numStart, slashPos - numStart));
+                        if (en > 0) {
+                            std::lock_guard<std::mutex> lk(g_st.mtx);
+                            // Only reset batch counter when epoch number changes
+                            if (en != g_st.curEpoch) {
+                                g_st.curBatch = 0;
+                            }
+                            g_st.curEpoch = en;
                         }
                     }
                 } catch (...) {}
@@ -1982,10 +2019,13 @@ static void DrawGraph(HWND hw) {
         }
 
         Pen trainPen(Color(255,65,125,245), 1.8f);
-        for (size_t i=1; i<pts.size(); i++) {
-            if (!pts[i].hasLoss || !pts[i-1].hasLoss) continue;
-            g.DrawLine(&trainPen, xf((int)i-1), yf(pts[i-1].train), xf((int)i), yf(pts[i].train));
-        }
+        { bool st=false; float px_t=0,py_t=0;
+          for (size_t i=0; i<pts.size(); i++) {
+            if (!pts[i].hasLoss) continue;  // skip NPS-only points without breaking line
+            float cx=xf((int)i), cy=yf(pts[i].train);
+            if (st) g.DrawLine(&trainPen,px_t,py_t,cx,cy);
+            px_t=cx; py_t=cy; st=true;
+        }}
 
         Pen valPen(Color(255,245,160,60), 1.8f);
         { bool st=false; float px2=0,py2=0;
@@ -3769,8 +3809,8 @@ static LRESULT CALLBACK WndProc(HWND hw, UINT msg, WPARAM wp, LPARAM lp) {
             if (running && totalGens > 0) {
                 auto now = std::chrono::steady_clock::now();
                 std::chrono::steady_clock::time_point pStart, phStart;
-                std::chrono::steady_clock::time_point bStamp, eStamp, nStamp;
-                int doneGens, bEta, eEta, nEta;
+                std::chrono::steady_clock::time_point bStamp, eStamp, nStamp, spStamp;
+                int doneGens, bEta, eEta, nEta, spEta;
                 {
                     std::lock_guard<std::mutex> lk(g_st.mtx);
                     pStart   = g_st.pipelineStart;
@@ -3779,9 +3819,11 @@ static LRESULT CALLBACK WndProc(HWND hw, UINT msg, WPARAM wp, LPARAM lp) {
                     bEta     = g_st.batchEtaSec;
                     eEta     = g_st.epochEtaSec;
                     nEta     = g_st.nextEpochSec;
+                    spEta    = g_st.selfPlayEtaSec;
                     bStamp   = g_st.batchEtaStamp;
                     eStamp   = g_st.epochEtaStamp;
                     nStamp   = g_st.nextEpochStamp;
+                    spStamp  = g_st.selfPlayEtaStamp;
                 }
 
                 auto fmtDur = [](long long totalSec) -> std::wstring {
@@ -3838,7 +3880,7 @@ static LRESULT CALLBACK WndProc(HWND hw, UINT msg, WPARAM wp, LPARAM lp) {
                 // 2. Phase elapsed (how long current phase has been running)
                 bs << L"  |  Phase elapsed: " << fmtDur(phaseSec);
 
-                // 3. Training-specific countdowns (only when training phase active)
+                // 3. Phase-specific countdowns
                 if (isTraining) {
                     long long bLeft = countdown(bEta, bStamp);
                     long long eLeft = countdown(eEta, eStamp);
@@ -3850,6 +3892,11 @@ static LRESULT CALLBACK WndProc(HWND hw, UINT msg, WPARAM wp, LPARAM lp) {
                         bs << L"  |  Next epoch in: ~" << fmtDur(nLeft);
                     if (eLeft >= 0)
                         bs << L"  |  Training done in: ~" << fmtDur(eLeft);
+                }
+                if (isSelfPlay) {
+                    long long spLeft = countdown(spEta, spStamp);
+                    if (spLeft >= 0)
+                        bs << L"  |  Self-play done in: ~" << fmtDur(spLeft);
                 }
 
                 // 4. Total pipeline elapsed

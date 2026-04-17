@@ -1268,6 +1268,196 @@ namespace NNUE {
         std::vector<std::vector<float>> threadGrads(numTrainThreads, std::vector<float>(totalParams, 0.0f));
         std::vector<float> threadLoss(numTrainThreads, 0.0f);
 
+        // ── Persistent thread pool ────────────────────────────────────────────
+        // Threads are created once and reused for all batches in all epochs.
+        // Each batch posts work via tStart_/tEnd_ and wakes workers via a
+        // condition variable. Workers signal done via a barrier counter.
+        // This eliminates ~178K thread create/destroy cycles per gen.
+        struct BatchWork { int tStart = 0, tEnd = 0; };
+        std::vector<BatchWork> threadWork(numTrainThreads);
+        std::mutex              poolMtx;
+        std::condition_variable poolWake;   // wakes workers when a batch is ready
+        std::condition_variable poolDone;   // wakes the main thread when all workers done
+        int poolPending  = 0;   // workers that haven't finished yet
+        int poolEpoch    = 0;   // incremented each batch to distinguish "no work" from stale
+        int poolCurEpoch = 0;   // workers read this to detect new work
+        bool poolStop    = false;
+        int poolNumChunks = 0;
+
+        auto workerBodyFn = [&](int t) {
+            int lastSeen = 0;
+            for (;;) {
+                // Wait for new batch work
+                std::unique_lock<std::mutex> lk(poolMtx);
+                poolWake.wait(lk, [&]{ return poolStop || poolCurEpoch != lastSeen; });
+                if (poolStop) return;
+                lastSeen = poolCurEpoch;
+                int tStart = threadWork[t].tStart;
+                int tEnd   = threadWork[t].tEnd;
+                bool active = (t < poolNumChunks);
+                lk.unlock();
+
+                if (active) {
+                    auto& tGrads = threadGrads[t];
+                    float tLoss = 0.0f;
+
+                    for (int bi = tStart; bi < tEnd; ++bi) {
+                        const TrainingPosition& pos = (*trainingData)[indices[bi]];
+
+                        // ---- FORWARD PASS (AVX2) ----
+                        alignas(32) float whiteAcc[L1_SIZE];
+                        alignas(32) float blackAcc[L1_SIZE];
+                        std::memcpy(whiteAcc, net.L1_biases.data(), L1_SIZE * sizeof(float));
+                        std::memcpy(blackAcc, net.L1_biases.data(), L1_SIZE * sizeof(float));
+
+                        for (int feat : pos.activeFeatures) {
+                            int mirFeat = mirrorDuckFeature(feat);
+                            TrainAVX::avx_add_row<L1_SIZE>(whiteAcc, net.L1_weights[feat].data());
+                            TrainAVX::avx_add_row<L1_SIZE>(blackAcc, net.L1_weights[mirFeat].data());
+                        }
+
+                        alignas(32) float l1Pre[L1_SIZE * 2];
+                        alignas(32) float l1Out[L1_SIZE * 2];
+                        const float* stmAcc = (pos.sideToMove == Color::White) ? whiteAcc : blackAcc;
+                        const float* oppAcc = (pos.sideToMove == Color::White) ? blackAcc : whiteAcc;
+                        TrainAVX::avx_screlu<L1_SIZE>(stmAcc, l1Pre,           l1Out);
+                        TrainAVX::avx_screlu<L1_SIZE>(oppAcc, l1Pre + L1_SIZE, l1Out + L1_SIZE);
+
+                        alignas(32) float l2Pre[L2_SIZE], l2Out[L2_SIZE];
+                        TrainAVX::avx_gemv_T<L2_SIZE, L1_SIZE * 2>(
+                            &net.L2_weights_T[0][0], net.L2_biases.data(), l1Out, l2Pre);
+                        TrainAVX::avx_screlu<L2_SIZE>(l2Pre, l2Pre, l2Out);
+
+                        alignas(32) float l3Pre[L3_SIZE], l3Out[L3_SIZE];
+                        TrainAVX::avx_gemv_T<L3_SIZE, L2_SIZE>(
+                            &net.L3_weights_T[0][0], net.L3_biases.data(), l2Out, l3Pre);
+                        TrainAVX::avx_screlu<L3_SIZE>(l3Pre, l3Pre, l3Out);
+
+                        float rawOutput = TrainAVX::avx_dot<L3_SIZE>(
+                            net.output_weights.data(), l3Out) + net.output_bias;
+                        float predicted = rawOutput * 400.0f;
+                        float predictedWhitePOV = (pos.sideToMove == Color::White) ? predicted : -predicted;
+
+                        // ---- LOSS ----
+                        float sigPred   = sigmoid(predictedWhitePOV / config.evalScale);
+                        float sigTarget = sigmoid(pos.searchEval / config.evalScale);
+                        float result = pos.gameResult;
+                        if (config.labelSmoothing > 0.0f)
+                            result = result * (1.0f - config.labelSmoothing) + 0.5f * config.labelSmoothing;
+                        float evalLoss   = (sigPred - sigTarget) * (sigPred - sigTarget);
+                        float resultLoss = (sigPred - result)    * (sigPred - result);
+                        float posLoss = config.lambda * evalLoss + (1.0f - config.lambda) * resultLoss;
+                        float boost = 1.0f;
+                        if (config.mateBoost > 1.0f && std::abs(pos.searchEval) > 300.0f) {
+                            boost = 1.0f + (config.mateBoost - 1.0f) *
+                                    std::min(1.0f, (std::abs(pos.searchEval) - 300.0f) / 700.0f);
+                            posLoss *= boost;
+                        }
+                        tLoss += posLoss;
+
+                        // ---- BACKWARD PASS (AVX2) ----
+                        float dLdSigPred = (2.0f * config.lambda * (sigPred - sigTarget)
+                                         + 2.0f * (1.0f - config.lambda) * (sigPred - result)) * boost;
+                        float dSigPred_dPredW = sigPred * (1.0f - sigPred) / config.evalScale;
+                        float dLdPredW  = dLdSigPred * dSigPred_dPredW;
+                        float dLdPred   = (pos.sideToMove == Color::White) ? dLdPredW : -dLdPredW;
+                        float dLdRawOut = dLdPred * 400.0f;
+
+                        TrainAVX::avx_axpy<L3_SIZE>(tGrads.data() + offOutW, l3Out, dLdRawOut);
+                        tGrads[offOutB] += dLdRawOut;
+
+                        alignas(32) float dLdL3Out[L3_SIZE];
+                        for (int i = 0; i < L3_SIZE; ++i)
+                            dLdL3Out[i] = dLdRawOut * net.output_weights[i];
+
+                        alignas(32) float dLdL3Pre[L3_SIZE];
+                        TrainAVX::avx_screlu_deriv_mul<L3_SIZE>(dLdL3Out, l3Pre, dLdL3Pre);
+
+                        TrainAVX::avx_outer_add<L2_SIZE, L3_SIZE>(tGrads.data() + offL3w, l2Out, dLdL3Pre);
+                        TrainAVX::avx_axpy<L3_SIZE>(tGrads.data() + offL3b, dLdL3Pre, 1.0f);
+
+                        alignas(32) float dLdL2Out[L2_SIZE] = {};
+                        TrainAVX::avx_matvec_T_add<L2_SIZE, L3_SIZE>(dLdL2Out, &net.L3_weights[0][0], dLdL3Pre);
+
+                        alignas(32) float dLdL2Pre[L2_SIZE];
+                        TrainAVX::avx_screlu_deriv_mul<L2_SIZE>(dLdL2Out, l2Pre, dLdL2Pre);
+
+                        TrainAVX::avx_outer_add<L1_SIZE * 2, L2_SIZE>(tGrads.data() + offL2w, l1Out, dLdL2Pre);
+                        TrainAVX::avx_axpy<L2_SIZE>(tGrads.data() + offL2b, dLdL2Pre, 1.0f);
+
+                        alignas(32) float dLdL1Out[L1_SIZE * 2] = {};
+                        TrainAVX::avx_matvec_T_add<L1_SIZE * 2, L2_SIZE>(dLdL1Out, &net.L2_weights[0][0], dLdL2Pre);
+
+                        alignas(32) float dLdL1Pre[L1_SIZE * 2];
+                        TrainAVX::avx_screlu_deriv_mul<L1_SIZE * 2>(dLdL1Out, l1Pre, dLdL1Pre);
+
+                        const float* dLdWhiteAcc = (pos.sideToMove == Color::White)
+                            ? dLdL1Pre : dLdL1Pre + L1_SIZE;
+                        const float* dLdBlackAcc = (pos.sideToMove == Color::White)
+                            ? dLdL1Pre + L1_SIZE : dLdL1Pre;
+
+                        for (int j = 0; j < L1_SIZE; j += 8) {
+                            __m256 w = _mm256_add_ps(
+                                _mm256_loadu_ps(dLdWhiteAcc + j),
+                                _mm256_loadu_ps(dLdBlackAcc + j));
+                            __m256 gg = _mm256_loadu_ps(tGrads.data() + offL1b + j);
+                            _mm256_storeu_ps(tGrads.data() + offL1b + j, _mm256_add_ps(gg, w));
+                        }
+
+                        for (int feat : pos.activeFeatures) {
+                            int mirFeat = mirrorDuckFeature(feat);
+                            TrainAVX::avx_axpy<L1_SIZE>(
+                                tGrads.data() + offL1w + feat    * L1_SIZE, dLdWhiteAcc, 1.0f);
+                            TrainAVX::avx_axpy<L1_SIZE>(
+                                tGrads.data() + offL1w + mirFeat * L1_SIZE, dLdBlackAcc, 1.0f);
+                        }
+                    } // end sample loop
+                    threadLoss[t] = tLoss;
+                }
+
+                // Signal done
+                {
+                    std::lock_guard<std::mutex> lk2(poolMtx);
+                    --poolPending;
+                    if (poolPending == 0) poolDone.notify_one();
+                }
+            }
+        };
+
+        // Launch persistent worker threads
+        std::vector<std::thread> poolThreads;
+        poolThreads.reserve(numTrainThreads);
+        for (int t = 0; t < numTrainThreads; ++t)
+            poolThreads.emplace_back(workerBodyFn, t);
+
+        // Helper: dispatch a batch to the pool and wait for completion
+        auto dispatchBatch = [&](int batchStart, int batchEnd) {
+            int batchActualSize = batchEnd - batchStart;
+            int chunkSize = std::max(1, batchActualSize / numTrainThreads);
+            int numChunks = std::min(numTrainThreads,
+                            (batchActualSize + chunkSize - 1) / chunkSize);
+
+            // Zero the buffers for active chunks
+            for (int t = 0; t < numChunks; ++t) {
+                std::fill(threadGrads[t].begin(), threadGrads[t].end(), 0.0f);
+                threadLoss[t] = 0.0f;
+                threadWork[t].tStart = batchStart + t * chunkSize;
+                threadWork[t].tEnd   = std::min(threadWork[t].tStart + chunkSize, batchEnd);
+            }
+            {
+                std::lock_guard<std::mutex> lk(poolMtx);
+                poolNumChunks = numChunks;
+                poolPending   = numChunks;
+                ++poolCurEpoch;
+            }
+            poolWake.notify_all();
+            // Wait for all chunks to finish
+            {
+                std::unique_lock<std::mutex> lk(poolMtx);
+                poolDone.wait(lk, [&]{ return poolPending == 0; });
+            }
+        };
+
         // Unpack initial weights before first batch
         unpackWeights(params);
 
@@ -1309,172 +1499,9 @@ namespace NNUE {
                 int batchEnd = std::min(batchStart + config.batchSize, static_cast<int>(indices.size()));
                 int batchActualSize = batchEnd - batchStart;
 
-                // Parallel gradient accumulation — each thread processes a chunk of the batch
-                int chunkSize = std::max(1, batchActualSize / numTrainThreads);
-                int numChunks = (batchActualSize + chunkSize - 1) / chunkSize;
-                // Clamp to pre-allocated buffer count
-                numChunks = std::min(numChunks, numTrainThreads);
-
-                // Zero the pre-allocated buffers (no heap allocation)
-                for (int t = 0; t < numChunks; ++t) {
-                    std::fill(threadGrads[t].begin(), threadGrads[t].end(), 0.0f);
-                    threadLoss[t] = 0.0f;
-                }
-                std::vector<std::thread> trainThreads;
-                trainThreads.reserve(numChunks);
-
-                for (int t = 0; t < numChunks; ++t) {
-                    int tStart = batchStart + t * chunkSize;
-                    int tEnd   = std::min(tStart + chunkSize, batchEnd);
-                    trainThreads.emplace_back([&, t, tStart, tEnd]() {
-                        auto& tGrads = threadGrads[t];
-                        float tLoss = 0.0f;
-
-                        for (int bi = tStart; bi < tEnd; ++bi) {
-                            const TrainingPosition& pos = (*trainingData)[indices[bi]];
-
-                            // ---- FORWARD PASS (AVX2) ----
-                            alignas(32) float whiteAcc[L1_SIZE];
-                            alignas(32) float blackAcc[L1_SIZE];
-                            // Init accumulators to L1 biases
-                            std::memcpy(whiteAcc, net.L1_biases.data(), L1_SIZE * sizeof(float));
-                            std::memcpy(blackAcc, net.L1_biases.data(), L1_SIZE * sizeof(float));
-
-                            // L1 accumulate: acc += L1_weights[feat]  (512 floats, AVX2 x64)
-                            for (int feat : pos.activeFeatures) {
-                                int mirFeat = mirrorDuckFeature(feat);
-                                TrainAVX::avx_add_row<L1_SIZE>(whiteAcc, net.L1_weights[feat].data());
-                                TrainAVX::avx_add_row<L1_SIZE>(blackAcc, net.L1_weights[mirFeat].data());
-                            }
-
-                            // SCReLU on both perspectives → l1Pre[0..1023], l1Out[0..1023]
-                            alignas(32) float l1Pre[L1_SIZE * 2];
-                            alignas(32) float l1Out[L1_SIZE * 2];
-                            const float* stmAcc = (pos.sideToMove == Color::White) ? whiteAcc : blackAcc;
-                            const float* oppAcc = (pos.sideToMove == Color::White) ? blackAcc : whiteAcc;
-                            TrainAVX::avx_screlu<L1_SIZE>(stmAcc, l1Pre,           l1Out);
-                            TrainAVX::avx_screlu<L1_SIZE>(oppAcc, l1Pre + L1_SIZE, l1Out + L1_SIZE);
-
-                            // L2: l2Pre[j] = L2_biases[j] + dot(L2_weights_T[j], l1Out)
-                            alignas(32) float l2Pre[L2_SIZE], l2Out[L2_SIZE];
-                            TrainAVX::avx_gemv_T<L2_SIZE, L1_SIZE * 2>(
-                                &net.L2_weights_T[0][0], net.L2_biases.data(), l1Out, l2Pre);
-                            TrainAVX::avx_screlu<L2_SIZE>(l2Pre, l2Pre, l2Out);  // in-place pre storage
-
-                            // L3: l3Pre[j] = L3_biases[j] + dot(L3_weights_T[j], l2Out)
-                            alignas(32) float l3Pre[L3_SIZE], l3Out[L3_SIZE];
-                            TrainAVX::avx_gemv_T<L3_SIZE, L2_SIZE>(
-                                &net.L3_weights_T[0][0], net.L3_biases.data(), l2Out, l3Pre);
-                            TrainAVX::avx_screlu<L3_SIZE>(l3Pre, l3Pre, l3Out);
-
-                            // Output: dot(output_weights, l3Out) + bias
-                            float rawOutput = TrainAVX::avx_dot<L3_SIZE>(
-                                net.output_weights.data(), l3Out) + net.output_bias;
-
-                            float predicted = rawOutput * 400.0f;
-                            float predictedWhitePOV = (pos.sideToMove == Color::White) ? predicted : -predicted;
-
-                            // ---- LOSS ----
-                            float sigPred   = sigmoid(predictedWhitePOV / config.evalScale);
-                            float sigTarget = sigmoid(pos.searchEval / config.evalScale);
-                            float result = pos.gameResult;
-                            if (config.labelSmoothing > 0.0f)
-                                result = result * (1.0f - config.labelSmoothing)
-                                       + 0.5f * config.labelSmoothing;
-                            float evalLoss   = (sigPred - sigTarget) * (sigPred - sigTarget);
-                            float resultLoss = (sigPred - result)    * (sigPred - result);
-                            float posLoss = config.lambda * evalLoss + (1.0f - config.lambda) * resultLoss;
-                            float boost = 1.0f;
-                            if (config.mateBoost > 1.0f && std::abs(pos.searchEval) > 300.0f) {
-                                boost = 1.0f + (config.mateBoost - 1.0f) *
-                                        std::min(1.0f, (std::abs(pos.searchEval) - 300.0f) / 700.0f);
-                                posLoss *= boost;
-                            }
-                            tLoss += posLoss;
-
-                            // ---- BACKWARD PASS (AVX2) ----
-                            float dLdSigPred = (2.0f * config.lambda * (sigPred - sigTarget)
-                                             + 2.0f * (1.0f - config.lambda) * (sigPred - result)) * boost;
-                            float dSigPred_dPredW = sigPred * (1.0f - sigPred) / config.evalScale;
-                            float dLdPredW  = dLdSigPred * dSigPred_dPredW;
-                            float dLdPred   = (pos.sideToMove == Color::White) ? dLdPredW : -dLdPredW;
-                            float dLdRawOut = dLdPred * 400.0f;
-
-                            // Output layer grads
-                            TrainAVX::avx_axpy<L3_SIZE>(tGrads.data() + offOutW, l3Out, dLdRawOut);
-                            tGrads[offOutB] += dLdRawOut;
-
-                            // dLdL3Out[i] = dLdRawOut * output_weights[i]
-                            alignas(32) float dLdL3Out[L3_SIZE];
-                            TrainAVX::avx_axpy<L3_SIZE>(dLdL3Out, net.output_weights.data(), dLdRawOut);
-                            // (init to zero first — avx_axpy adds, we need assignment)
-                            for (int i = 0; i < L3_SIZE; ++i)
-                                dLdL3Out[i] = dLdRawOut * net.output_weights[i];
-
-                            // dLdL3Pre = dLdL3Out * screlu'(l3Pre)
-                            alignas(32) float dLdL3Pre[L3_SIZE];
-                            TrainAVX::avx_screlu_deriv_mul<L3_SIZE>(dLdL3Out, l3Pre, dLdL3Pre);
-
-                            // L3 weight grads: grad_L3w[i*L3_SIZE + j] += l2Out[i] * dLdL3Pre[j]
-                            TrainAVX::avx_outer_add<L2_SIZE, L3_SIZE>(
-                                tGrads.data() + offL3w, l2Out, dLdL3Pre);
-                            TrainAVX::avx_axpy<L3_SIZE>(tGrads.data() + offL3b, dLdL3Pre, 1.0f);
-
-                            // dLdL2Out[i] = sum_j(dLdL3Pre[j] * L3_weights[i][j])
-                            // L3_weights is [L2_SIZE][L3_SIZE] row-major → avx_matvec_T_add
-                            alignas(32) float dLdL2Out[L2_SIZE] = {};
-                            TrainAVX::avx_matvec_T_add<L2_SIZE, L3_SIZE>(
-                                dLdL2Out, &net.L3_weights[0][0], dLdL3Pre);
-
-                            // dLdL2Pre = dLdL2Out * screlu'(l2Pre)
-                            alignas(32) float dLdL2Pre[L2_SIZE];
-                            TrainAVX::avx_screlu_deriv_mul<L2_SIZE>(dLdL2Out, l2Pre, dLdL2Pre);
-
-                            // L2 weight grads: grad_L2w[i*L2_SIZE + j] += l1Out[i] * dLdL2Pre[j]
-                            TrainAVX::avx_outer_add<L1_SIZE * 2, L2_SIZE>(
-                                tGrads.data() + offL2w, l1Out, dLdL2Pre);
-                            TrainAVX::avx_axpy<L2_SIZE>(tGrads.data() + offL2b, dLdL2Pre, 1.0f);
-
-                            // dLdL1Out[i] += sum_j(dLdL2Pre[j] * L2_weights[i][j])
-                            // L2_weights is [L1_SIZE*2][L2_SIZE] row-major → avx_matvec_T_add
-                            alignas(32) float dLdL1Out[L1_SIZE * 2] = {};
-                            TrainAVX::avx_matvec_T_add<L1_SIZE * 2, L2_SIZE>(
-                                dLdL1Out, &net.L2_weights[0][0], dLdL2Pre);
-
-                            // dLdL1Pre = dLdL1Out * screlu'(l1Pre)
-                            alignas(32) float dLdL1Pre[L1_SIZE * 2];
-                            TrainAVX::avx_screlu_deriv_mul<L1_SIZE * 2>(dLdL1Out, l1Pre, dLdL1Pre);
-
-                            // Split back into white/black perspectives
-                            const float* dLdWhiteAcc = (pos.sideToMove == Color::White)
-                                ? dLdL1Pre : dLdL1Pre + L1_SIZE;
-                            const float* dLdBlackAcc = (pos.sideToMove == Color::White)
-                                ? dLdL1Pre + L1_SIZE : dLdL1Pre;
-
-                            // L1 bias grads: sum of both perspectives
-                            for (int j = 0; j < L1_SIZE; j += 8) {
-                                __m256 w = _mm256_add_ps(
-                                    _mm256_loadu_ps(dLdWhiteAcc + j),
-                                    _mm256_loadu_ps(dLdBlackAcc + j));
-                                __m256 g = _mm256_loadu_ps(tGrads.data() + offL1b + j);
-                                _mm256_storeu_ps(tGrads.data() + offL1b + j, _mm256_add_ps(g, w));
-                            }
-
-                            // L1 weight grads: tGrads[feat*L1..] += dLdWhiteAcc/BlackAcc
-                            for (int feat : pos.activeFeatures) {
-                                int mirFeat = mirrorDuckFeature(feat);
-                                TrainAVX::avx_axpy<L1_SIZE>(
-                                    tGrads.data() + offL1w + feat    * L1_SIZE, dLdWhiteAcc, 1.0f);
-                                TrainAVX::avx_axpy<L1_SIZE>(
-                                    tGrads.data() + offL1w + mirFeat * L1_SIZE, dLdBlackAcc, 1.0f);
-                            }
-                        } // end sample loop
-
-                        threadLoss[t] = tLoss;
-                    }); // end thread lambda
-                } // end thread launch loop
-
-                for (auto& th : trainThreads) th.join();
+                // Dispatch batch to persistent thread pool (no thread creation overhead)
+                dispatchBatch(batchStart, batchEnd);
+                int numChunks = poolNumChunks;  // set by dispatchBatch
 
                 // Sum gradients and loss across threads into thread 0's buffer (reuse as accumulator)
                 float batchLoss = 0.0f;
@@ -1565,6 +1592,14 @@ namespace NNUE {
                 }
             }
         } // end epoch loop
+
+        // Shut down the persistent thread pool
+        {
+            std::lock_guard<std::mutex> lk(poolMtx);
+            poolStop = true;
+        }
+        poolWake.notify_all();
+        for (auto& th : poolThreads) th.join();
 
         // Apply SWA weights if accumulated
         if (config.swa && swaCount > 0) {

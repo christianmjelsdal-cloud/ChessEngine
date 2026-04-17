@@ -180,10 +180,13 @@ static void DrawGraph(HWND hw) {
         }
 
         Pen trainPen(Color(255,65,125,245), 1.8f);
-        for (size_t i=1; i<pts.size(); i++) {
-            if (!pts[i].hasLoss || !pts[i-1].hasLoss) continue;
-            g.DrawLine(&trainPen, xfLeft((int)i-1), yf(pts[i-1].train), xfLeft((int)i), yf(pts[i].train));
-        }
+        { bool st=false; float px_t=0,py_t=0;
+          for (size_t i=0; i<pts.size(); i++) {
+            if (!pts[i].hasLoss) continue;
+            float cx=xfLeft((int)i), cy=yf(pts[i].train);
+            if (st) g.DrawLine(&trainPen,px_t,py_t,cx,cy);
+            px_t=cx; py_t=cy; st=true;
+        }}
 
         Pen valPen(Color(255,245,160,60), 1.8f);
         { bool st=false; float px2=0,py2=0;
@@ -788,10 +791,13 @@ void SaveGraphPng(const std::string& dataDir) {
         }
 
         Pen trainPen(Color(255,65,125,245), 1.8f);
-        for (size_t i=1; i<pts.size(); i++) {
-            if (!pts[i].hasLoss || !pts[i-1].hasLoss) continue;
-            g.DrawLine(&trainPen, xfLeft((int)i-1), yf(pts[i-1].train), xfLeft((int)i), yf(pts[i].train));
-        }
+        { bool st=false; float px_t=0,py_t=0;
+          for (size_t i=0; i<pts.size(); i++) {
+            if (!pts[i].hasLoss) continue;
+            float cx=xfLeft((int)i), cy=yf(pts[i].train);
+            if (st) g.DrawLine(&trainPen,px_t,py_t,cx,cy);
+            px_t=cx; py_t=cy; st=true;
+        }}
 
         Pen valPen(Color(255,245,160,60), 1.8f);
         { bool st=false; float px2=0,py2=0;
