@@ -1452,7 +1452,6 @@ namespace NNUE {
                                 ? dLdL1Pre + L1_SIZE : dLdL1Pre;
 
                             // L1 bias grads: sum of both perspectives
-                            alignas(32) float dLdBias[L1_SIZE];
                             for (int j = 0; j < L1_SIZE; j += 8) {
                                 __m256 w = _mm256_add_ps(
                                     _mm256_loadu_ps(dLdWhiteAcc + j),

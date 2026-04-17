@@ -1482,8 +1482,6 @@ int Engine::searchDuck(Board& board, int depth, int alpha, int beta, int ply,
                 cutoff = tryDuck(newDuck);
             }
         }
-        nextChessMove:;
-
         // Store duck placement result to duckTT_ for future move ordering / cutoffs.
         if (duckBestSq != 255 && !shouldStop()) {
             if (dtte.key != duckKey || dtte.gen != ttGen_ || duckDepth >= (int)dtte.depth) {
