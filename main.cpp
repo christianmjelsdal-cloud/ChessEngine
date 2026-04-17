@@ -451,11 +451,28 @@ int main(int argc, char* argv[]) {
         }
         std::cerr << "[TrainDuck] Total positions: " << allData.size() << "\n";
 
-        // Color-swap mirror: double the dataset by adding a vertically-mirrored
-        // copy of every position with colors swapped. Balances white/black
-        // perspective coverage regardless of W/D/B ratio in self-play.
+        // Shuffle first so the cap samples randomly across all data sources
+        {
+            std::mt19937 capRng(42);
+            std::shuffle(allData.begin(), allData.end(), capRng);
+        }
+
+        // Cap BEFORE mirroring — mirror doubles the capped set, not the full dataset.
+        // Old order (mirror 3.9M → cap 5K) wasted ~7.8M heap allocs for nothing.
+        if (tcfg.maxPositions > 0 && (int)allData.size() > tcfg.maxPositions) {
+            allData.resize(static_cast<size_t>(tcfg.maxPositions));
+            std::cerr << "[TrainDuck] Capped to " << tcfg.maxPositions
+                      << " positions (from original dataset)\n";
+        }
+
+        // Color-swap mirror: double the capped set by adding vertically-mirrored
+        // copies with colors swapped. Balances white/black perspective coverage.
         allData = NNUE::Trainer::colorSwapMirrorData(allData);
         std::cerr << "[TrainDuck] After color-swap mirror: " << allData.size() << " positions\n";
+
+        // Disable the internal cap in trainDuck — we already capped above.
+        // Without this, trainDuck would re-cap to maxPositions and discard the mirrored half.
+        tcfg.maxPositions = 0;
 
         // Load or create DuckNNUE network
         auto net = std::make_unique<DuckNNUE::Network>();
@@ -468,8 +485,9 @@ int main(int argc, char* argv[]) {
             std::cerr << "[TrainDuck] Starting with random weights\n";
         }
 
-        // Split data 90/10 train/val for validation loss tracking
-        std::mt19937 splitRng(42);
+        // Split data 90/10 train/val — shuffle again so val set is representative
+        // of both original and mirrored positions
+        std::mt19937 splitRng(123);
         std::shuffle(allData.begin(), allData.end(), splitRng);
         size_t valSize = std::max(size_t(1), allData.size() / 10);
         std::vector<NNUE::TrainingPosition> valData(allData.end() - valSize, allData.end());
@@ -581,8 +599,6 @@ int main(int argc, char* argv[]) {
             },
             nullptr,  // cancelFlag passed separately below
             [&](int batch, int totalBatches, float batchLoss) {
-                // Overwrite the same line with batch progress
-                // Format: "  batch 12/97 loss=0.01234  ETA 1m23s"
                 double elapsed = std::chrono::duration<double>(Clock::now() - epochStart).count();
                 double batchesPerSec = (elapsed > 0.0) ? batch / elapsed : 0.0;
                 double etaBatch = (batchesPerSec > 0.0) ? (totalBatches - batch) / batchesPerSec : 0.0;
@@ -590,7 +606,7 @@ int main(int argc, char* argv[]) {
                 int etaSec2 = (int)(etaBatch) % 60;
                 char buf[128];
                 std::snprintf(buf, sizeof(buf),
-                    "\r  batch %d/%d  loss=%.5f  %.1f b/s  ETA %dm%02ds   ",
+                    "\r  batch %d/%d  loss=%.5f  %.1f b/s  ETA %dm%02ds   \n",
                     batch, totalBatches, batchLoss, batchesPerSec, etaMin2, etaSec2);
                 std::cout << buf;
                 std::cout.flush();
