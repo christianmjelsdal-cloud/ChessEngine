@@ -353,6 +353,18 @@ SelfPlayGen::GameOutcome SelfPlayGen::playGame(
         }
 
         // -- Terminal checks ---------------------------------------------------
+#ifdef DUCK_CHESS
+        // Duck chess: king capture ends the game immediately.
+        // Check BEFORE generating legal moves — a captured king has no moves to generate.
+        if (cfg.isDuckChess) {
+            if (MoveGen::isKingCaptured(board, Color::White)) {
+                return {GameResult::BlackWins, TermReason::Checkmate, ply, -MATE_CLAMP};
+            }
+            if (MoveGen::isKingCaptured(board, Color::Black)) {
+                return {GameResult::WhiteWins, TermReason::Checkmate, ply, MATE_CLAMP};
+            }
+        }
+#endif
         MoveList legalMoves;
         MoveGen::getLegalMoves(board, legalMoves);
         if (legalMoves.empty()) {
