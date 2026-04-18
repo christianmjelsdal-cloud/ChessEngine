@@ -1,0 +1,31 @@
+# NNUE Training Runner - Structured Log
+# Format: [TIMESTAMP] [LEVEL] [PHASE:GEN] message
+# Generated: 2026-04-15T03:15:11.273
+#
+[2026-04-15T03:15:11.273] [EVENT] [pipeline:0] PIPELINE_START first_gen=5 last_gen=7 total_gens=3
+[2026-04-15T03:15:11.273] [CONFIG] [pipeline:0] variant=Duck Chess generations=3 startGen=4 gamesPerGen=50 depth=5 workers=12 epochsPerGen=3 batchSize=1024 lr=0.001 weightDecay=1e-05 maxPositions=100000 splRatio=0.4 drawWeight=1 mateBoost=3 eloValidate=false
+[2026-04-15T03:15:11.273] [EVENT] [pipeline:5] GEN_START gen=5
+[2026-04-15T03:15:11.274] [CMD] [selfplay:5] "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" --generate --games 50 --depth 5 --workers 12 --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen5.bin" --duck-chess --resign-cp 500 --resign-count 3 --draw-cp 50 --draw-count 6 --draw-min-ply 40 --draw-adj-moves 12 --draw-adj-threshold 4 --draw-adj-min-move 50 --maxplies 250 --contempt 25 --opening-plies 4 --opening-temp 1.5 --softmax-plies 8 --softmax-temp 0.5 --record-min-ply 10 --record-max-eval 2500 --openings "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt"
+[2026-04-15T03:15:11.278] [EVENT] [selfplay:5] PHASE_START games=50 depth=5 workers=12
+[2026-04-15T03:15:11.709] [INFO] [selfplay:5] [SelfPlay] Starting 50 games  depth=5  movetime=0ms  workers=12  output=C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen5.bin  openings=2000  contempt=25  openingTemp=1.5  openingPlies=4  softmaxPlies=8  softmaxTemp=0.5  recordMinPly=10  recordMaxEval=2500  resign=500cp/3ply  draw=50cp/6ply@40  drawAdj=4cp/12ply@50
+[2026-04-15T03:15:16.099] [INFO] [selfplay:5] [SKIP] Phase skipped by user — continuing pipeline
+[2026-04-15T03:15:16.099] [EVENT] [selfplay:5] PHASE_END success=true output_size=unknown
+[2026-04-15T03:15:16.778] [EVENT] [training:5] PHASE_START epochs=3 lr=0.001 batch=1024
+[2026-04-15T03:15:16.816] [ERROR] [training:5] [TrainDuck] WARNING: data file not found: C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen5.bin
+[2026-04-15T03:15:17.381] [METRIC] [training:5] EPOCH epoch=1 train_loss=0.10302372
+[2026-04-15T03:15:17.381] [METRIC] [training:5] PHASE_LOSS opening=0.0855511 middlegame=0.12214 endgame=0.111193
+[2026-04-15T03:15:17.919] [METRIC] [training:5] EPOCH epoch=2 train_loss=0.10315462
+[2026-04-15T03:15:17.919] [METRIC] [training:5] PHASE_LOSS opening=0.0855951 middlegame=0.122144 endgame=0.11117
+[2026-04-15T03:15:18.449] [METRIC] [training:5] EPOCH epoch=3 train_loss=0.10291157
+[2026-04-15T03:15:18.449] [METRIC] [training:5] PHASE_LOSS opening=0.0856417 middlegame=0.122148 endgame=0.111146
+[2026-04-15T03:15:18.524] [EVENT] [training:5] PHASE_END success=true duration=0m 1s best_train=0.10291157 best_val=0 weights_size=2.2 MB
+[2026-04-15T03:15:18.524] [EVENT] [pipeline:5] GEN_SUMMARY gen=5 train_loss=0.10291157 val_loss=0 elo=0 weights_size=2.2 MB
+[2026-04-15T03:15:18.537] [EVENT] [pipeline:6] GEN_START gen=6
+[2026-04-15T03:15:18.538] [CMD] [selfplay:6] "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" --generate --games 50 --depth 5 --workers 12 --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen6.bin" --duck-chess --resign-cp 500 --resign-count 3 --draw-cp 50 --draw-count 6 --draw-min-ply 40 --draw-adj-moves 12 --draw-adj-threshold 4 --draw-adj-min-move 50 --maxplies 250 --contempt 25 --opening-plies 4 --opening-temp 1.5 --softmax-plies 8 --softmax-temp 0.5 --record-min-ply 10 --record-max-eval 2500 --openings "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt"
+[2026-04-15T03:15:18.538] [EVENT] [selfplay:6] PHASE_START games=50 depth=5 workers=12
+[2026-04-15T03:15:18.958] [INFO] [selfplay:6] [SelfPlay] Starting 50 games  depth=5  movetime=0ms  workers=12  output=C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen6.bin  openings=2000  contempt=25  openingTemp=1.5  openingPlies=4  softmaxPlies=8  softmaxTemp=0.5  recordMinPly=10  recordMaxEval=2500  resign=500cp/3ply  draw=50cp/6ply@40  drawAdj=4cp/12ply@50
+[2026-04-15T03:15:42.364] [INFO] [selfplay:6] [STOP] Pipeline stopped by user (exit code 1)
+[2026-04-15T03:15:42.364] [EVENT] [selfplay:6] PHASE_END success=false output_size=unknown
+[2026-04-15T03:15:42.364] [ERROR] [selfplay:6] Self-play stopped by user
+[2026-04-15T03:15:42.364] [EVENT] [pipeline:0] PIPELINE_END reason=user_stop completed_gens=1
+# END OF LOG 2026-04-15T03:15:42.364

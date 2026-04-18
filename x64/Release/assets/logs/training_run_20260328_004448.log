@@ -1,0 +1,711 @@
+# NNUE Training Runner - Structured Log
+# Format: [TIMESTAMP] [LEVEL] [PHASE:GEN] message
+# Structured events use KEY=VALUE pairs after the tag
+# Levels: INFO, WARN, ERROR, EVENT, METRIC, CONFIG, CMD
+# Generated: 2026-03-28T00:44:48.329
+#
+# ── HOW TO READ THIS LOG ──
+# Lines starting with [EVENT] mark pipeline milestones (start/stop/phase transitions)
+# Lines starting with [METRIC] contain numeric training data points
+# Lines starting with [ERROR] or [WARN] flag issues to investigate
+# Lines starting with [CONFIG] dump the full configuration used
+# Lines starting with [CMD] show exact command lines executed
+# Lines starting with [INFO] are general informational messages
+#
+[2026-03-28T00:44:48.330] [INFO] [selfplay:0] [LOG] Writing structured log to: C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\logs\training_run_20260328_004448.log
+[2026-03-28T00:44:48.330] [EVENT] [pipeline:0] PIPELINE_START first_gen=3 last_gen=3 total_gens=1
+[2026-03-28T00:44:48.330] [CONFIG] [pipeline:0] generations=1 startGen=2 gamesPerGen=500 epochsPerGen=8 batchSize=2048 lr=0.001 weightDecay=0.001 dropout=0.2 labelSmooth=0.01 gradAccum=4 warmupSteps=500 drawWeight=0.3 mateBoost=10 splRatio=0.15 frcMix=0 replayWindow=4 replayDecay=0.7 workers=12 depth=6 mixedDepthLow=0 mixedDepthRatio=0 maxPositions=100000 earlyStop=6 cosineLr=true cosineT0=0 swa=true swaStart=5 drawPct=0 wdlAlpha=0.3 wdlDrawElo=50 eloValidate=false eloGames=100 swaGames=100 overfitDetect=true resignCp=500 contemptCp=120 maxPlies=250 drawCp=0 exeName=ChessEngine.exe pyScript=train_nnue.py dataDir=assets
+[2026-03-28T00:44:48.330] [INFO] [selfplay:0] --- Generation 3 ---
+[2026-03-28T00:44:48.331] [EVENT] [selfplay:3] PHASE_START games=500 depth=6 workers=12
+[2026-03-28T00:44:48.332] [CMD] [selfplay:0] [CMD] "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" --generate --games 500 --depth 6 --workers 12 --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen3.bin" --weights "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_gen2.bin" --openings "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt" --game-time-limit 240 --resigncp 500 --contempt 120 --maxplies 250 --drawcp 0
+[2026-03-28T00:44:48.838] [INFO] [selfplay:0] [SelfPlay] Loaded 2000 opening positions from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt
+[2026-03-28T00:44:48.838] [INFO] [selfplay:0] [SelfPlay] Starting 500 games  depth=6  movetime=0ms  workers=12  output=C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen3.bin  openings=2000  contempt=120  openingTemp=1.5  softmaxPlies=8  softmaxTemp=0.5  recordMinPly=10
+[2026-03-28T00:45:01.475] [INFO] [selfplay:0] [SelfPlay] 1/500 (0%)  pos=4  W/D/B=1/0/0  (100%/0%/0%)  d6  0.3 games/s (avg 0.3)  51.8K nps  ETA 00:28:20            
+[2026-03-28T00:45:01.889] [INFO] [selfplay:0] [SelfPlay] 2/500 (0%)  pos=69  W/D/B=1/0/1  (50%/0%/50%)  d6  0.3 games/s (avg 0.2)  73.6K nps  ETA 00:52:25           
+[2026-03-28T00:45:02.266] [INFO] [selfplay:0] [SelfPlay] 3/500 (0%)  pos=147  W/D/B=1/0/2  (33%/0%/66%)  d6  0.6 games/s (avg 0.2)  128.7K nps  ETA 00:36:01         
+[2026-03-28T00:45:05.230] [INFO] [selfplay:0] [SelfPlay] 4/500 (0%)  pos=227  W/D/B=1/0/3  (25%/0%/75%)  d6  0.9 games/s (avg 0.3)  182.6K nps  ETA 00:27:41         
+[2026-03-28T00:45:05.441] [INFO] [selfplay:0] [SelfPlay] 5/500 (1%)  pos=298  W/D/B=1/0/4  (20%/0%/80%)  d6  0.8 games/s (avg 0.3)  207.1K nps  ETA 00:27:02         
+[2026-03-28T00:45:05.553] [INFO] [selfplay:0] [SelfPlay] 6/500 (1%)  pos=392  W/D/B=1/0/5  (16%/0%/83%)  d6  1.4 games/s (avg 0.4)  264.7K nps  ETA 00:22:46         
+[2026-03-28T00:45:06.620] [INFO] [selfplay:0] [SelfPlay] 7/500 (1%)  pos=437  W/D/B=1/1/5  (14%/14%/71%)  d6  2.5 games/s (avg 0.4)  317.5K nps  ETA 00:19:36        
+[2026-03-28T00:45:09.149] [INFO] [selfplay:0] [SelfPlay] 8/500 (1%)  pos=455  W/D/B=1/2/5  (12%/25%/62%)  d6  2.3 games/s (avg 0.4)  313.0K nps  ETA 00:18:10        
+[2026-03-28T00:45:10.903] [INFO] [selfplay:0] [SelfPlay] 9/500 (1%)  pos=546  W/D/B=2/2/5  (22%/22%/55%)  d6  2.0 games/s (avg 0.4)  332.0K nps  ETA 00:18:26        
+[2026-03-28T00:45:12.577] [INFO] [selfplay:0] [SelfPlay] 10/500 (2%)  pos=719  W/D/B=2/2/6  (20%/20%/60%)  d6  1.8 games/s (avg 0.5)  366.5K nps  ETA 00:18:00       
+[2026-03-28T00:45:13.065] [INFO] [selfplay:0] [SelfPlay] 11/500 (2%)  pos=833  W/D/B=2/3/6  (18%/27%/54%)  d6  1.6 games/s (avg 0.5)  398.1K nps  ETA 00:17:34       
+[2026-03-28T00:45:14.751] [INFO] [selfplay:0] [SelfPlay] 12/500 (2%)  pos=852  W/D/B=2/3/7  (16%/25%/58%)  d6  1.7 games/s (avg 0.5)  408.2K nps  ETA 00:16:24       
+[2026-03-28T00:45:15.272] [INFO] [selfplay:0] [SelfPlay] 13/500 (2%)  pos=919  W/D/B=3/3/7  (23%/23%/53%)  d6  1.5 games/s (avg 0.5)  411.6K nps  ETA 00:16:09       
+[2026-03-28T00:45:16.324] [INFO] [selfplay:0] [SelfPlay] 14/500 (2%)  pos=995  W/D/B=3/3/8  (21%/21%/57%)  d6  1.6 games/s (avg 0.5)  425.1K nps  ETA 00:15:16       
+[2026-03-28T00:45:17.226] [INFO] [selfplay:0] [SelfPlay] 15/500 (3%)  pos=1058  W/D/B=4/3/8  (26%/20%/53%)  d6  1.5 games/s (avg 0.5)  459.4K nps  ETA 00:14:47      
+[2026-03-28T00:45:17.345] [INFO] [selfplay:0] [SelfPlay] 16/500 (3%)  pos=1164  W/D/B=5/3/8  (31%/18%/50%)  d6  1.4 games/s (avg 0.6)  500.5K nps  ETA 00:14:18      
+[2026-03-28T00:45:21.745] [INFO] [selfplay:0] [SelfPlay] 17/500 (3%)  pos=1266  W/D/B=6/3/8  (35%/17%/47%)  d6  2.5 games/s (avg 0.6)  523.3K nps  ETA 00:13:25      
+[2026-03-28T00:45:22.114] [INFO] [selfplay:0] [SelfPlay] 18/500 (3%)  pos=1381  W/D/B=6/3/9  (33%/16%/50%)  d6  2.3 games/s (avg 0.5)  555.0K nps  ETA 00:14:40      
+[2026-03-28T00:45:24.732] [INFO] [selfplay:0] [SelfPlay] 19/500 (3%)  pos=1466  W/D/B=6/3/10  (31%/15%/52%)  d6  2.3 games/s (avg 0.6)  614.8K nps  ETA 00:14:00     
+[2026-03-28T00:45:28.053] [INFO] [selfplay:0] [SelfPlay] 20/500 (4%)  pos=1523  W/D/B=6/4/10  (30%/20%/50%)  d6  2.1 games/s (avg 0.6)  582.1K nps  ETA 00:14:17     
+[2026-03-28T00:45:30.260] [INFO] [selfplay:0] [SelfPlay] 21/500 (4%)  pos=1606  W/D/B=7/4/10  (33%/19%/47%)  d6  1.8 games/s (avg 0.5)  558.1K nps  ETA 00:14:52     
+[2026-03-28T00:45:32.691] [INFO] [selfplay:0] [SelfPlay] 22/500 (4%)  pos=1685  W/D/B=8/4/10  (36%/18%/45%)  d6  1.6 games/s (avg 0.5)  560.8K nps  ETA 00:14:57     
+[2026-03-28T00:45:32.932] [INFO] [selfplay:0] [SelfPlay] 23/500 (4%)  pos=1770  W/D/B=8/4/11  (34%/17%/47%)  d6  1.4 games/s (avg 0.5)  551.7K nps  ETA 00:15:08     
+[2026-03-28T00:45:33.038] [INFO] [selfplay:0] [SelfPlay] 24/500 (4%)  pos=1879  W/D/B=9/4/11  (37%/16%/45%)  d6  1.8 games/s (avg 0.5)  578.1K nps  ETA 00:14:34     
+[2026-03-28T00:45:33.333] [INFO] [selfplay:0] [SelfPlay] 25/500 (5%)  pos=1924  W/D/B=9/4/12  (36%/16%/48%)  d6  3.0 games/s (avg 0.6)  591.4K nps  ETA 00:13:59     
+[2026-03-28T00:45:33.390] [INFO] [selfplay:0] [SelfPlay] 26/500 (5%)  pos=2000  W/D/B=10/4/12  (38%/15%/46%)  d6  3.0 games/s (avg 0.6)  617.8K nps  ETA 00:13:31    
+[2026-03-28T00:45:34.088] [INFO] [selfplay:0] [SelfPlay] 27/500 (5%)  pos=2069  W/D/B=10/4/13  (37%/14%/48%)  d6  5.2 games/s (avg 0.6)  640.6K nps  ETA 00:12:59    
+[2026-03-28T00:45:39.921] [INFO] [selfplay:0] [SelfPlay] 28/500 (5%)  pos=2136  W/D/B=10/4/14  (35%/14%/50%)  d6  4.6 games/s (avg 0.6)  657.4K nps  ETA 00:12:36    
+[2026-03-28T00:45:41.419] [INFO] [selfplay:0] [SelfPlay] 29/500 (5%)  pos=2220  W/D/B=11/4/14  (37%/13%/48%)  d6  4.3 games/s (avg 0.6)  683.9K nps  ETA 00:13:48    
+[2026-03-28T00:45:43.231] [INFO] [selfplay:0] [SelfPlay] 30/500 (6%)  pos=2249  W/D/B=11/4/15  (36%/13%/50%)  d6  3.7 games/s (avg 0.6)  669.6K nps  ETA 00:13:41    
+[2026-03-28T00:45:44.040] [INFO] [selfplay:0] [SelfPlay] 31/500 (6%)  pos=2383  W/D/B=12/4/15  (38%/12%/48%)  d6  3.3 games/s (avg 0.6)  670.6K nps  ETA 00:13:41    
+[2026-03-28T00:45:45.080] [INFO] [selfplay:0] [SelfPlay] 32/500 (6%)  pos=2440  W/D/B=13/4/15  (40%/12%/46%)  d6  3.0 games/s (avg 0.6)  672.1K nps  ETA 00:13:26    
+[2026-03-28T00:45:46.306] [INFO] [selfplay:0] [SelfPlay] 33/500 (6%)  pos=2511  W/D/B=13/5/15  (39%/15%/45%)  d6  2.7 games/s (avg 0.6)  677.8K nps  ETA 00:13:14    
+[2026-03-28T00:45:47.151] [INFO] [selfplay:0] [SelfPlay] 34/500 (6%)  pos=2745  W/D/B=14/5/15  (41%/14%/44%)  d6  2.4 games/s (avg 0.6)  686.9K nps  ETA 00:13:06    
+[2026-03-28T00:45:47.461] [INFO] [selfplay:0] [SelfPlay] 35/500 (7%)  pos=2856  W/D/B=14/5/16  (40%/14%/45%)  d6  2.2 games/s (avg 0.6)  692.2K nps  ETA 00:12:54    
+[2026-03-28T00:45:47.545] [INFO] [selfplay:0] [SelfPlay] 36/500 (7%)  pos=2911  W/D/B=15/5/16  (41%/13%/44%)  d6  2.4 games/s (avg 0.6)  721.3K nps  ETA 00:12:35    
+[2026-03-28T00:45:56.566] [INFO] [selfplay:0] [SelfPlay] 37/500 (7%)  pos=2964  W/D/B=16/5/16  (43%/13%/43%)  d6  3.8 games/s (avg 0.6)  737.8K nps  ETA 00:12:05    
+[2026-03-28T00:45:57.542] [INFO] [selfplay:0] [SelfPlay] 38/500 (7%)  pos=3088  W/D/B=17/5/16  (44%/13%/42%)  d6  3.5 games/s (avg 0.6)  762.8K nps  ETA 00:13:42    
+[2026-03-28T00:45:59.738] [INFO] [selfplay:0] [SelfPlay] 39/500 (7%)  pos=3129  W/D/B=18/5/16  (46%/12%/41%)  d6  3.1 games/s (avg 0.6)  760.9K nps  ETA 00:13:30    
+[2026-03-28T00:46:01.089] [INFO] [selfplay:0] [SelfPlay] 40/500 (8%)  pos=3223  W/D/B=18/5/17  (45%/12%/42%)  d6  2.7 games/s (avg 0.6)  757.9K nps  ETA 00:13:33    
+[2026-03-28T00:46:01.387] [INFO] [selfplay:0] [SelfPlay] 41/500 (8%)  pos=3353  W/D/B=18/5/18  (43%/12%/43%)  d6  2.4 games/s (avg 0.6)  760.8K nps  ETA 00:13:28    
+[2026-03-28T00:46:01.721] [INFO] [selfplay:0] [SelfPlay] 42/500 (8%)  pos=3412  W/D/B=19/5/18  (45%/11%/42%)  d6  2.6 games/s (avg 0.6)  770.4K nps  ETA 00:13:11    
+[2026-03-28T00:46:02.893] [INFO] [selfplay:0] [SelfPlay] 43/500 (8%)  pos=3536  W/D/B=19/6/18  (44%/13%/41%)  d6  2.6 games/s (avg 0.6)  783.6K nps  ETA 00:12:52    
+[2026-03-28T00:46:03.237] [INFO] [selfplay:0] [SelfPlay] 44/500 (8%)  pos=3621  W/D/B=19/6/19  (43%/13%/43%)  d6  2.4 games/s (avg 0.6)  784.1K nps  ETA 00:12:47    
+[2026-03-28T00:46:03.541] [INFO] [selfplay:0] [SelfPlay] 45/500 (9%)  pos=3735  W/D/B=20/6/19  (44%/13%/42%)  d6  2.4 games/s (avg 0.6)  799.6K nps  ETA 00:12:32    
+[2026-03-28T00:46:05.434] [INFO] [selfplay:0] [SelfPlay] 46/500 (9%)  pos=3910  W/D/B=20/6/20  (43%/13%/43%)  d6  2.6 games/s (avg 0.6)  824.9K nps  ETA 00:12:15    
+[2026-03-28T00:46:07.045] [INFO] [selfplay:0] [SelfPlay] 47/500 (9%)  pos=3956  W/D/B=20/6/21  (42%/12%/44%)  d6  2.3 games/s (avg 0.6)  813.9K nps  ETA 00:12:16    
+[2026-03-28T00:46:12.354] [INFO] [selfplay:0] [SelfPlay] 48/500 (9%)  pos=3977  W/D/B=21/6/21  (43%/12%/43%)  d6  2.0 games/s (avg 0.6)  799.6K nps  ETA 00:12:11    
+[2026-03-28T00:46:14.791] [INFO] [selfplay:0] [SelfPlay] 49/500 (9%)  pos=4098  W/D/B=22/6/21  (44%/12%/42%)  d6  1.9 games/s (avg 0.6)  814.3K nps  ETA 00:12:46    
+[2026-03-28T00:46:14.935] [INFO] [selfplay:0] [SelfPlay] 50/500 (10%)  pos=4178  W/D/B=23/6/21  (46%/12%/42%)  d6  1.6 games/s (avg 0.6)  807.3K nps  ETA 00:12:52   
+[2026-03-28T00:46:18.899] [INFO] [selfplay:0] [SelfPlay] 51/500 (10%)  pos=4255  W/D/B=24/6/21  (47%/11%/41%)  d6  2.4 games/s (avg 0.6)  814.5K nps  ETA 00:12:33   
+[2026-03-28T00:46:21.255] [INFO] [selfplay:0] [SelfPlay] 52/500 (10%)  pos=4429  W/D/B=24/7/21  (46%/13%/40%)  d6  2.1 games/s (avg 0.6)  780.0K nps  ETA 00:12:53   
+[2026-03-28T00:46:21.368] [INFO] [selfplay:0] [SelfPlay] 53/500 (10%)  pos=4496  W/D/B=24/7/22  (45%/13%/41%)  d6  1.9 games/s (avg 0.6)  765.9K nps  ETA 00:12:59   
+[2026-03-28T00:46:21.789] [INFO] [selfplay:0] [SelfPlay] 54/500 (10%)  pos=4600  W/D/B=24/7/23  (44%/12%/42%)  d6  2.9 games/s (avg 0.6)  777.6K nps  ETA 00:12:44   
+[2026-03-28T00:46:24.486] [INFO] [selfplay:0] [SelfPlay] 55/500 (11%)  pos=4663  W/D/B=24/7/24  (43%/12%/43%)  d6  2.8 games/s (avg 0.6)  787.6K nps  ETA 00:12:29   
+[2026-03-28T00:46:25.250] [INFO] [selfplay:0] [SelfPlay] 56/500 (11%)  pos=4724  W/D/B=25/7/24  (44%/12%/42%)  d6  2.5 games/s (avg 0.6)  770.0K nps  ETA 00:12:37   
+[2026-03-28T00:46:27.247] [INFO] [selfplay:0] [SelfPlay] 57/500 (11%)  pos=4760  W/D/B=26/7/24  (45%/12%/42%)  d6  2.3 games/s (avg 0.6)  770.6K nps  ETA 00:12:27   
+[2026-03-28T00:46:27.448] [INFO] [selfplay:0] [SelfPlay] 58/500 (11%)  pos=4847  W/D/B=27/7/24  (46%/12%/41%)  d6  2.0 games/s (avg 0.6)  767.2K nps  ETA 00:12:29   
+[2026-03-28T00:46:27.757] [INFO] [selfplay:0] [SelfPlay] 59/500 (11%)  pos=5014  W/D/B=28/7/24  (47%/11%/40%)  d6  2.5 games/s (avg 0.6)  785.3K nps  ETA 00:12:17   
+[2026-03-28T00:46:35.624] [INFO] [selfplay:0] [SelfPlay] 60/500 (12%)  pos=5231  W/D/B=28/7/25  (46%/11%/41%)  d6  2.6 games/s (avg 0.6)  801.2K nps  ETA 00:11:57   
+[2026-03-28T00:46:37.080] [INFO] [selfplay:0] [SelfPlay] 61/500 (12%)  pos=5346  W/D/B=29/7/25  (47%/11%/40%)  d6  2.4 games/s (avg 0.6)  816.0K nps  ETA 00:12:46   
+[2026-03-28T00:46:37.429] [INFO] [selfplay:0] [SelfPlay] 62/500 (12%)  pos=5400  W/D/B=29/7/26  (46%/11%/41%)  d6  2.1 games/s (avg 0.6)  815.0K nps  ETA 00:12:44   
+[2026-03-28T00:46:37.519] [INFO] [selfplay:0] [SelfPlay] 63/500 (12%)  pos=5451  W/D/B=30/7/26  (47%/11%/41%)  d6  2.2 games/s (avg 0.6)  820.6K nps  ETA 00:12:33   
+[2026-03-28T00:46:37.950] [INFO] [selfplay:0] [SelfPlay] 64/500 (12%)  pos=5548  W/D/B=31/7/26  (48%/10%/40%)  d6  3.6 games/s (avg 0.6)  829.9K nps  ETA 00:12:19   
+[2026-03-28T00:46:38.910] [INFO] [selfplay:0] [SelfPlay] 65/500 (13%)  pos=5605  W/D/B=31/8/26  (47%/12%/40%)  d6  3.4 games/s (avg 0.6)  838.3K nps  ETA 00:12:09   
+[2026-03-28T00:46:38.966] [INFO] [selfplay:0] [SelfPlay] 66/500 (13%)  pos=5662  W/D/B=31/8/27  (46%/12%/40%)  d6  3.0 games/s (avg 0.6)  835.3K nps  ETA 00:12:03   
+[2026-03-28T00:46:39.188] [INFO] [selfplay:0] [SelfPlay] 67/500 (13%)  pos=5736  W/D/B=31/9/27  (46%/13%/40%)  d6  5.3 games/s (avg 0.6)  845.4K nps  ETA 00:11:51   
+[2026-03-28T00:46:39.508] [INFO] [selfplay:0] [SelfPlay] 68/500 (13%)  pos=5774  W/D/B=31/10/27  (45%/14%/39%)  d6  5.1 games/s (avg 0.6)  850.4K nps  ETA 00:11:41  
+[2026-03-28T00:46:40.040] [INFO] [selfplay:0] [SelfPlay] 69/500 (13%)  pos=5777  W/D/B=32/10/27  (46%/14%/39%)  d6  4.8 games/s (avg 0.6)  848.3K nps  ETA 00:11:30  
+[2026-03-28T00:46:41.257] [INFO] [selfplay:0] [SelfPlay] 70/500 (14%)  pos=5866  W/D/B=33/10/27  (47%/14%/38%)  d6  4.4 games/s (avg 0.6)  851.6K nps  ETA 00:11:22  
+[2026-03-28T00:46:45.804] [INFO] [selfplay:0] [SelfPlay] 71/500 (14%)  pos=5964  W/D/B=33/10/28  (46%/14%/39%)  d6  3.9 games/s (avg 0.6)  852.4K nps  ETA 00:11:15  
+[2026-03-28T00:46:49.746] [INFO] [selfplay:0] [SelfPlay] 72/500 (14%)  pos=5991  W/D/B=33/11/28  (45%/15%/38%)  d6  3.6 games/s (avg 0.6)  853.5K nps  ETA 00:11:31  
+[2026-03-28T00:46:50.180] [INFO] [selfplay:0] [SelfPlay] 73/500 (14%)  pos=6119  W/D/B=34/11/28  (46%/15%/38%)  d6  3.3 games/s (avg 0.6)  864.9K nps  ETA 00:11:46  
+[2026-03-28T00:46:53.037] [INFO] [selfplay:0] [SelfPlay] 74/500 (14%)  pos=6185  W/D/B=34/11/29  (45%/14%/39%)  d6  3.2 games/s (avg 0.6)  872.4K nps  ETA 00:11:35  
+[2026-03-28T00:46:58.716] [INFO] [selfplay:0] [SelfPlay] 75/500 (15%)  pos=6230  W/D/B=35/11/29  (46%/14%/38%)  d6  2.7 games/s (avg 0.6)  851.2K nps  ETA 00:11:38  
+[2026-03-28T00:46:59.149] [INFO] [selfplay:0] [SelfPlay] 76/500 (15%)  pos=6313  W/D/B=36/11/29  (47%/14%/38%)  d6  2.5 games/s (avg 0.6)  858.9K nps  ETA 00:12:03  
+[2026-03-28T00:46:59.393] [INFO] [selfplay:0] [SelfPlay] 77/500 (15%)  pos=6370  W/D/B=37/11/29  (48%/14%/37%)  d6  2.5 games/s (avg 0.6)  864.7K nps  ETA 00:11:55  
+[2026-03-28T00:47:03.640] [INFO] [selfplay:0] [SelfPlay] 78/500 (15%)  pos=6438  W/D/B=37/12/29  (47%/15%/37%)  d6  2.7 games/s (avg 0.6)  871.5K nps  ETA 00:11:42  
+[2026-03-28T00:47:04.221] [INFO] [selfplay:0] [SelfPlay] 79/500 (15%)  pos=6480  W/D/B=37/12/30  (46%/15%/37%)  d6  2.5 games/s (avg 0.6)  875.5K nps  ETA 00:11:57  
+[2026-03-28T00:47:06.530] [INFO] [selfplay:0] [SelfPlay] 80/500 (16%)  pos=6570  W/D/B=37/12/31  (46%/15%/38%)  d6  2.4 games/s (avg 0.6)  879.5K nps  ETA 00:11:48  
+[2026-03-28T00:47:06.614] [INFO] [selfplay:0] [SelfPlay] 81/500 (16%)  pos=6694  W/D/B=37/13/31  (45%/16%/38%)  d6  2.1 games/s (avg 0.6)  872.4K nps  ETA 00:11:52  
+[2026-03-28T00:47:06.927] [INFO] [selfplay:0] [SelfPlay] 82/500 (16%)  pos=6786  W/D/B=38/13/31  (46%/15%/37%)  d6  3.6 games/s (avg 0.6)  885.7K nps  ETA 00:11:41  
+[2026-03-28T00:47:07.017] [INFO] [selfplay:0] [SelfPlay] 83/500 (16%)  pos=6861  W/D/B=38/13/32  (45%/15%/38%)  d6  3.5 games/s (avg 0.6)  897.0K nps  ETA 00:11:33  
+[2026-03-28T00:47:09.527] [INFO] [selfplay:0] [SelfPlay] 84/500 (16%)  pos=6930  W/D/B=39/13/32  (46%/15%/38%)  d6  4.6 games/s (avg 0.6)  905.0K nps  ETA 00:11:22  
+[2026-03-28T00:47:14.025] [INFO] [selfplay:0] [SelfPlay] 85/500 (17%)  pos=7021  W/D/B=40/13/32  (47%/15%/37%)  d6  4.3 games/s (avg 0.6)  919.3K nps  ETA 00:11:21  
+[2026-03-28T00:47:14.250] [INFO] [selfplay:0] [SelfPlay] 86/500 (17%)  pos=7068  W/D/B=40/13/33  (46%/15%/38%)  d6  4.0 games/s (avg 0.6)  922.5K nps  ETA 00:11:38  
+[2026-03-28T00:47:14.472] [INFO] [selfplay:0] [SelfPlay] 87/500 (17%)  pos=7143  W/D/B=41/13/33  (47%/14%/37%)  d6  4.0 games/s (avg 0.6)  936.6K nps  ETA 00:11:30  
+[2026-03-28T00:47:19.941] [INFO] [selfplay:0] [SelfPlay] 88/500 (17%)  pos=7218  W/D/B=41/13/34  (46%/14%/38%)  d6  4.1 games/s (avg 0.6)  945.3K nps  ETA 00:11:15  
+[2026-03-28T00:47:21.318] [INFO] [selfplay:0] [SelfPlay] 89/500 (17%)  pos=7279  W/D/B=41/13/35  (46%/14%/39%)  d6  3.8 games/s (avg 0.6)  953.8K nps  ETA 00:11:36  
+[2026-03-28T00:47:21.709] [INFO] [selfplay:0] [SelfPlay] 90/500 (18%)  pos=7343  W/D/B=41/13/36  (45%/14%/40%)  d6  3.3 games/s (avg 0.6)  948.8K nps  ETA 00:11:34  
+[2026-03-28T00:47:22.605] [INFO] [selfplay:0] [SelfPlay] 91/500 (18%)  pos=7402  W/D/B=41/13/37  (45%/14%/40%)  d6  3.2 games/s (avg 0.6)  955.7K nps  ETA 00:11:26  
+[2026-03-28T00:47:23.698] [INFO] [selfplay:0] [SelfPlay] 92/500 (18%)  pos=7508  W/D/B=42/13/37  (45%/14%/40%)  d6  2.9 games/s (avg 0.6)  958.4K nps  ETA 00:11:20  
+[2026-03-28T00:47:27.860] [INFO] [selfplay:0] [SelfPlay] 93/500 (18%)  pos=7586  W/D/B=42/13/38  (45%/13%/40%)  d6  2.6 games/s (avg 0.6)  956.5K nps  ETA 00:11:12  
+[2026-03-28T00:47:28.893] [INFO] [selfplay:0] [SelfPlay] 94/500 (18%)  pos=7660  W/D/B=43/13/38  (45%/13%/40%)  d6  2.4 games/s (avg 0.6)  962.3K nps  ETA 00:11:25  
+[2026-03-28T00:47:29.312] [INFO] [selfplay:0] [SelfPlay] 95/500 (19%)  pos=7700  W/D/B=43/13/39  (45%/13%/41%)  d6  2.2 games/s (avg 0.6)  962.0K nps  ETA 00:11:22  
+[2026-03-28T00:47:36.816] [INFO] [selfplay:0] [SelfPlay] 96/500 (19%)  pos=7815  W/D/B=43/13/40  (44%/13%/41%)  d6  2.2 games/s (avg 0.6)  968.0K nps  ETA 00:11:08  
+[2026-03-28T00:47:37.735] [INFO] [selfplay:0] [SelfPlay] 97/500 (19%)  pos=7910  W/D/B=44/13/40  (45%/13%/41%)  d6  2.1 games/s (avg 0.6)  974.0K nps  ETA 00:11:36  
+[2026-03-28T00:47:40.790] [INFO] [selfplay:0] [SelfPlay] 98/500 (19%)  pos=8046  W/D/B=44/13/41  (44%/13%/41%)  d6  1.9 games/s (avg 0.6)  976.4K nps  ETA 00:11:29  
+[2026-03-28T00:47:42.464] [INFO] [selfplay:0] [SelfPlay] 99/500 (19%)  pos=8133  W/D/B=45/13/41  (45%/13%/41%)  d6  1.7 games/s (avg 0.6)  955.5K nps  ETA 00:11:34  
+[2026-03-28T00:47:42.797] [INFO] [selfplay:0] [SelfPlay] 100/500 (20%)  pos=8184  W/D/B=46/13/41  (46%/13%/41%)  d6  1.5 games/s (avg 0.6)  948.6K nps  ETA 00:11:34 
+[2026-03-28T00:47:43.030] [INFO] [selfplay:0] [SelfPlay] 101/500 (20%)  pos=8262  W/D/B=46/13/42  (45%/12%/41%)  d6  1.7 games/s (avg 0.6)  961.4K nps  ETA 00:11:26 
+[2026-03-28T00:47:44.112] [INFO] [selfplay:0] [SelfPlay] 102/500 (20%)  pos=8343  W/D/B=46/13/43  (45%/12%/42%)  d6  2.1 games/s (avg 0.6)  966.2K nps  ETA 00:11:18 
+[2026-03-28T00:47:46.632] [INFO] [selfplay:0] [SelfPlay] 103/500 (20%)  pos=8478  W/D/B=46/13/44  (44%/12%/42%)  d6  1.9 games/s (avg 0.6)  963.0K nps  ETA 00:11:13 
+[2026-03-28T00:47:47.196] [INFO] [selfplay:0] [SelfPlay] 104/500 (20%)  pos=8583  W/D/B=47/13/44  (45%/12%/42%)  d6  1.7 games/s (avg 0.6)  950.9K nps  ETA 00:11:15 
+[2026-03-28T00:47:52.478] [INFO] [selfplay:0] [SelfPlay] 105/500 (21%)  pos=8757  W/D/B=47/14/44  (44%/13%/41%)  d6  1.7 games/s (avg 0.6)  960.3K nps  ETA 00:11:05 
+[2026-03-28T00:47:55.246] [INFO] [selfplay:0] [SelfPlay] 106/500 (21%)  pos=8826  W/D/B=47/14/45  (44%/13%/42%)  d6  1.5 games/s (avg 0.6)  926.5K nps  ETA 00:11:19 
+[2026-03-28T00:47:56.148] [INFO] [selfplay:0] [SelfPlay] 107/500 (21%)  pos=8958  W/D/B=48/14/45  (44%/13%/42%)  d6  1.3 games/s (avg 0.6)  914.4K nps  ETA 00:11:23 
+[2026-03-28T00:47:58.435] [INFO] [selfplay:0] [SelfPlay] 108/500 (21%)  pos=8992  W/D/B=48/14/46  (44%/12%/42%)  d6  1.3 games/s (avg 0.6)  911.8K nps  ETA 00:11:17 
+[2026-03-28T00:48:03.743] [INFO] [selfplay:0] [SelfPlay] 109/500 (21%)  pos=9057  W/D/B=48/14/47  (44%/12%/43%)  d6  1.2 games/s (avg 0.6)  901.4K nps  ETA 00:11:15 
+[2026-03-28T00:48:04.621] [INFO] [selfplay:0] [SelfPlay] 110/500 (22%)  pos=9181  W/D/B=49/14/47  (44%/12%/42%)  d6  1.0 games/s (avg 0.6)  872.5K nps  ETA 00:11:30 
+[2026-03-28T00:48:04.668] [INFO] [selfplay:0] [SelfPlay] 111/500 (22%)  pos=9255  W/D/B=49/14/48  (44%/12%/43%)  d6  1.0 games/s (avg 0.6)  872.7K nps  ETA 00:11:26 
+[2026-03-28T00:48:05.138] [INFO] [selfplay:0] [SelfPlay] 112/500 (22%)  pos=9359  W/D/B=50/14/48  (44%/12%/42%)  d6  4.1 games/s (avg 0.6)  880.3K nps  ETA 00:11:17 
+[2026-03-28T00:48:07.802] [INFO] [selfplay:0] [SelfPlay] 113/500 (22%)  pos=9393  W/D/B=50/14/49  (44%/12%/43%)  d6  3.8 games/s (avg 0.6)  883.3K nps  ETA 00:11:10 
+[2026-03-28T00:48:08.295] [INFO] [selfplay:0] [SelfPlay] 114/500 (22%)  pos=9489  W/D/B=50/14/50  (43%/12%/43%)  d6  3.5 games/s (avg 0.6)  889.7K nps  ETA 00:11:12 
+[2026-03-28T00:48:08.646] [INFO] [selfplay:0] [SelfPlay] 115/500 (23%)  pos=9566  W/D/B=50/15/50  (43%/13%/43%)  d6  3.3 games/s (avg 0.6)  894.0K nps  ETA 00:11:07 
+[2026-03-28T00:48:09.003] [INFO] [selfplay:0] [SelfPlay] 116/500 (23%)  pos=9646  W/D/B=50/16/50  (43%/13%/43%)  d6  3.2 games/s (avg 0.6)  898.7K nps  ETA 00:11:00 
+[2026-03-28T00:48:12.046] [INFO] [selfplay:0] [SelfPlay] 117/500 (23%)  pos=9769  W/D/B=50/16/51  (42%/13%/43%)  d6  3.2 games/s (avg 0.6)  913.0K nps  ETA 00:10:52 
+[2026-03-28T00:48:17.095] [INFO] [selfplay:0] [SelfPlay] 118/500 (23%)  pos=9816  W/D/B=51/16/51  (43%/13%/43%)  d6  2.7 games/s (avg 0.6)  896.7K nps  ETA 00:10:52 
+[2026-03-28T00:48:18.298] [INFO] [selfplay:0] [SelfPlay] 119/500 (23%)  pos=9888  W/D/B=52/16/51  (43%/13%/42%)  d6  2.5 games/s (avg 0.6)  902.3K nps  ETA 00:11:05 
+[2026-03-28T00:48:20.350] [INFO] [selfplay:0] [SelfPlay] 120/500 (24%)  pos=10010  W/D/B=53/16/51  (44%/13%/42%)  d6  2.3 games/s (avg 0.6)  901.2K nps  ETA 00:11:01
+[2026-03-28T00:48:20.518] [INFO] [selfplay:0] [SelfPlay] 121/500 (24%)  pos=10112  W/D/B=53/17/51  (43%/14%/42%)  d6  2.0 games/s (avg 0.6)  896.0K nps  ETA 00:11:02
+[2026-03-28T00:48:20.733] [INFO] [selfplay:0] [SelfPlay] 122/500 (24%)  pos=10194  W/D/B=54/17/51  (44%/13%/41%)  d6  2.6 games/s (avg 0.6)  900.7K nps  ETA 00:10:55
+[2026-03-28T00:48:21.060] [INFO] [selfplay:0] [SelfPlay] 123/500 (24%)  pos=10363  W/D/B=54/18/51  (43%/14%/41%)  d6  2.9 games/s (avg 0.6)  905.1K nps  ETA 00:10:48
+[2026-03-28T00:48:22.769] [INFO] [selfplay:0] [SelfPlay] 124/500 (24%)  pos=10424  W/D/B=54/18/52  (43%/14%/41%)  d6  2.9 games/s (avg 0.6)  907.2K nps  ETA 00:10:42
+[2026-03-28T00:48:23.326] [INFO] [selfplay:0] [SelfPlay] 125/500 (25%)  pos=10471  W/D/B=54/19/52  (43%/15%/41%)  d6  2.6 games/s (avg 0.6)  902.0K nps  ETA 00:10:40
+[2026-03-28T00:48:29.412] [INFO] [selfplay:0] [SelfPlay] 126/500 (25%)  pos=10524  W/D/B=55/19/52  (43%/15%/41%)  d6  2.5 games/s (avg 0.6)  903.4K nps  ETA 00:10:30
+[2026-03-28T00:48:33.671] [INFO] [selfplay:0] [SelfPlay] 127/500 (25%)  pos=10616  W/D/B=55/19/53  (43%/14%/41%)  d6  2.3 games/s (avg 0.6)  906.6K nps  ETA 00:10:43
+[2026-03-28T00:48:33.981] [INFO] [selfplay:0] [SelfPlay] 128/500 (25%)  pos=10672  W/D/B=56/19/53  (43%/14%/41%)  d6  2.0 games/s (avg 0.6)  884.7K nps  ETA 00:10:52
+[2026-03-28T00:48:34.482] [INFO] [selfplay:0] [SelfPlay] 129/500 (25%)  pos=10719  W/D/B=56/19/54  (43%/14%/41%)  d6  2.2 games/s (avg 0.6)  887.6K nps  ETA 00:10:47
+[2026-03-28T00:48:35.696] [INFO] [selfplay:0] [SelfPlay] 130/500 (26%)  pos=10786  W/D/B=56/19/55  (43%/14%/42%)  d6  2.1 games/s (avg 0.6)  892.7K nps  ETA 00:10:41
+[2026-03-28T00:48:36.338] [INFO] [selfplay:0] [SelfPlay] 131/500 (26%)  pos=10872  W/D/B=56/19/56  (42%/14%/42%)  d6  1.9 games/s (avg 0.6)  894.9K nps  ETA 00:10:38
+[2026-03-28T00:48:38.410] [INFO] [selfplay:0] [SelfPlay] 132/500 (26%)  pos=10934  W/D/B=57/19/56  (43%/14%/42%)  d6  1.9 games/s (avg 0.6)  895.3K nps  ETA 00:10:32
+[2026-03-28T00:48:39.060] [INFO] [selfplay:0] [SelfPlay] 133/500 (26%)  pos=11057  W/D/B=57/19/57  (42%/14%/42%)  d6  1.7 games/s (avg 0.6)  892.3K nps  ETA 00:10:32
+[2026-03-28T00:48:40.501] [INFO] [selfplay:0] [SelfPlay] 134/500 (26%)  pos=11131  W/D/B=58/19/57  (43%/14%/42%)  d6  1.6 games/s (avg 0.6)  894.1K nps  ETA 00:10:27
+[2026-03-28T00:48:41.372] [INFO] [selfplay:0] [SelfPlay] 135/500 (27%)  pos=11222  W/D/B=59/19/57  (43%/14%/42%)  d6  1.5 games/s (avg 0.6)  891.6K nps  ETA 00:10:25
+[2026-03-28T00:48:41.815] [INFO] [selfplay:0] [SelfPlay] 136/500 (27%)  pos=11280  W/D/B=59/19/58  (43%/13%/42%)  d6  1.5 games/s (avg 0.6)  892.7K nps  ETA 00:10:22
+[2026-03-28T00:48:47.485] [INFO] [selfplay:0] [SelfPlay] 137/500 (27%)  pos=11393  W/D/B=59/19/59  (43%/13%/43%)  d6  1.6 games/s (avg 0.6)  896.7K nps  ETA 00:10:11
+[2026-03-28T00:48:49.908] [INFO] [selfplay:0] [SelfPlay] 138/500 (27%)  pos=11472  W/D/B=60/19/59  (43%/13%/42%)  d6  1.4 games/s (avg 0.6)  870.9K nps  ETA 00:10:23
+[2026-03-28T00:48:51.268] [INFO] [selfplay:0] [SelfPlay] 139/500 (27%)  pos=11495  W/D/B=61/19/59  (43%/13%/42%)  d6  1.2 games/s (avg 0.6)  860.3K nps  ETA 00:10:25
+[2026-03-28T00:48:51.848] [INFO] [selfplay:0] [SelfPlay] 140/500 (28%)  pos=11608  W/D/B=62/19/59  (44%/13%/42%)  d6  1.1 games/s (avg 0.6)  858.3K nps  ETA 00:10:23
+[2026-03-28T00:48:54.240] [INFO] [selfplay:0] [SelfPlay] 141/500 (28%)  pos=11688  W/D/B=62/19/60  (43%/13%/42%)  d6  1.2 games/s (avg 0.6)  858.4K nps  ETA 00:10:16
+[2026-03-28T00:48:54.487] [INFO] [selfplay:0] [SelfPlay] 142/500 (28%)  pos=11818  W/D/B=63/19/60  (44%/13%/42%)  d6  1.1 games/s (avg 0.6)  851.8K nps  ETA 00:10:18
+[2026-03-28T00:48:57.055] [INFO] [selfplay:0] [SelfPlay] 143/500 (28%)  pos=11878  W/D/B=64/19/60  (44%/13%/41%)  d6  1.6 games/s (avg 0.6)  856.3K nps  ETA 00:10:10
+[2026-03-28T00:48:57.067] [INFO] [selfplay:0] [SelfPlay] 144/500 (28%)  pos=11989  W/D/B=65/19/60  (45%/13%/41%)  d6  1.4 games/s (avg 0.6)  848.7K nps  ETA 00:10:13
+[2026-03-28T00:49:01.884] [INFO] [selfplay:0] [SelfPlay] 145/500 (29%)  pos=12156  W/D/B=65/20/60  (44%/13%/41%)  d6  12.9 games/s (avg 0.6)  854.1K nps  ETA 00:10:02
+[2026-03-28T00:49:03.164] [INFO] [selfplay:0] [SelfPlay] 146/500 (29%)  pos=12325  W/D/B=65/20/61  (44%/13%/41%)  d6  12.0 games/s (avg 0.6)  860.9K nps  ETA 00:10:12
+[2026-03-28T00:49:09.373] [INFO] [selfplay:0] [SelfPlay] 147/500 (29%)  pos=12465  W/D/B=65/21/61  (44%/14%/41%)  d6  11.1 games/s (avg 0.6)  868.3K nps  ETA 00:10:04
+[2026-03-28T00:49:10.495] [INFO] [selfplay:0] [SelfPlay] 148/500 (29%)  pos=12641  W/D/B=65/22/61  (43%/14%/41%)  d6  10.2 games/s (avg 0.6)  879.1K nps  ETA 00:10:18
+[2026-03-28T00:49:11.153] [INFO] [selfplay:0] [SelfPlay] 149/500 (29%)  pos=12768  W/D/B=65/22/62  (43%/14%/41%)  d6  9.5 games/s (avg 0.6)  883.3K nps  ETA 00:10:15
+[2026-03-28T00:49:12.987] [INFO] [selfplay:0] [SelfPlay] 150/500 (30%)  pos=12789  W/D/B=66/22/62  (44%/14%/41%)  d6  8.3 games/s (avg 0.6)  883.6K nps  ETA 00:10:10
+[2026-03-28T00:49:13.004] [INFO] [selfplay:0] [SelfPlay] 151/500 (30%)  pos=12866  W/D/B=66/22/63  (43%/14%/41%)  d6  7.7 games/s (avg 0.6)  889.1K nps  ETA 00:10:10
+[2026-03-28T00:49:15.682] [INFO] [selfplay:0] [SelfPlay] 152/500 (30%)  pos=12957  W/D/B=67/22/63  (44%/14%/41%)  d6  15.1 games/s (avg 0.6)  895.2K nps  ETA 00:10:02
+[2026-03-28T00:49:18.130] [INFO] [selfplay:0] [SelfPlay] 153/500 (30%)  pos=13063  W/D/B=67/22/64  (43%/14%/41%)  d6  14.0 games/s (avg 0.6)  901.6K nps  ETA 00:10:02
+[2026-03-28T00:49:18.931] [INFO] [selfplay:0] [SelfPlay] 154/500 (30%)  pos=13114  W/D/B=68/22/64  (44%/14%/41%)  d6  12.9 games/s (avg 0.6)  907.7K nps  ETA 00:10:04
+[2026-03-28T00:49:19.248] [INFO] [selfplay:0] [SelfPlay] 155/500 (31%)  pos=13314  W/D/B=69/22/64  (44%/14%/41%)  d6  12.0 games/s (avg 0.6)  914.3K nps  ETA 00:10:01
+[2026-03-28T00:49:25.017] [INFO] [selfplay:0] [SelfPlay] 156/500 (31%)  pos=13365  W/D/B=70/22/64  (44%/14%/41%)  d6  10.6 games/s (avg 0.6)  918.4K nps  ETA 00:09:50
+[2026-03-28T00:49:25.745] [INFO] [selfplay:0] [SelfPlay] 157/500 (31%)  pos=13472  W/D/B=70/23/64  (44%/14%/40%)  d6  9.8 games/s (avg 0.6)  928.1K nps  ETA 00:10:03
+[2026-03-28T00:49:26.449] [INFO] [selfplay:0] [SelfPlay] 158/500 (31%)  pos=13558  W/D/B=71/23/64  (44%/14%/40%)  d6  8.6 games/s (avg 0.6)  930.6K nps  ETA 00:09:58
+[2026-03-28T00:49:27.212] [INFO] [selfplay:0] [SelfPlay] 159/500 (31%)  pos=13698  W/D/B=71/24/64  (44%/15%/40%)  d6  7.5 games/s (avg 0.6)  933.3K nps  ETA 00:09:54
+[2026-03-28T00:49:30.876] [INFO] [selfplay:0] [SelfPlay] 160/500 (32%)  pos=13745  W/D/B=71/24/65  (44%/15%/40%)  d6  6.6 games/s (avg 0.6)  932.4K nps  ETA 00:09:47
+[2026-03-28T00:49:31.952] [INFO] [selfplay:0] [SelfPlay] 161/500 (32%)  pos=13781  W/D/B=71/24/66  (44%/14%/40%)  d6  6.1 games/s (avg 0.6)  935.1K nps  ETA 00:09:52
+[2026-03-28T00:49:38.311] [INFO] [selfplay:0] [SelfPlay] 162/500 (32%)  pos=13898  W/D/B=72/24/66  (44%/14%/40%)  d6  5.3 games/s (avg 0.6)  935.4K nps  ETA 00:09:44
+[2026-03-28T00:49:40.844] [INFO] [selfplay:0] [SelfPlay] 163/500 (32%)  pos=13973  W/D/B=72/24/67  (44%/14%/41%)  d6  4.9 games/s (avg 0.6)  941.9K nps  ETA 00:09:56
+[2026-03-28T00:49:41.548] [INFO] [selfplay:0] [SelfPlay] 164/500 (32%)  pos=14036  W/D/B=72/24/68  (43%/14%/41%)  d6  4.5 games/s (avg 0.6)  946.8K nps  ETA 00:09:57
+[2026-03-28T00:49:41.827] [INFO] [selfplay:0] [SelfPlay] 165/500 (33%)  pos=14139  W/D/B=73/24/68  (44%/14%/41%)  d6  4.1 games/s (avg 0.6)  949.3K nps  ETA 00:09:54
+[2026-03-28T00:49:42.940] [INFO] [selfplay:0] [SelfPlay] 166/500 (33%)  pos=14256  W/D/B=74/24/68  (44%/14%/40%)  d6  4.0 games/s (avg 0.6)  955.7K nps  ETA 00:09:47
+[2026-03-28T00:49:43.534] [INFO] [selfplay:0] [SelfPlay] 167/500 (33%)  pos=14356  W/D/B=74/24/69  (44%/14%/41%)  d6  3.5 games/s (avg 0.6)  957.9K nps  ETA 00:09:46
+[2026-03-28T00:49:43.916] [INFO] [selfplay:0] [SelfPlay] 168/500 (33%)  pos=14447  W/D/B=74/24/70  (44%/14%/41%)  d6  3.3 games/s (avg 0.6)  962.8K nps  ETA 00:09:41
+[2026-03-28T00:49:46.340] [INFO] [selfplay:0] [SelfPlay] 169/500 (33%)  pos=14489  W/D/B=75/24/70  (44%/14%/41%)  d6  3.2 games/s (avg 0.6)  964.1K nps  ETA 00:09:35
+[2026-03-28T00:49:50.747] [INFO] [selfplay:0] [SelfPlay] 170/500 (34%)  pos=14538  W/D/B=75/24/71  (44%/14%/41%)  d6  2.7 games/s (avg 0.6)  956.1K nps  ETA 00:09:33
+[2026-03-28T00:49:51.285] [INFO] [selfplay:0] [SelfPlay] 171/500 (34%)  pos=14608  W/D/B=75/24/72  (43%/14%/42%)  d6  2.5 games/s (avg 0.6)  960.6K nps  ETA 00:09:39
+[2026-03-28T00:49:51.315] [INFO] [selfplay:0] [SelfPlay] 172/500 (34%)  pos=14651  W/D/B=75/24/73  (43%/13%/42%)  d6  2.4 games/s (avg 0.6)  964.0K nps  ETA 00:09:36
+[2026-03-28T00:49:52.509] [INFO] [selfplay:0] [SelfPlay] 173/500 (34%)  pos=14763  W/D/B=76/24/73  (43%/13%/42%)  d6  7.1 games/s (avg 0.6)  970.1K nps  ETA 00:09:30
+[2026-03-28T00:49:55.805] [INFO] [selfplay:0] [SelfPlay] 174/500 (34%)  pos=14883  W/D/B=77/24/73  (44%/13%/41%)  d6  6.2 games/s (avg 0.6)  968.9K nps  ETA 00:09:25
+[2026-03-28T00:49:57.047] [INFO] [selfplay:0] [SelfPlay] 175/500 (35%)  pos=14915  W/D/B=77/24/74  (44%/13%/42%)  d6  5.7 games/s (avg 0.6)  971.0K nps  ETA 00:09:28
+[2026-03-28T00:50:01.491] [INFO] [selfplay:0] [SelfPlay] 176/500 (35%)  pos=14972  W/D/B=77/24/75  (43%/13%/42%)  d6  5.0 games/s (avg 0.6)  969.2K nps  ETA 00:09:23
+[2026-03-28T00:50:02.789] [INFO] [selfplay:0] [SelfPlay] 177/500 (35%)  pos=15044  W/D/B=78/24/75  (44%/13%/42%)  d6  4.6 games/s (avg 0.6)  973.2K nps  ETA 00:09:29
+[2026-03-28T00:50:04.012] [INFO] [selfplay:0] [SelfPlay] 178/500 (35%)  pos=15096  W/D/B=79/24/75  (44%/13%/42%)  d6  4.0 games/s (avg 0.6)  971.2K nps  ETA 00:09:25
+[2026-03-28T00:50:05.806] [INFO] [selfplay:0] [SelfPlay] 179/500 (35%)  pos=15131  W/D/B=79/24/76  (44%/13%/42%)  d6  3.5 games/s (avg 0.6)  967.5K nps  ETA 00:09:24
+[2026-03-28T00:50:06.170] [INFO] [selfplay:0] [SelfPlay] 180/500 (36%)  pos=15173  W/D/B=79/24/77  (43%/13%/42%)  d6  3.1 games/s (avg 0.6)  961.7K nps  ETA 00:09:22
+[2026-03-28T00:50:06.509] [INFO] [selfplay:0] [SelfPlay] 181/500 (36%)  pos=15317  W/D/B=79/24/78  (43%/13%/43%)  d6  3.0 games/s (avg 0.6)  965.7K nps  ETA 00:09:19
+[2026-03-28T00:50:07.554] [INFO] [selfplay:0] [SelfPlay] 182/500 (36%)  pos=15465  W/D/B=79/24/79  (43%/13%/43%)  d6  3.0 games/s (avg 0.6)  970.3K nps  ETA 00:09:14
+[2026-03-28T00:50:11.871] [INFO] [selfplay:0] [SelfPlay] 183/500 (36%)  pos=15571  W/D/B=79/24/80  (43%/13%/43%)  d6  2.7 games/s (avg 0.6)  971.2K nps  ETA 00:09:07
+[2026-03-28T00:50:13.581] [INFO] [selfplay:0] [SelfPlay] 184/500 (36%)  pos=15640  W/D/B=80/24/80  (43%/13%/43%)  d6  2.5 games/s (avg 0.6)  974.5K nps  ETA 00:09:13
+[2026-03-28T00:50:14.413] [INFO] [selfplay:0] [SelfPlay] 185/500 (37%)  pos=15675  W/D/B=80/24/81  (43%/12%/43%)  d6  2.2 games/s (avg 0.6)  968.3K nps  ETA 00:09:11
+[2026-03-28T00:50:14.837] [INFO] [selfplay:0] [SelfPlay] 186/500 (37%)  pos=15819  W/D/B=80/25/81  (43%/13%/43%)  d6  2.1 games/s (avg 0.6)  968.8K nps  ETA 00:09:09
+[2026-03-28T00:50:14.957] [INFO] [selfplay:0] [SelfPlay] 187/500 (37%)  pos=15873  W/D/B=80/25/82  (42%/13%/43%)  d6  2.1 games/s (avg 0.6)  972.1K nps  ETA 00:09:04
+[2026-03-28T00:50:16.129] [INFO] [selfplay:0] [SelfPlay] 188/500 (37%)  pos=15905  W/D/B=80/25/83  (42%/13%/44%)  d6  3.0 games/s (avg 0.6)  974.3K nps  ETA 00:09:00
+[2026-03-28T00:50:18.121] [INFO] [selfplay:0] [SelfPlay] 189/500 (37%)  pos=15910  W/D/B=80/25/84  (42%/13%/44%)  d6  2.7 games/s (avg 0.6)  969.3K nps  ETA 00:08:56
+[2026-03-28T00:50:18.233] [INFO] [selfplay:0] [SelfPlay] 190/500 (38%)  pos=15997  W/D/B=80/25/85  (42%/13%/44%)  d6  2.4 games/s (avg 0.6)  966.9K nps  ETA 00:08:57
+[2026-03-28T00:50:19.059] [INFO] [selfplay:0] [SelfPlay] 191/500 (38%)  pos=16050  W/D/B=80/25/86  (41%/13%/45%)  d6  3.4 games/s (avg 0.6)  969.4K nps  ETA 00:08:51
+[2026-03-28T00:50:21.132] [INFO] [selfplay:0] [SelfPlay] 192/500 (38%)  pos=16083  W/D/B=80/25/87  (41%/13%/45%)  d6  3.0 games/s (avg 0.6)  968.3K nps  ETA 00:08:47
+[2026-03-28T00:50:21.624] [INFO] [selfplay:0] [SelfPlay] 193/500 (38%)  pos=16164  W/D/B=81/25/87  (41%/12%/45%)  d6  2.7 games/s (avg 0.6)  962.8K nps  ETA 00:08:48
+[2026-03-28T00:50:24.906] [INFO] [selfplay:0] [SelfPlay] 194/500 (38%)  pos=16183  W/D/B=82/25/87  (42%/12%/44%)  d6  2.6 games/s (avg 0.6)  962.4K nps  ETA 00:08:40
+[2026-03-28T00:50:27.443] [INFO] [selfplay:0] [SelfPlay] 195/500 (39%)  pos=16255  W/D/B=82/25/88  (42%/12%/45%)  d6  2.2 games/s (avg 0.6)  950.9K nps  ETA 00:08:43
+[2026-03-28T00:50:27.904] [INFO] [selfplay:0] [SelfPlay] 196/500 (39%)  pos=16393  W/D/B=83/25/88  (42%/12%/44%)  d6  1.9 games/s (avg 0.6)  946.5K nps  ETA 00:08:44
+[2026-03-28T00:50:29.606] [INFO] [selfplay:0] [SelfPlay] 197/500 (39%)  pos=16625  W/D/B=83/26/88  (42%/13%/44%)  d6  2.0 games/s (avg 0.6)  950.2K nps  ETA 00:08:40
+[2026-03-28T00:50:30.912] [INFO] [selfplay:0] [SelfPlay] 198/500 (39%)  pos=16680  W/D/B=83/27/88  (41%/13%/44%)  d6  1.8 games/s (avg 0.6)  945.9K nps  ETA 00:08:37
+[2026-03-28T00:50:33.176] [INFO] [selfplay:0] [SelfPlay] 199/500 (39%)  pos=16752  W/D/B=83/28/88  (41%/14%/44%)  d6  1.6 games/s (avg 0.6)  943.6K nps  ETA 00:08:35
+[2026-03-28T00:50:34.699] [INFO] [selfplay:0] [SelfPlay] 200/500 (40%)  pos=16843  W/D/B=84/28/88  (42%/14%/44%)  d6  1.4 games/s (avg 0.6)  937.0K nps  ETA 00:08:35
+[2026-03-28T00:50:38.767] [INFO] [selfplay:0] [SelfPlay] 201/500 (40%)  pos=16914  W/D/B=85/28/88  (42%/13%/43%)  d6  1.3 games/s (avg 0.6)  934.4K nps  ETA 00:08:30
+[2026-03-28T00:50:39.646] [INFO] [selfplay:0] [SelfPlay] 202/500 (40%)  pos=17058  W/D/B=85/28/89  (42%/13%/44%)  d6  1.2 games/s (avg 0.6)  922.3K nps  ETA 00:08:35
+[2026-03-28T00:50:40.213] [INFO] [selfplay:0] [SelfPlay] 203/500 (40%)  pos=17112  W/D/B=86/28/89  (42%/13%/43%)  d6  1.2 games/s (avg 0.6)  921.9K nps  ETA 00:08:32
+[2026-03-28T00:50:40.654] [INFO] [selfplay:0] [SelfPlay] 204/500 (40%)  pos=17137  W/D/B=87/28/89  (42%/13%/43%)  d6  1.3 games/s (avg 0.6)  921.9K nps  ETA 00:08:29
+[2026-03-28T00:50:41.068] [INFO] [selfplay:0] [SelfPlay] 205/500 (41%)  pos=17248  W/D/B=87/29/89  (42%/14%/43%)  d6  1.4 games/s (avg 0.6)  924.5K nps  ETA 00:08:25
+[2026-03-28T00:50:43.882] [INFO] [selfplay:0] [SelfPlay] 206/500 (41%)  pos=17437  W/D/B=88/29/89  (42%/14%/43%)  d6  1.6 games/s (avg 0.6)  928.2K nps  ETA 00:08:19
+[2026-03-28T00:50:45.518] [INFO] [selfplay:0] [SelfPlay] 207/500 (41%)  pos=17473  W/D/B=88/30/89  (42%/14%/42%)  d6  1.4 games/s (avg 0.6)  918.4K nps  ETA 00:08:21
+[2026-03-28T00:50:46.416] [INFO] [selfplay:0] [SelfPlay] 208/500 (41%)  pos=17607  W/D/B=88/30/90  (42%/14%/43%)  d6  1.3 games/s (avg 0.6)  917.6K nps  ETA 00:08:19
+[2026-03-28T00:50:46.493] [INFO] [selfplay:0] [SelfPlay] 209/500 (41%)  pos=17701  W/D/B=88/30/91  (42%/14%/43%)  d6  1.2 games/s (avg 0.6)  918.1K nps  ETA 00:08:17
+[2026-03-28T00:50:49.338] [INFO] [selfplay:0] [SelfPlay] 210/500 (42%)  pos=17723  W/D/B=89/30/91  (42%/14%/43%)  d6  3.0 games/s (avg 0.6)  919.4K nps  ETA 00:08:10
+[2026-03-28T00:50:50.518] [INFO] [selfplay:0] [SelfPlay] 211/500 (42%)  pos=17795  W/D/B=89/30/92  (42%/14%/43%)  d6  2.6 games/s (avg 0.6)  913.5K nps  ETA 00:08:12
+[2026-03-28T00:50:51.776] [INFO] [selfplay:0] [SelfPlay] 212/500 (42%)  pos=17818  W/D/B=90/30/92  (42%/14%/43%)  d6  2.3 games/s (avg 0.6)  912.2K nps  ETA 00:08:10
+[2026-03-28T00:50:56.678] [INFO] [selfplay:0] [SelfPlay] 213/500 (42%)  pos=17893  W/D/B=91/30/92  (42%/14%/43%)  d6  2.1 games/s (avg 0.6)  911.6K nps  ETA 00:08:04
+[2026-03-28T00:50:57.259] [INFO] [selfplay:0] [SelfPlay] 214/500 (42%)  pos=17908  W/D/B=91/30/93  (42%/14%/43%)  d6  2.0 games/s (avg 0.6)  910.6K nps  ETA 00:08:10
+[2026-03-28T00:50:57.467] [INFO] [selfplay:0] [SelfPlay] 215/500 (43%)  pos=18046  W/D/B=91/30/94  (42%/13%/43%)  d6  1.9 games/s (avg 0.6)  914.5K nps  ETA 00:08:08
+[2026-03-28T00:50:57.542] [INFO] [selfplay:0] [SelfPlay] 216/500 (43%)  pos=18123  W/D/B=92/30/94  (42%/13%/43%)  d6  2.4 games/s (avg 0.6)  916.5K nps  ETA 00:08:04
+[2026-03-28T00:50:59.128] [INFO] [selfplay:0] [SelfPlay] 217/500 (43%)  pos=18206  W/D/B=92/30/95  (42%/13%/43%)  d6  4.0 games/s (avg 0.6)  919.9K nps  ETA 00:07:58
+[2026-03-28T00:51:00.055] [INFO] [selfplay:0] [SelfPlay] 218/500 (43%)  pos=18290  W/D/B=92/31/95  (42%/14%/43%)  d6  3.5 games/s (avg 0.6)  917.5K nps  ETA 00:07:57
+[2026-03-28T00:51:00.560] [INFO] [selfplay:0] [SelfPlay] 219/500 (43%)  pos=18422  W/D/B=93/31/95  (42%/14%/43%)  d6  3.1 games/s (avg 0.6)  917.7K nps  ETA 00:07:56
+[2026-03-28T00:51:04.151] [INFO] [selfplay:0] [SelfPlay] 220/500 (44%)  pos=18449  W/D/B=94/31/95  (42%/14%/43%)  d6  3.0 games/s (avg 0.6)  918.4K nps  ETA 00:07:49
+[2026-03-28T00:51:05.149] [INFO] [selfplay:0] [SelfPlay] 221/500 (44%)  pos=18505  W/D/B=94/31/96  (42%/14%/43%)  d6  2.7 games/s (avg 0.6)  920.6K nps  ETA 00:07:52
+[2026-03-28T00:51:08.560] [INFO] [selfplay:0] [SelfPlay] 222/500 (44%)  pos=18593  W/D/B=95/31/96  (42%/13%/43%)  d6  2.5 games/s (avg 0.6)  920.5K nps  ETA 00:07:48
+[2026-03-28T00:51:10.687] [INFO] [selfplay:0] [SelfPlay] 223/500 (44%)  pos=18811  W/D/B=95/32/96  (42%/14%/43%)  d6  2.2 games/s (avg 0.6)  913.4K nps  ETA 00:07:49
+[2026-03-28T00:51:10.738] [INFO] [selfplay:0] [SelfPlay] 224/500 (44%)  pos=18866  W/D/B=96/32/96  (42%/14%/42%)  d6  1.9 games/s (avg 0.6)  909.0K nps  ETA 00:07:50
+[2026-03-28T00:51:12.635] [INFO] [selfplay:0] [SelfPlay] 225/500 (45%)  pos=18897  W/D/B=97/32/96  (43%/14%/42%)  d6  4.5 games/s (avg 0.6)  910.8K nps  ETA 00:07:44
+[2026-03-28T00:51:15.628] [INFO] [selfplay:0] [SelfPlay] 226/500 (45%)  pos=19005  W/D/B=97/33/96  (42%/14%/42%)  d6  3.9 games/s (avg 0.6)  908.2K nps  ETA 00:07:42
+[2026-03-28T00:51:16.661] [INFO] [selfplay:0] [SelfPlay] 227/500 (45%)  pos=19070  W/D/B=98/33/96  (43%/14%/42%)  d6  3.6 games/s (avg 0.6)  910.7K nps  ETA 00:07:44
+[2026-03-28T00:51:20.357] [INFO] [selfplay:0] [SelfPlay] 228/500 (45%)  pos=19077  W/D/B=99/33/96  (43%/14%/42%)  d6  3.2 games/s (avg 0.6)  907.6K nps  ETA 00:07:38
+[2026-03-28T00:51:21.487] [INFO] [selfplay:0] [SelfPlay] 229/500 (45%)  pos=19189  W/D/B=100/33/96  (43%/14%/41%)  d6  3.0 games/s (avg 0.6)  910.1K nps  ETA 00:07:42
+[2026-03-28T00:51:21.796] [INFO] [selfplay:0] [SelfPlay] 230/500 (46%)  pos=19290  W/D/B=101/33/96  (43%/14%/41%)  d6  2.7 games/s (avg 0.6)  910.4K nps  ETA 00:07:40
+[2026-03-28T00:51:22.244] [INFO] [selfplay:0] [SelfPlay] 231/500 (46%)  pos=19425  W/D/B=102/33/96  (44%/14%/41%)  d6  2.8 games/s (avg 0.6)  913.5K nps  ETA 00:07:36
+[2026-03-28T00:51:22.559] [INFO] [selfplay:0] [SelfPlay] 232/500 (46%)  pos=19544  W/D/B=102/33/97  (43%/14%/41%)  d6  2.7 games/s (avg 0.6)  916.6K nps  ETA 00:07:34
+[2026-03-28T00:51:25.533] [INFO] [selfplay:0] [SelfPlay] 233/500 (46%)  pos=19626  W/D/B=102/33/98  (43%/14%/42%)  d6  2.8 games/s (avg 0.6)  918.8K nps  ETA 00:07:28
+[2026-03-28T00:51:27.152] [INFO] [selfplay:0] [SelfPlay] 234/500 (46%)  pos=19677  W/D/B=102/33/99  (43%/14%/42%)  d6  2.4 games/s (avg 0.6)  910.9K nps  ETA 00:07:28
+[2026-03-28T00:51:28.926] [INFO] [selfplay:0] [SelfPlay] 235/500 (47%)  pos=19733  W/D/B=102/33/100  (43%/14%/42%)  d6  2.1 games/s (avg 0.6)  908.9K nps  ETA 00:07:27
+[2026-03-28T00:51:29.374] [INFO] [selfplay:0] [SelfPlay] 236/500 (47%)  pos=19861  W/D/B=102/33/101  (43%/13%/42%)  d6  1.9 games/s (avg 0.6)  905.9K nps  ETA 00:07:27
+[2026-03-28T00:51:30.629] [INFO] [selfplay:0] [SelfPlay] 237/500 (47%)  pos=19949  W/D/B=103/33/101  (43%/13%/42%)  d6  1.9 games/s (avg 0.6)  907.7K nps  ETA 00:07:23
+[2026-03-28T00:51:33.145] [INFO] [selfplay:0] [SelfPlay] 238/500 (47%)  pos=20004  W/D/B=103/33/102  (43%/13%/42%)  d6  1.8 games/s (avg 0.6)  905.8K nps  ETA 00:07:19
+[2026-03-28T00:51:33.964] [INFO] [selfplay:0] [SelfPlay] 239/500 (47%)  pos=20040  W/D/B=103/33/103  (43%/13%/43%)  d6  1.6 games/s (avg 0.6)  898.9K nps  ETA 00:07:20
+[2026-03-28T00:51:35.825] [INFO] [selfplay:0] [SelfPlay] 240/500 (48%)  pos=20158  W/D/B=103/33/104  (42%/13%/43%)  d6  1.5 games/s (avg 0.6)  902.4K nps  ETA 00:07:17
+[2026-03-28T00:51:38.719] [INFO] [selfplay:0] [SelfPlay] 241/500 (48%)  pos=20213  W/D/B=104/33/104  (43%/13%/43%)  d6  1.4 games/s (avg 0.6)  898.2K nps  ETA 00:07:14
+[2026-03-28T00:51:39.833] [INFO] [selfplay:0] [SelfPlay] 242/500 (48%)  pos=20255  W/D/B=104/33/105  (42%/13%/43%)  d6  1.2 games/s (avg 0.6)  892.0K nps  ETA 00:07:15
+[2026-03-28T00:51:42.675] [INFO] [selfplay:0] [SelfPlay] 243/500 (48%)  pos=20304  W/D/B=104/33/106  (42%/13%/43%)  d6  1.2 games/s (avg 0.6)  891.1K nps  ETA 00:07:11
+[2026-03-28T00:51:43.996] [INFO] [selfplay:0] [SelfPlay] 244/500 (48%)  pos=20433  W/D/B=104/33/107  (42%/13%/43%)  d6  1.0 games/s (avg 0.6)  885.5K nps  ETA 00:07:12
+[2026-03-28T00:51:45.304] [INFO] [selfplay:0] [SelfPlay] 245/500 (49%)  pos=20485  W/D/B=104/33/108  (42%/13%/44%)  d6  1.0 games/s (avg 0.6)  883.4K nps  ETA 00:07:11
+[2026-03-28T00:51:48.260] [INFO] [selfplay:0] [SelfPlay] 246/500 (49%)  pos=20556  W/D/B=105/33/108  (42%/13%/43%)  d6  1.0 games/s (avg 0.6)  881.9K nps  ETA 00:07:07
+[2026-03-28T00:51:48.280] [INFO] [selfplay:0] [SelfPlay] 247/500 (49%)  pos=20633  W/D/B=106/33/108  (42%/13%/43%)  d6  0.9 games/s (avg 0.6)  875.8K nps  ETA 00:07:09
+[2026-03-28T00:51:52.134] [INFO] [selfplay:0] [SelfPlay] 248/500 (49%)  pos=20647  W/D/B=107/33/108  (43%/13%/43%)  d6  8.3 games/s (avg 0.6)  877.4K nps  ETA 00:07:02
+[2026-03-28T00:51:54.114] [INFO] [selfplay:0] [SelfPlay] 249/500 (49%)  pos=20770  W/D/B=108/33/108  (43%/13%/43%)  d6  7.7 games/s (avg 0.6)  881.2K nps  ETA 00:07:04
+[2026-03-28T00:51:54.310] [INFO] [selfplay:0] [SelfPlay] 250/500 (50%)  pos=20867  W/D/B=109/33/108  (43%/13%/43%)  d6  7.1 games/s (avg 0.6)  884.3K nps  ETA 00:07:05
+[2026-03-28T00:51:56.681] [INFO] [selfplay:0] [SelfPlay] 251/500 (50%)  pos=20918  W/D/B=109/33/109  (43%/13%/43%)  d6  6.8 games/s (avg 0.6)  886.7K nps  ETA 00:07:00
+[2026-03-28T00:51:57.611] [INFO] [selfplay:0] [SelfPlay] 252/500 (50%)  pos=21006  W/D/B=109/34/109  (43%/13%/43%)  d6  6.3 games/s (avg 0.6)  889.2K nps  ETA 00:07:00
+[2026-03-28T00:51:58.251] [INFO] [selfplay:0] [SelfPlay] 253/500 (50%)  pos=21141  W/D/B=110/34/109  (43%/13%/43%)  d6  5.5 games/s (avg 0.6)  891.0K nps  ETA 00:06:57
+[2026-03-28T00:51:59.422] [INFO] [selfplay:0] [SelfPlay] 254/500 (50%)  pos=21221  W/D/B=110/34/110  (43%/13%/43%)  d6  4.9 games/s (avg 0.6)  895.0K nps  ETA 00:06:54
+[2026-03-28T00:52:04.452] [INFO] [selfplay:0] [SelfPlay] 255/500 (51%)  pos=21284  W/D/B=110/34/111  (43%/13%/43%)  d6  4.3 games/s (avg 0.6)  894.0K nps  ETA 00:06:48
+[2026-03-28T00:52:08.009] [INFO] [selfplay:0] [SelfPlay] 256/500 (51%)  pos=21337  W/D/B=110/34/112  (42%/13%/43%)  d6  4.0 games/s (avg 0.6)  895.4K nps  ETA 00:06:51
+[2026-03-28T00:52:09.172] [INFO] [selfplay:0] [SelfPlay] 257/500 (51%)  pos=21438  W/D/B=110/34/113  (42%/13%/43%)  d6  3.7 games/s (avg 0.6)  900.4K nps  ETA 00:06:54
+[2026-03-28T00:52:11.483] [INFO] [selfplay:0] [SelfPlay] 258/500 (51%)  pos=21527  W/D/B=110/35/113  (42%/13%/43%)  d6  3.3 games/s (avg 0.6)  899.2K nps  ETA 00:06:51
+[2026-03-28T00:52:13.848] [INFO] [selfplay:0] [SelfPlay] 259/500 (51%)  pos=21673  W/D/B=110/35/114  (42%/13%/44%)  d6  2.8 games/s (avg 0.6)  896.5K nps  ETA 00:06:49
+[2026-03-28T00:52:15.108] [INFO] [selfplay:0] [SelfPlay] 260/500 (52%)  pos=21706  W/D/B=110/35/115  (42%/13%/44%)  d6  2.5 games/s (avg 0.6)  893.5K nps  ETA 00:06:48
+[2026-03-28T00:52:17.943] [INFO] [selfplay:0] [SelfPlay] 261/500 (52%)  pos=21810  W/D/B=111/35/115  (42%/13%/44%)  d6  2.2 games/s (avg 0.6)  892.6K nps  ETA 00:06:45
+[2026-03-28T00:52:18.838] [INFO] [selfplay:0] [SelfPlay] 262/500 (52%)  pos=21905  W/D/B=112/35/115  (42%/13%/43%)  d6  1.9 games/s (avg 0.6)  886.9K nps  ETA 00:06:47
+[2026-03-28T00:52:19.266] [INFO] [selfplay:0] [SelfPlay] 263/500 (52%)  pos=22057  W/D/B=112/36/115  (42%/13%/43%)  d6  1.8 games/s (avg 0.6)  889.4K nps  ETA 00:06:44
+[2026-03-28T00:52:23.228] [INFO] [selfplay:0] [SelfPlay] 264/500 (52%)  pos=22167  W/D/B=113/36/115  (42%/13%/43%)  d6  1.9 games/s (avg 0.6)  893.0K nps  ETA 00:06:38
+[2026-03-28T00:52:26.155] [INFO] [selfplay:0] [SelfPlay] 265/500 (53%)  pos=22317  W/D/B=114/36/115  (43%/13%/43%)  d6  1.7 games/s (avg 0.6)  884.8K nps  ETA 00:06:39
+[2026-03-28T00:52:27.194] [INFO] [selfplay:0] [SelfPlay] 266/500 (53%)  pos=22374  W/D/B=114/36/116  (42%/13%/43%)  d6  1.5 games/s (avg 0.6)  878.7K nps  ETA 00:06:41
+[2026-03-28T00:52:30.360] [INFO] [selfplay:0] [SelfPlay] 267/500 (53%)  pos=22528  W/D/B=115/36/116  (43%/13%/43%)  d6  1.4 games/s (avg 0.6)  880.1K nps  ETA 00:06:36
+[2026-03-28T00:52:30.553] [INFO] [selfplay:0] [SelfPlay] 268/500 (53%)  pos=22738  W/D/B=115/37/116  (42%/13%/43%)  d6  1.2 games/s (avg 0.6)  875.0K nps  ETA 00:06:39
+[2026-03-28T00:52:32.604] [INFO] [selfplay:0] [SelfPlay] 269/500 (53%)  pos=22822  W/D/B=115/37/117  (42%/13%/43%)  d6  1.8 games/s (avg 0.6)  877.6K nps  ETA 00:06:34
+[2026-03-28T00:52:33.238] [INFO] [selfplay:0] [SelfPlay] 270/500 (54%)  pos=22863  W/D/B=116/37/117  (42%/13%/43%)  d6  1.6 games/s (avg 0.6)  874.4K nps  ETA 00:06:34
+[2026-03-28T00:52:35.226] [INFO] [selfplay:0] [SelfPlay] 271/500 (54%)  pos=22932  W/D/B=117/37/117  (43%/13%/43%)  d6  1.6 games/s (avg 0.6)  874.7K nps  ETA 00:06:30
+[2026-03-28T00:52:35.970] [INFO] [selfplay:0] [SelfPlay] 272/500 (54%)  pos=23170  W/D/B=118/37/117  (43%/13%/43%)  d6  1.4 games/s (avg 0.6)  875.3K nps  ETA 00:06:29
+[2026-03-28T00:52:39.378] [INFO] [selfplay:0] [SelfPlay] 273/500 (54%)  pos=23222  W/D/B=118/38/117  (43%/13%/42%)  d6  1.4 games/s (avg 0.6)  876.0K nps  ETA 00:06:25
+[2026-03-28T00:52:41.041] [INFO] [selfplay:0] [SelfPlay] 274/500 (54%)  pos=23272  W/D/B=118/38/118  (43%/13%/43%)  d6  1.3 games/s (avg 0.6)  868.5K nps  ETA 00:06:26
+[2026-03-28T00:52:41.048] [INFO] [selfplay:0] [SelfPlay] 275/500 (55%)  pos=23306  W/D/B=118/38/119  (42%/13%/43%)  d6  1.2 games/s (avg 0.6)  865.2K nps  ETA 00:06:26
+[2026-03-28T00:52:42.743] [INFO] [selfplay:0] [SelfPlay] 276/500 (55%)  pos=23408  W/D/B=119/38/119  (43%/13%/43%)  d6  23.7 games/s (avg 0.6)  869.2K nps  ETA 00:06:22
+[2026-03-28T00:52:42.999] [INFO] [selfplay:0] [SelfPlay] 277/500 (55%)  pos=23485  W/D/B=119/38/120  (42%/13%/43%)  d6  21.9 games/s (avg 0.6)  872.7K nps  ETA 00:06:20
+[2026-03-28T00:52:49.419] [INFO] [selfplay:0] [SelfPlay] 278/500 (55%)  pos=23547  W/D/B=119/38/121  (42%/13%/43%)  d6  19.2 games/s (avg 0.6)  875.2K nps  ETA 00:06:12
+[2026-03-28T00:52:49.837] [INFO] [selfplay:0] [SelfPlay] 279/500 (55%)  pos=23603  W/D/B=119/38/122  (42%/13%/43%)  d6  17.8 games/s (avg 0.6)  878.1K nps  ETA 00:06:20
+[2026-03-28T00:52:51.384] [INFO] [selfplay:0] [SelfPlay] 280/500 (56%)  pos=23675  W/D/B=120/38/122  (42%/13%/43%)  d6  15.5 games/s (avg 0.6)  879.6K nps  ETA 00:06:15
+[2026-03-28T00:52:51.918] [INFO] [selfplay:0] [SelfPlay] 281/500 (56%)  pos=23823  W/D/B=121/38/122  (43%/13%/43%)  d6  14.3 games/s (avg 0.6)  883.2K nps  ETA 00:06:15
+[2026-03-28T00:52:54.886] [INFO] [selfplay:0] [SelfPlay] 282/500 (56%)  pos=23840  W/D/B=122/38/122  (43%/13%/43%)  d6  12.4 games/s (avg 0.6)  883.9K nps  ETA 00:06:10
+[2026-03-28T00:52:55.644] [INFO] [selfplay:0] [SelfPlay] 283/500 (56%)  pos=23925  W/D/B=123/38/122  (43%/13%/43%)  d6  11.5 games/s (avg 0.6)  886.0K nps  ETA 00:06:12
+[2026-03-28T00:52:57.629] [INFO] [selfplay:0] [SelfPlay] 284/500 (56%)  pos=24032  W/D/B=123/38/123  (43%/13%/43%)  d6  10.0 games/s (avg 0.6)  887.0K nps  ETA 00:06:08
+[2026-03-28T00:53:00.531] [INFO] [selfplay:0] [SelfPlay] 285/500 (57%)  pos=24078  W/D/B=124/38/123  (43%/13%/43%)  d6  9.2 games/s (avg 0.6)  888.6K nps  ETA 00:06:05
+[2026-03-28T00:53:01.366] [INFO] [selfplay:0] [SelfPlay] 286/500 (57%)  pos=24141  W/D/B=125/38/123  (43%/13%/43%)  d6  8.5 games/s (avg 0.6)  890.8K nps  ETA 00:06:06
+[2026-03-28T00:53:01.387] [INFO] [selfplay:0] [SelfPlay] 287/500 (57%)  pos=24217  W/D/B=125/39/123  (43%/13%/42%)  d6  7.4 games/s (avg 0.6)  891.8K nps  ETA 00:06:05
+[2026-03-28T00:53:04.111] [INFO] [selfplay:0] [SelfPlay] 288/500 (57%)  pos=24308  W/D/B=125/39/124  (43%/13%/43%)  d6  13.5 games/s (avg 0.6)  895.7K nps  ETA 00:05:59
+[2026-03-28T00:53:05.173] [INFO] [selfplay:0] [SelfPlay] 289/500 (57%)  pos=24366  W/D/B=125/39/125  (43%/13%/43%)  d6  12.5 games/s (avg 0.6)  898.6K nps  ETA 00:06:00
+[2026-03-28T00:53:07.864] [INFO] [selfplay:0] [SelfPlay] 290/500 (58%)  pos=24519  W/D/B=125/40/125  (43%/13%/43%)  d6  11.5 games/s (avg 0.6)  899.1K nps  ETA 00:05:56
+[2026-03-28T00:53:08.531] [INFO] [selfplay:0] [SelfPlay] 291/500 (58%)  pos=24550  W/D/B=125/40/126  (42%/13%/43%)  d6  10.7 games/s (avg 0.6)  901.2K nps  ETA 00:05:58
+[2026-03-28T00:53:08.921] [INFO] [selfplay:0] [SelfPlay] 292/500 (58%)  pos=24620  W/D/B=126/40/126  (43%/13%/43%)  d6  9.3 games/s (avg 0.6)  902.0K nps  ETA 00:05:54
+[2026-03-28T00:53:11.024] [INFO] [selfplay:0] [SelfPlay] 293/500 (58%)  pos=24673  W/D/B=126/40/127  (43%/13%/43%)  d6  8.3 games/s (avg 0.6)  903.4K nps  ETA 00:05:51
+[2026-03-28T00:53:17.697] [INFO] [selfplay:0] [SelfPlay] 294/500 (58%)  pos=24770  W/D/B=126/40/128  (42%/13%/43%)  d6  7.7 games/s (avg 0.6)  905.8K nps  ETA 00:05:45
+[2026-03-28T00:53:19.827] [INFO] [selfplay:0] [SelfPlay] 295/500 (59%)  pos=24802  W/D/B=126/40/129  (42%/13%/43%)  d6  7.1 games/s (avg 0.6)  907.2K nps  ETA 00:05:51
+[2026-03-28T00:53:21.295] [INFO] [selfplay:0] [SelfPlay] 296/500 (59%)  pos=24862  W/D/B=126/40/130  (42%/13%/43%)  d6  6.6 games/s (avg 0.6)  909.8K nps  ETA 00:05:50
+[2026-03-28T00:53:22.056] [INFO] [selfplay:0] [SelfPlay] 297/500 (59%)  pos=24915  W/D/B=127/40/130  (42%/13%/43%)  d6  5.7 games/s (avg 0.6)  908.2K nps  ETA 00:05:49
+[2026-03-28T00:53:25.536] [INFO] [selfplay:0] [SelfPlay] 298/500 (59%)  pos=25073  W/D/B=127/41/130  (42%/13%/43%)  d6  5.0 games/s (avg 0.6)  909.3K nps  ETA 00:05:44
+[2026-03-28T00:53:27.879] [INFO] [selfplay:0] [SelfPlay] 299/500 (59%)  pos=25140  W/D/B=127/41/131  (42%/13%/43%)  d6  4.6 games/s (avg 0.6)  910.5K nps  ETA 00:05:44
+[2026-03-28T00:53:28.859] [INFO] [selfplay:0] [SelfPlay] 300/500 (60%)  pos=25181  W/D/B=127/41/132  (42%/13%/44%)  d6  4.3 games/s (avg 0.6)  911.3K nps  ETA 00:05:45
+[2026-03-28T00:53:28.928] [INFO] [selfplay:0] [SelfPlay] 301/500 (60%)  pos=25220  W/D/B=128/41/132  (42%/13%/43%)  d6  3.8 games/s (avg 0.6)  909.7K nps  ETA 00:05:43
+[2026-03-28T00:53:29.003] [INFO] [selfplay:0] [SelfPlay] 302/500 (60%)  pos=25285  W/D/B=128/41/133  (42%/13%/44%)  d6  5.4 games/s (avg 0.6)  911.4K nps  ETA 00:05:40
+[2026-03-28T00:53:33.661] [INFO] [selfplay:0] [SelfPlay] 303/500 (60%)  pos=25359  W/D/B=128/41/134  (42%/13%/44%)  d6  6.6 games/s (avg 0.6)  914.3K nps  ETA 00:05:34
+[2026-03-28T00:53:34.246] [INFO] [selfplay:0] [SelfPlay] 304/500 (60%)  pos=25448  W/D/B=129/41/134  (42%/13%/44%)  d6  6.1 games/s (avg 0.6)  917.8K nps  ETA 00:05:37
+[2026-03-28T00:53:36.110] [INFO] [selfplay:0] [SelfPlay] 305/500 (61%)  pos=25523  W/D/B=129/41/135  (42%/13%/44%)  d6  5.4 games/s (avg 0.6)  919.1K nps  ETA 00:05:33
+[2026-03-28T00:53:36.495] [INFO] [selfplay:0] [SelfPlay] 306/500 (61%)  pos=25559  W/D/B=129/41/136  (42%/13%/44%)  d6  5.0 games/s (avg 0.6)  920.0K nps  ETA 00:05:34
+[2026-03-28T00:53:36.602] [INFO] [selfplay:0] [SelfPlay] 307/500 (61%)  pos=25658  W/D/B=129/42/136  (42%/13%/44%)  d6  4.7 games/s (avg 0.6)  921.1K nps  ETA 00:05:31
+[2026-03-28T00:53:38.428] [INFO] [selfplay:0] [SelfPlay] 308/500 (61%)  pos=25766  W/D/B=129/42/137  (41%/13%/44%)  d6  5.4 games/s (avg 0.6)  924.7K nps  ETA 00:05:26
+[2026-03-28T00:53:38.974] [INFO] [selfplay:0] [SelfPlay] 309/500 (61%)  pos=25770  W/D/B=129/42/138  (41%/13%/44%)  d6  4.6 games/s (avg 0.6)  920.1K nps  ETA 00:05:26
+[2026-03-28T00:53:42.750] [INFO] [selfplay:0] [SelfPlay] 310/500 (62%)  pos=25893  W/D/B=130/42/138  (41%/13%/44%)  d6  4.2 games/s (avg 0.6)  922.2K nps  ETA 00:05:21
+[2026-03-28T00:53:47.736] [INFO] [selfplay:0] [SelfPlay] 311/500 (62%)  pos=25955  W/D/B=131/42/138  (42%/13%/44%)  d6  3.9 games/s (avg 0.6)  924.6K nps  ETA 00:05:19
+[2026-03-28T00:53:49.409] [INFO] [selfplay:0] [SelfPlay] 312/500 (62%)  pos=26075  W/D/B=132/42/138  (42%/13%/44%)  d6  3.6 games/s (avg 0.6)  926.6K nps  ETA 00:05:22
+[2026-03-28T00:53:50.455] [INFO] [selfplay:0] [SelfPlay] 313/500 (62%)  pos=26123  W/D/B=132/42/139  (42%/13%/44%)  d6  3.2 games/s (avg 0.6)  923.9K nps  ETA 00:05:21
+[2026-03-28T00:53:51.072] [INFO] [selfplay:0] [SelfPlay] 314/500 (62%)  pos=26203  W/D/B=133/42/139  (42%/13%/44%)  d6  2.8 games/s (avg 0.6)  923.9K nps  ETA 00:05:19
+[2026-03-28T00:53:51.860] [INFO] [selfplay:0] [SelfPlay] 315/500 (63%)  pos=26276  W/D/B=133/42/140  (42%/13%/44%)  d6  2.6 games/s (avg 0.6)  925.3K nps  ETA 00:05:17
+[2026-03-28T00:53:54.592] [INFO] [selfplay:0] [SelfPlay] 316/500 (63%)  pos=26348  W/D/B=133/42/141  (42%/13%/44%)  d6  2.4 games/s (avg 0.6)  925.2K nps  ETA 00:05:14
+[2026-03-28T00:53:56.884] [INFO] [selfplay:0] [SelfPlay] 317/500 (63%)  pos=26357  W/D/B=134/42/141  (42%/13%/44%)  d6  2.1 games/s (avg 0.6)  918.2K nps  ETA 00:05:12
+[2026-03-28T00:54:00.316] [INFO] [selfplay:0] [SelfPlay] 318/500 (63%)  pos=26394  W/D/B=134/43/141  (42%/13%/44%)  d6  1.9 games/s (avg 0.6)  914.2K nps  ETA 00:05:10
+[2026-03-28T00:54:01.049] [INFO] [selfplay:0] [SelfPlay] 319/500 (63%)  pos=26432  W/D/B=134/43/142  (42%/13%/44%)  d6  1.6 games/s (avg 0.6)  906.1K nps  ETA 00:05:11
+[2026-03-28T00:54:01.859] [INFO] [selfplay:0] [SelfPlay] 320/500 (64%)  pos=26541  W/D/B=134/43/143  (41%/13%/44%)  d6  1.6 games/s (avg 0.6)  907.4K nps  ETA 00:05:09
+[2026-03-28T00:54:02.174] [INFO] [selfplay:0] [SelfPlay] 321/500 (64%)  pos=26628  W/D/B=135/43/143  (42%/13%/44%)  d6  1.5 games/s (avg 0.6)  908.6K nps  ETA 00:05:08
+[2026-03-28T00:54:03.775] [INFO] [selfplay:0] [SelfPlay] 322/500 (64%)  pos=26692  W/D/B=135/43/144  (41%/13%/44%)  d6  1.8 games/s (avg 0.6)  912.5K nps  ETA 00:05:04
+[2026-03-28T00:54:07.526] [INFO] [selfplay:0] [SelfPlay] 323/500 (64%)  pos=26716  W/D/B=135/43/145  (41%/13%/44%)  d6  1.6 games/s (avg 0.6)  909.1K nps  ETA 00:05:00
+[2026-03-28T00:54:08.353] [INFO] [selfplay:0] [SelfPlay] 324/500 (64%)  pos=26956  W/D/B=135/44/145  (41%/13%/44%)  d6  1.4 games/s (avg 0.6)  906.9K nps  ETA 00:05:02
+[2026-03-28T00:54:11.212] [INFO] [selfplay:0] [SelfPlay] 325/500 (65%)  pos=27028  W/D/B=136/44/145  (41%/13%/44%)  d6  1.4 games/s (avg 0.6)  908.7K nps  ETA 00:04:58
+[2026-03-28T00:54:11.882] [INFO] [selfplay:0] [SelfPlay] 326/500 (65%)  pos=27149  W/D/B=136/44/146  (41%/13%/44%)  d6  1.2 games/s (avg 0.6)  904.9K nps  ETA 00:04:59
+[2026-03-28T00:54:13.362] [INFO] [selfplay:0] [SelfPlay] 327/500 (65%)  pos=27224  W/D/B=136/44/147  (41%/13%/44%)  d6  1.3 games/s (avg 0.6)  905.8K nps  ETA 00:04:56
+[2026-03-28T00:54:15.882] [INFO] [selfplay:0] [SelfPlay] 328/500 (65%)  pos=27325  W/D/B=136/44/148  (41%/13%/45%)  d6  1.2 games/s (avg 0.6)  905.2K nps  ETA 00:04:53
+[2026-03-28T00:54:19.439] [INFO] [selfplay:0] [SelfPlay] 329/500 (65%)  pos=27403  W/D/B=136/44/149  (41%/13%/45%)  d6  1.1 games/s (avg 0.6)  901.8K nps  ETA 00:04:51
+[2026-03-28T00:54:22.657] [INFO] [selfplay:0] [SelfPlay] 330/500 (66%)  pos=27506  W/D/B=137/44/149  (41%/13%/45%)  d6  0.9 games/s (avg 0.6)  895.1K nps  ETA 00:04:50
+[2026-03-28T00:54:23.497] [INFO] [selfplay:0] [SelfPlay] 331/500 (66%)  pos=27643  W/D/B=138/44/149  (41%/13%/45%)  d6  0.8 games/s (avg 0.6)  889.7K nps  ETA 00:04:51
+[2026-03-28T00:54:24.011] [INFO] [selfplay:0] [SelfPlay] 332/500 (66%)  pos=27692  W/D/B=139/44/149  (41%/13%/44%)  d6  0.9 games/s (avg 0.6)  890.5K nps  ETA 00:04:49
+[2026-03-28T00:54:26.186] [INFO] [selfplay:0] [SelfPlay] 333/500 (66%)  pos=27806  W/D/B=140/44/149  (42%/13%/44%)  d6  1.1 games/s (avg 0.6)  892.1K nps  ETA 00:04:46
+[2026-03-28T00:54:26.959] [INFO] [selfplay:0] [SelfPlay] 334/500 (66%)  pos=27885  W/D/B=140/44/150  (41%/13%/44%)  d6  1.0 games/s (avg 0.6)  888.9K nps  ETA 00:04:45
+[2026-03-28T00:54:28.055] [INFO] [selfplay:0] [SelfPlay] 335/500 (67%)  pos=27938  W/D/B=140/44/151  (41%/13%/45%)  d6  1.0 games/s (avg 0.6)  889.8K nps  ETA 00:04:43
+[2026-03-28T00:54:28.453] [INFO] [selfplay:0] [SelfPlay] 336/500 (67%)  pos=28005  W/D/B=140/44/152  (41%/13%/45%)  d6  1.0 games/s (avg 0.6)  889.2K nps  ETA 00:04:42
+[2026-03-28T00:54:32.187] [INFO] [selfplay:0] [SelfPlay] 337/500 (67%)  pos=28029  W/D/B=140/44/153  (41%/13%/45%)  d6  1.2 games/s (avg 0.6)  889.7K nps  ETA 00:04:36
+[2026-03-28T00:54:33.533] [INFO] [selfplay:0] [SelfPlay] 338/500 (67%)  pos=28085  W/D/B=140/44/154  (41%/13%/45%)  d6  1.1 games/s (avg 0.6)  883.6K nps  ETA 00:04:38
+[2026-03-28T00:54:35.260] [INFO] [selfplay:0] [SelfPlay] 339/500 (67%)  pos=28161  W/D/B=141/44/154  (41%/12%/45%)  d6  1.0 games/s (avg 0.6)  882.9K nps  ETA 00:04:35
+[2026-03-28T00:54:40.039] [INFO] [selfplay:0] [SelfPlay] 340/500 (68%)  pos=28269  W/D/B=142/44/154  (41%/12%/45%)  d6  1.0 games/s (avg 0.6)  881.5K nps  ETA 00:04:30
+[2026-03-28T00:54:40.098] [INFO] [selfplay:0] [SelfPlay] 341/500 (68%)  pos=28308  W/D/B=142/45/154  (41%/13%/45%)  d6  0.9 games/s (avg 0.6)  871.6K nps  ETA 00:04:35
+[2026-03-28T00:54:40.441] [INFO] [selfplay:0] [SelfPlay] 342/500 (68%)  pos=28371  W/D/B=143/45/154  (41%/13%/45%)  d6  3.3 games/s (avg 0.6)  873.2K nps  ETA 00:04:33
+[2026-03-28T00:54:46.123] [INFO] [selfplay:0] [SelfPlay] 343/500 (68%)  pos=28477  W/D/B=143/45/155  (41%/13%/45%)  d6  3.2 games/s (avg 0.6)  874.6K nps  ETA 00:04:24
+[2026-03-28T00:54:46.462] [INFO] [selfplay:0] [SelfPlay] 344/500 (68%)  pos=28572  W/D/B=143/45/156  (41%/13%/45%)  d6  3.0 games/s (avg 0.6)  876.1K nps  ETA 00:04:30
+[2026-03-28T00:54:48.908] [INFO] [selfplay:0] [SelfPlay] 345/500 (69%)  pos=28623  W/D/B=144/45/156  (41%/13%/45%)  d6  3.0 games/s (avg 0.6)  876.8K nps  ETA 00:04:25
+[2026-03-28T00:54:49.865] [INFO] [selfplay:0] [SelfPlay] 346/500 (69%)  pos=28788  W/D/B=144/45/157  (41%/13%/45%)  d6  2.6 games/s (avg 0.6)  877.4K nps  ETA 00:04:26
+[2026-03-28T00:54:56.398] [INFO] [selfplay:0] [SelfPlay] 347/500 (69%)  pos=28984  W/D/B=144/46/157  (41%/13%/45%)  d6  2.4 games/s (avg 0.6)  878.5K nps  ETA 00:04:19
+[2026-03-28T00:54:56.936] [INFO] [selfplay:0] [SelfPlay] 348/500 (69%)  pos=29039  W/D/B=145/46/157  (41%/13%/45%)  d6  2.2 games/s (avg 0.6)  879.7K nps  ETA 00:04:24
+[2026-03-28T00:54:57.916] [INFO] [selfplay:0] [SelfPlay] 349/500 (69%)  pos=29204  W/D/B=145/46/158  (41%/13%/45%)  d6  2.1 games/s (avg 0.6)  882.6K nps  ETA 00:04:22
+[2026-03-28T00:55:05.285] [INFO] [selfplay:0] [SelfPlay] 350/500 (70%)  pos=29302  W/D/B=145/46/159  (41%/13%/45%)  d6  2.0 games/s (avg 0.6)  883.8K nps  ETA 00:04:14
+[2026-03-28T00:55:05.907] [INFO] [selfplay:0] [SelfPlay] 351/500 (70%)  pos=29443  W/D/B=146/46/159  (41%/13%/45%)  d6  1.8 games/s (avg 0.6)  885.6K nps  ETA 00:04:20
+[2026-03-28T00:55:07.294] [INFO] [selfplay:0] [SelfPlay] 352/500 (70%)  pos=29541  W/D/B=147/46/159  (41%/13%/45%)  d6  1.8 games/s (avg 0.6)  888.0K nps  ETA 00:04:18
+[2026-03-28T00:55:07.360] [INFO] [selfplay:0] [SelfPlay] 353/500 (70%)  pos=29601  W/D/B=147/46/160  (41%/13%/45%)  d6  1.6 games/s (avg 0.6)  887.2K nps  ETA 00:04:17
+[2026-03-28T00:55:07.459] [INFO] [selfplay:0] [SelfPlay] 354/500 (70%)  pos=29686  W/D/B=148/46/160  (41%/12%/45%)  d6  3.7 games/s (avg 0.6)  889.6K nps  ETA 00:04:15
+[2026-03-28T00:55:07.947] [INFO] [selfplay:0] [SelfPlay] 355/500 (71%)  pos=29792  W/D/B=149/46/160  (41%/12%/45%)  d6  4.6 games/s (avg 0.6)  891.2K nps  ETA 00:04:11
+[2026-03-28T00:55:10.686] [INFO] [selfplay:0] [SelfPlay] 356/500 (71%)  pos=29883  W/D/B=149/46/161  (41%/12%/45%)  d6  4.2 games/s (avg 0.6)  892.1K nps  ETA 00:04:08
+[2026-03-28T00:55:12.586] [INFO] [selfplay:0] [SelfPlay] 357/500 (71%)  pos=29929  W/D/B=150/46/161  (42%/12%/45%)  d6  3.9 games/s (avg 0.6)  894.3K nps  ETA 00:04:07
+[2026-03-28T00:55:15.528] [INFO] [selfplay:0] [SelfPlay] 358/500 (71%)  pos=30014  W/D/B=150/46/162  (41%/12%/45%)  d6  3.4 games/s (avg 0.6)  891.6K nps  ETA 00:04:04
+[2026-03-28T00:55:18.907] [INFO] [selfplay:0] [SelfPlay] 359/500 (71%)  pos=30070  W/D/B=151/46/162  (42%/12%/45%)  d6  3.2 games/s (avg 0.6)  893.3K nps  ETA 00:04:02
+[2026-03-28T00:55:19.595] [INFO] [selfplay:0] [SelfPlay] 360/500 (72%)  pos=30226  W/D/B=151/46/163  (41%/12%/45%)  d6  2.9 games/s (avg 0.6)  895.4K nps  ETA 00:04:05
+[2026-03-28T00:55:20.867] [INFO] [selfplay:0] [SelfPlay] 361/500 (72%)  pos=30280  W/D/B=151/46/164  (41%/12%/45%)  d6  2.7 games/s (avg 0.6)  895.4K nps  ETA 00:04:00
+[2026-03-28T00:55:21.218] [INFO] [selfplay:0] [SelfPlay] 362/500 (72%)  pos=30362  W/D/B=151/46/165  (41%/12%/45%)  d6  2.4 games/s (avg 0.6)  894.3K nps  ETA 00:04:00
+[2026-03-28T00:55:24.122] [INFO] [selfplay:0] [SelfPlay] 363/500 (72%)  pos=30433  W/D/B=152/46/165  (41%/12%/45%)  d6  2.5 games/s (avg 0.6)  896.6K nps  ETA 00:03:55
+[2026-03-28T00:55:28.690] [INFO] [selfplay:0] [SelfPlay] 364/500 (72%)  pos=30488  W/D/B=153/46/165  (42%/12%/45%)  d6  2.2 games/s (avg 0.6)  891.8K nps  ETA 00:03:53
+[2026-03-28T00:55:32.668] [INFO] [selfplay:0] [SelfPlay] 365/500 (73%)  pos=30634  W/D/B=153/46/166  (41%/12%/45%)  d6  1.9 games/s (avg 0.6)  885.2K nps  ETA 00:03:52
+[2026-03-28T00:55:32.856] [INFO] [selfplay:0] [SelfPlay] 366/500 (73%)  pos=30729  W/D/B=153/47/166  (41%/12%/45%)  d6  1.6 games/s (avg 0.6)  879.2K nps  ETA 00:03:54
+[2026-03-28T00:55:33.467] [INFO] [selfplay:0] [SelfPlay] 367/500 (73%)  pos=30827  W/D/B=153/47/167  (41%/12%/45%)  d6  2.2 games/s (avg 0.6)  880.7K nps  ETA 00:03:53
+[2026-03-28T00:55:34.311] [INFO] [selfplay:0] [SelfPlay] 368/500 (73%)  pos=30939  W/D/B=154/47/167  (41%/12%/45%)  d6  2.1 games/s (avg 0.6)  882.0K nps  ETA 00:03:50
+[2026-03-28T00:55:34.406] [INFO] [selfplay:0] [SelfPlay] 369/500 (73%)  pos=30957  W/D/B=155/47/167  (42%/12%/45%)  d6  2.0 games/s (avg 0.6)  881.2K nps  ETA 00:03:49
+[2026-03-28T00:55:36.677] [INFO] [selfplay:0] [SelfPlay] 370/500 (74%)  pos=31031  W/D/B=155/47/168  (41%/12%/45%)  d6  3.2 games/s (avg 0.6)  882.7K nps  ETA 00:03:44
+[2026-03-28T00:55:37.968] [INFO] [selfplay:0] [SelfPlay] 371/500 (74%)  pos=31102  W/D/B=156/47/168  (42%/12%/45%)  d6  2.8 games/s (avg 0.6)  881.0K nps  ETA 00:03:43
+[2026-03-28T00:55:38.424] [INFO] [selfplay:0] [SelfPlay] 372/500 (74%)  pos=31147  W/D/B=157/47/168  (42%/12%/45%)  d6  2.5 games/s (avg 0.6)  880.2K nps  ETA 00:03:43
+[2026-03-28T00:55:38.638] [INFO] [selfplay:0] [SelfPlay] 373/500 (74%)  pos=31243  W/D/B=157/47/169  (42%/12%/45%)  d6  2.5 games/s (avg 0.6)  882.5K nps  ETA 00:03:41
+[2026-03-28T00:55:39.874] [INFO] [selfplay:0] [SelfPlay] 374/500 (74%)  pos=31314  W/D/B=158/47/169  (42%/12%/45%)  d6  2.8 games/s (avg 0.6)  884.9K nps  ETA 00:03:36
+[2026-03-28T00:55:48.353] [INFO] [selfplay:0] [SelfPlay] 375/500 (75%)  pos=31421  W/D/B=158/47/170  (42%/12%/45%)  d6  2.5 games/s (avg 0.6)  884.4K nps  ETA 00:03:29
+[2026-03-28T00:55:51.542] [INFO] [selfplay:0] [SelfPlay] 376/500 (75%)  pos=31506  W/D/B=159/47/170  (42%/12%/45%)  d6  2.3 games/s (avg 0.6)  885.3K nps  ETA 00:03:34
+[2026-03-28T00:55:59.773] [INFO] [selfplay:0] [SelfPlay] 377/500 (75%)  pos=31650  W/D/B=159/47/171  (42%/12%/45%)  d6  2.0 games/s (avg 0.6)  880.9K nps  ETA 00:03:28
+[2026-03-28T00:56:00.360] [INFO] [selfplay:0] [SelfPlay] 378/500 (75%)  pos=31719  W/D/B=160/47/171  (42%/12%/45%)  d6  1.9 games/s (avg 0.6)  881.7K nps  ETA 00:03:35
+[2026-03-28T00:56:03.409] [INFO] [selfplay:0] [SelfPlay] 379/500 (75%)  pos=31866  W/D/B=161/47/171  (42%/12%/45%)  d6  1.8 games/s (avg 0.6)  882.7K nps  ETA 00:03:31
+[2026-03-28T00:56:04.742] [INFO] [selfplay:0] [SelfPlay] 380/500 (76%)  pos=31916  W/D/B=161/47/172  (42%/12%/45%)  d6  1.6 games/s (avg 0.6)  878.3K nps  ETA 00:03:32
+[2026-03-28T00:56:06.481] [INFO] [selfplay:0] [SelfPlay] 381/500 (76%)  pos=31992  W/D/B=162/47/172  (42%/12%/45%)  d6  1.5 games/s (avg 0.6)  879.4K nps  ETA 00:03:29
+[2026-03-28T00:56:07.241] [INFO] [selfplay:0] [SelfPlay] 382/500 (76%)  pos=32046  W/D/B=163/47/172  (42%/12%/45%)  d6  1.3 games/s (avg 0.6)  877.8K nps  ETA 00:03:28
+[2026-03-28T00:56:08.896] [INFO] [selfplay:0] [SelfPlay] 383/500 (76%)  pos=32134  W/D/B=163/47/173  (42%/12%/45%)  d6  1.3 games/s (avg 0.6)  878.5K nps  ETA 00:03:25
+[2026-03-28T00:56:09.593] [INFO] [selfplay:0] [SelfPlay] 384/500 (76%)  pos=32216  W/D/B=163/47/174  (42%/12%/45%)  d6  1.2 games/s (avg 0.6)  877.9K nps  ETA 00:03:25
+[2026-03-28T00:56:11.693] [INFO] [selfplay:0] [SelfPlay] 385/500 (77%)  pos=32303  W/D/B=163/48/174  (42%/12%/45%)  d6  1.3 games/s (avg 0.6)  879.2K nps  ETA 00:03:21
+[2026-03-28T00:56:12.470] [INFO] [selfplay:0] [SelfPlay] 386/500 (77%)  pos=32409  W/D/B=163/48/175  (42%/12%/45%)  d6  1.1 games/s (avg 0.6)  877.7K nps  ETA 00:03:20
+[2026-03-28T00:56:14.579] [INFO] [selfplay:0] [SelfPlay] 387/500 (77%)  pos=32447  W/D/B=163/48/176  (42%/12%/45%)  d6  1.2 games/s (avg 0.6)  877.4K nps  ETA 00:03:17
+[2026-03-28T00:56:17.046] [INFO] [selfplay:0] [SelfPlay] 388/500 (77%)  pos=32539  W/D/B=163/48/177  (42%/12%/45%)  d6  1.1 games/s (avg 0.6)  875.1K nps  ETA 00:03:14
+[2026-03-28T00:56:17.934] [INFO] [selfplay:0] [SelfPlay] 389/500 (77%)  pos=32624  W/D/B=163/48/178  (41%/12%/45%)  d6  1.0 games/s (avg 0.6)  872.0K nps  ETA 00:03:15
+[2026-03-28T00:56:19.419] [INFO] [selfplay:0] [SelfPlay] 390/500 (78%)  pos=32697  W/D/B=163/49/178  (41%/12%/45%)  d6  1.0 games/s (avg 0.6)  871.7K nps  ETA 00:03:13
+[2026-03-28T00:56:19.644] [INFO] [selfplay:0] [SelfPlay] 391/500 (78%)  pos=32773  W/D/B=164/49/178  (41%/12%/45%)  d6  0.9 games/s (avg 0.6)  870.7K nps  ETA 00:03:12
+[2026-03-28T00:56:22.695] [INFO] [selfplay:0] [SelfPlay] 392/500 (78%)  pos=32832  W/D/B=164/49/179  (41%/12%/45%)  d6  1.5 games/s (avg 0.6)  873.6K nps  ETA 00:03:07
+[2026-03-28T00:56:30.063] [INFO] [selfplay:0] [SelfPlay] 393/500 (78%)  pos=32853  W/D/B=165/49/179  (41%/12%/45%)  d6  1.3 games/s (avg 0.6)  868.0K nps  ETA 00:03:00
+[2026-03-28T00:56:30.711] [INFO] [selfplay:0] [SelfPlay] 394/500 (78%)  pos=32957  W/D/B=165/49/180  (41%/12%/45%)  d6  1.1 games/s (avg 0.6)  855.7K nps  ETA 00:03:08
+[2026-03-28T00:56:32.556] [INFO] [selfplay:0] [SelfPlay] 395/500 (79%)  pos=33060  W/D/B=165/49/181  (41%/12%/45%)  d6  1.2 games/s (avg 0.6)  856.6K nps  ETA 00:03:04
+[2026-03-28T00:56:37.215] [INFO] [selfplay:0] [SelfPlay] 396/500 (79%)  pos=33108  W/D/B=166/49/181  (41%/12%/45%)  d6  1.1 games/s (avg 0.6)  855.0K nps  ETA 00:02:59
+[2026-03-28T00:56:37.670] [INFO] [selfplay:0] [SelfPlay] 397/500 (79%)  pos=33259  W/D/B=167/49/181  (42%/12%/45%)  d6  1.0 games/s (avg 0.6)  849.3K nps  ETA 00:03:03
+[2026-03-28T00:56:38.253] [INFO] [selfplay:0] [SelfPlay] 398/500 (79%)  pos=33409  W/D/B=168/49/181  (42%/12%/45%)  d6  1.1 games/s (avg 0.6)  850.9K nps  ETA 00:03:00
+[2026-03-28T00:56:39.685] [INFO] [selfplay:0] [SelfPlay] 399/500 (79%)  pos=33609  W/D/B=168/50/181  (42%/12%/45%)  d6  1.2 games/s (avg 0.6)  853.0K nps  ETA 00:02:58
+[2026-03-28T00:56:39.785] [INFO] [selfplay:0] [SelfPlay] 400/500 (80%)  pos=33669  W/D/B=168/50/182  (42%/12%/45%)  d6  1.1 games/s (avg 0.6)  852.2K nps  ETA 00:02:57
+[2026-03-28T00:56:41.127] [INFO] [selfplay:0] [SelfPlay] 401/500 (80%)  pos=33750  W/D/B=169/50/182  (42%/12%/45%)  d6  2.5 games/s (avg 0.6)  854.6K nps  ETA 00:02:53
+[2026-03-28T00:56:42.101] [INFO] [selfplay:0] [SelfPlay] 402/500 (80%)  pos=33810  W/D/B=169/50/183  (42%/12%/45%)  d6  2.2 games/s (avg 0.6)  854.1K nps  ETA 00:02:52
+[2026-03-28T00:56:44.250] [INFO] [selfplay:0] [SelfPlay] 403/500 (80%)  pos=33864  W/D/B=169/51/183  (41%/12%/45%)  d6  2.0 games/s (avg 0.6)  854.1K nps  ETA 00:02:49
+[2026-03-28T00:56:45.836] [INFO] [selfplay:0] [SelfPlay] 404/500 (80%)  pos=34104  W/D/B=169/52/183  (41%/12%/45%)  d6  1.8 games/s (avg 0.6)  853.8K nps  ETA 00:02:48
+[2026-03-28T00:56:49.884] [INFO] [selfplay:0] [SelfPlay] 405/500 (81%)  pos=34139  W/D/B=170/52/183  (41%/12%/45%)  d6  1.6 games/s (avg 0.6)  852.2K nps  ETA 00:02:43
+[2026-03-28T00:56:50.207] [INFO] [selfplay:0] [SelfPlay] 406/500 (81%)  pos=34226  W/D/B=171/52/183  (42%/12%/45%)  d6  1.4 games/s (avg 0.6)  846.3K nps  ETA 00:02:46
+[2026-03-28T00:56:54.454] [INFO] [selfplay:0] [SelfPlay] 407/500 (81%)  pos=34374  W/D/B=172/52/183  (42%/12%/44%)  d6  1.7 games/s (avg 0.6)  849.0K nps  ETA 00:02:40
+[2026-03-28T00:56:58.426] [INFO] [selfplay:0] [SelfPlay] 408/500 (81%)  pos=34417  W/D/B=173/52/183  (42%/12%/44%)  d6  1.5 games/s (avg 0.6)  842.4K nps  ETA 00:02:39
+[2026-03-28T00:57:02.597] [INFO] [selfplay:0] [SelfPlay] 409/500 (81%)  pos=34495  W/D/B=173/52/184  (42%/12%/44%)  d6  1.3 games/s (avg 0.6)  837.9K nps  ETA 00:02:38
+[2026-03-28T00:57:06.567] [INFO] [selfplay:0] [SelfPlay] 410/500 (82%)  pos=34519  W/D/B=173/52/185  (42%/12%/45%)  d6  1.1 games/s (avg 0.6)  832.1K nps  ETA 00:02:37
+[2026-03-28T00:57:07.419] [INFO] [selfplay:0] [SelfPlay] 411/500 (82%)  pos=34600  W/D/B=173/52/186  (42%/12%/45%)  d6  1.0 games/s (avg 0.6)  827.4K nps  ETA 00:02:38
+[2026-03-28T00:57:09.272] [INFO] [selfplay:0] [SelfPlay] 412/500 (82%)  pos=34668  W/D/B=174/52/186  (42%/12%/45%)  d6  1.0 games/s (avg 0.6)  828.2K nps  ETA 00:02:35
+[2026-03-28T00:57:09.748] [INFO] [selfplay:0] [SelfPlay] 413/500 (82%)  pos=34753  W/D/B=174/52/187  (42%/12%/45%)  d6  0.9 games/s (avg 0.6)  827.3K nps  ETA 00:02:35
+[2026-03-28T00:57:09.772] [INFO] [selfplay:0] [SelfPlay] 414/500 (82%)  pos=34790  W/D/B=174/52/188  (42%/12%/45%)  d6  1.1 games/s (avg 0.6)  827.8K nps  ETA 00:02:33
+[2026-03-28T00:57:09.992] [INFO] [selfplay:0] [SelfPlay] 415/500 (83%)  pos=34857  W/D/B=175/52/188  (42%/12%/45%)  d6  7.0 games/s (avg 0.6)  829.4K nps  ETA 00:02:30
+[2026-03-28T00:57:12.799] [INFO] [selfplay:0] [SelfPlay] 416/500 (83%)  pos=34942  W/D/B=175/52/189  (42%/12%/45%)  d6  6.7 games/s (avg 0.6)  831.3K nps  ETA 00:02:27
+[2026-03-28T00:57:14.816] [INFO] [selfplay:0] [SelfPlay] 417/500 (83%)  pos=35083  W/D/B=175/52/190  (41%/12%/45%)  d6  6.2 games/s (avg 0.6)  833.4K nps  ETA 00:02:26
+[2026-03-28T00:57:15.987] [INFO] [selfplay:0] [SelfPlay] 418/500 (83%)  pos=35140  W/D/B=175/53/190  (41%/12%/45%)  d6  5.7 games/s (avg 0.6)  834.4K nps  ETA 00:02:24
+[2026-03-28T00:57:21.186] [INFO] [selfplay:0] [SelfPlay] 419/500 (83%)  pos=35259  W/D/B=176/53/190  (42%/12%/45%)  d6  5.0 games/s (avg 0.6)  835.2K nps  ETA 00:02:19
+[2026-03-28T00:57:22.276] [INFO] [selfplay:0] [SelfPlay] 420/500 (84%)  pos=35295  W/D/B=176/54/190  (41%/12%/45%)  d6  4.6 games/s (avg 0.6)  836.0K nps  ETA 00:02:22
+[2026-03-28T00:57:23.853] [INFO] [selfplay:0] [SelfPlay] 421/500 (84%)  pos=35377  W/D/B=176/54/191  (41%/12%/45%)  d6  4.1 games/s (avg 0.6)  835.8K nps  ETA 00:02:19
+[2026-03-28T00:57:26.497] [INFO] [selfplay:0] [SelfPlay] 422/500 (84%)  pos=35519  W/D/B=176/55/191  (41%/13%/45%)  d6  3.5 games/s (avg 0.6)  835.7K nps  ETA 00:02:17
+[2026-03-28T00:57:29.962] [INFO] [selfplay:0] [SelfPlay] 423/500 (84%)  pos=35554  W/D/B=177/55/191  (41%/13%/45%)  d6  3.1 games/s (avg 0.6)  832.8K nps  ETA 00:02:13
+[2026-03-28T00:57:30.930] [INFO] [selfplay:0] [SelfPlay] 424/500 (84%)  pos=35653  W/D/B=177/55/192  (41%/12%/45%)  d6  2.8 games/s (avg 0.6)  834.2K nps  ETA 00:02:15
+[2026-03-28T00:57:31.202] [INFO] [selfplay:0] [SelfPlay] 425/500 (85%)  pos=35758  W/D/B=177/55/193  (41%/12%/45%)  d6  2.6 games/s (avg 0.6)  834.8K nps  ETA 00:02:14
+[2026-03-28T00:57:32.791] [INFO] [selfplay:0] [SelfPlay] 426/500 (85%)  pos=35793  W/D/B=178/55/193  (41%/12%/45%)  d6  2.7 games/s (avg 0.6)  836.3K nps  ETA 00:02:11
+[2026-03-28T00:57:33.777] [INFO] [selfplay:0] [SelfPlay] 427/500 (85%)  pos=35901  W/D/B=179/55/193  (41%/12%/45%)  d6  2.4 games/s (avg 0.6)  835.7K nps  ETA 00:02:09
+[2026-03-28T00:57:37.064] [INFO] [selfplay:0] [SelfPlay] 428/500 (85%)  pos=36018  W/D/B=179/55/194  (41%/12%/45%)  d6  2.2 games/s (avg 0.6)  835.8K nps  ETA 00:02:04
+[2026-03-28T00:57:37.831] [INFO] [selfplay:0] [SelfPlay] 429/500 (85%)  pos=36063  W/D/B=179/56/194  (41%/13%/45%)  d6  1.9 games/s (avg 0.6)  831.2K nps  ETA 00:02:07
+[2026-03-28T00:57:38.074] [INFO] [selfplay:0] [SelfPlay] 430/500 (86%)  pos=36170  W/D/B=179/56/195  (41%/13%/45%)  d6  1.8 games/s (avg 0.6)  832.6K nps  ETA 00:02:04
+[2026-03-28T00:57:41.289] [INFO] [selfplay:0] [SelfPlay] 431/500 (86%)  pos=36219  W/D/B=180/56/195  (41%/12%/45%)  d6  2.2 games/s (avg 0.6)  834.4K nps  ETA 00:02:00
+[2026-03-28T00:57:43.947] [INFO] [selfplay:0] [SelfPlay] 432/500 (86%)  pos=36245  W/D/B=181/56/195  (41%/12%/45%)  d6  1.9 games/s (avg 0.6)  829.9K nps  ETA 00:01:58
+[2026-03-28T00:57:44.652] [INFO] [selfplay:0] [SelfPlay] 433/500 (86%)  pos=36322  W/D/B=181/56/196  (41%/12%/45%)  d6  1.7 games/s (avg 0.6)  827.3K nps  ETA 00:01:59
+[2026-03-28T00:57:48.382] [INFO] [selfplay:0] [SelfPlay] 434/500 (86%)  pos=36511  W/D/B=181/57/196  (41%/13%/45%)  d6  1.6 games/s (avg 0.6)  828.2K nps  ETA 00:01:53
+[2026-03-28T00:57:51.607] [INFO] [selfplay:0] [SelfPlay] 435/500 (87%)  pos=36556  W/D/B=182/57/196  (41%/13%/45%)  d6  1.4 games/s (avg 0.6)  823.7K nps  ETA 00:01:53
+[2026-03-28T00:58:00.934] [INFO] [selfplay:0] [SelfPlay] 436/500 (87%)  pos=36643  W/D/B=183/57/196  (41%/13%/44%)  d6  1.3 games/s (avg 0.6)  821.3K nps  ETA 00:01:44
+[2026-03-28T00:58:03.655] [INFO] [selfplay:0] [SelfPlay] 437/500 (87%)  pos=36788  W/D/B=184/57/196  (42%/13%/44%)  d6  1.2 games/s (avg 0.6)  822.0K nps  ETA 00:01:52
+[2026-03-28T00:58:04.095] [INFO] [selfplay:0] [SelfPlay] 438/500 (87%)  pos=36823  W/D/B=184/57/197  (42%/13%/44%)  d6  1.0 games/s (avg 0.6)  819.0K nps  ETA 00:01:51
+[2026-03-28T00:58:05.808] [INFO] [selfplay:0] [SelfPlay] 439/500 (87%)  pos=36927  W/D/B=184/57/198  (41%/12%/45%)  d6  1.2 games/s (avg 0.6)  820.4K nps  ETA 00:01:49
+[2026-03-28T00:58:06.899] [INFO] [selfplay:0] [SelfPlay] 440/500 (88%)  pos=36931  W/D/B=184/57/199  (41%/12%/45%)  d6  1.1 games/s (avg 0.6)  817.8K nps  ETA 00:01:46
+[2026-03-28T00:58:06.921] [INFO] [selfplay:0] [SelfPlay] 441/500 (88%)  pos=36988  W/D/B=185/57/199  (41%/12%/45%)  d6  1.1 games/s (avg 0.6)  817.9K nps  ETA 00:01:46
+[2026-03-28T00:58:07.097] [INFO] [selfplay:0] [SelfPlay] 442/500 (88%)  pos=37079  W/D/B=186/57/199  (42%/12%/45%)  d6  7.8 games/s (avg 0.6)  820.0K nps  ETA 00:01:44
+[2026-03-28T00:58:08.888] [INFO] [selfplay:0] [SelfPlay] 443/500 (88%)  pos=37140  W/D/B=187/57/199  (42%/12%/44%)  d6  7.4 games/s (avg 0.6)  821.0K nps  ETA 00:01:40
+[2026-03-28T00:58:09.579] [INFO] [selfplay:0] [SelfPlay] 444/500 (88%)  pos=37238  W/D/B=188/57/199  (42%/12%/44%)  d6  6.9 games/s (avg 0.6)  824.3K nps  ETA 00:01:40
+[2026-03-28T00:58:09.847] [INFO] [selfplay:0] [SelfPlay] 445/500 (89%)  pos=37281  W/D/B=189/57/199  (42%/12%/44%)  d6  6.1 games/s (avg 0.6)  824.6K nps  ETA 00:01:37
+[2026-03-28T00:58:17.790] [INFO] [selfplay:0] [SelfPlay] 446/500 (89%)  pos=37317  W/D/B=189/57/200  (42%/12%/44%)  d6  5.7 games/s (avg 0.6)  825.3K nps  ETA 00:01:28
+[2026-03-28T00:58:19.338] [INFO] [selfplay:0] [SelfPlay] 447/500 (89%)  pos=37477  W/D/B=190/57/200  (42%/12%/44%)  d6  5.3 games/s (avg 0.6)  827.7K nps  ETA 00:01:33
+[2026-03-28T00:58:23.527] [INFO] [selfplay:0] [SelfPlay] 448/500 (89%)  pos=37596  W/D/B=191/57/200  (42%/12%/44%)  d6  4.6 games/s (avg 0.6)  827.2K nps  ETA 00:01:30
+[2026-03-28T00:58:25.153] [INFO] [selfplay:0] [SelfPlay] 449/500 (89%)  pos=37701  W/D/B=191/57/201  (42%/12%/44%)  d6  4.2 games/s (avg 0.6)  828.3K nps  ETA 00:01:30
+[2026-03-28T00:58:28.163] [INFO] [selfplay:0] [SelfPlay] 450/500 (90%)  pos=37820  W/D/B=191/57/202  (42%/12%/44%)  d6  3.7 games/s (avg 0.6)  829.0K nps  ETA 00:01:27
+[2026-03-28T00:58:28.785] [INFO] [selfplay:0] [SelfPlay] 451/500 (90%)  pos=37947  W/D/B=191/57/203  (42%/12%/45%)  d6  3.4 games/s (avg 0.6)  830.6K nps  ETA 00:01:29
+[2026-03-28T00:58:29.133] [INFO] [selfplay:0] [SelfPlay] 452/500 (90%)  pos=38053  W/D/B=191/57/204  (42%/12%/45%)  d6  3.2 games/s (avg 0.6)  831.3K nps  ETA 00:01:26
+[2026-03-28T00:58:29.314] [INFO] [selfplay:0] [SelfPlay] 453/500 (90%)  pos=38111  W/D/B=191/57/205  (42%/12%/45%)  d6  3.1 games/s (avg 0.6)  832.8K nps  ETA 00:01:25
+[2026-03-28T00:58:29.325] [INFO] [selfplay:0] [SelfPlay] 454/500 (90%)  pos=38220  W/D/B=192/57/205  (42%/12%/45%)  d6  3.5 games/s (avg 0.6)  834.5K nps  ETA 00:01:23
+[2026-03-28T00:58:35.811] [INFO] [selfplay:0] [SelfPlay] 455/500 (91%)  pos=38327  W/D/B=193/57/205  (42%/12%/45%)  d6  16.3 games/s (avg 0.6)  836.2K nps  ETA 00:01:15
+[2026-03-28T00:58:36.031] [INFO] [selfplay:0] [SelfPlay] 456/500 (91%)  pos=38464  W/D/B=194/57/205  (42%/12%/44%)  d6  15.1 games/s (avg 0.6)  838.6K nps  ETA 00:01:18
+[2026-03-28T00:58:37.386] [INFO] [selfplay:0] [SelfPlay] 457/500 (91%)  pos=38614  W/D/B=195/57/205  (42%/12%/44%)  d6  13.5 games/s (avg 0.6)  840.5K nps  ETA 00:01:16
+[2026-03-28T00:58:43.758] [INFO] [selfplay:0] [SelfPlay] 458/500 (91%)  pos=38772  W/D/B=196/57/205  (42%/12%/44%)  d6  12.5 games/s (avg 0.6)  843.6K nps  ETA 00:01:09
+[2026-03-28T00:58:48.215] [INFO] [selfplay:0] [SelfPlay] 459/500 (91%)  pos=38807  W/D/B=197/57/205  (42%/12%/44%)  d6  11.6 games/s (avg 0.5)  844.5K nps  ETA 00:01:09
+[2026-03-28T00:58:49.863] [INFO] [selfplay:0] [SelfPlay] 460/500 (92%)  pos=38840  W/D/B=197/57/206  (42%/12%/44%)  d6  10.7 games/s (avg 0.5)  845.4K nps  ETA 00:01:10
+[2026-03-28T00:58:53.416] [INFO] [selfplay:0] [SelfPlay] 461/500 (92%)  pos=38891  W/D/B=198/57/206  (42%/12%/44%)  d6  9.9 games/s (avg 0.5)  847.1K nps  ETA 00:01:08
+[2026-03-28T00:58:55.259] [INFO] [selfplay:0] [SelfPlay] 462/500 (92%)  pos=38986  W/D/B=198/57/207  (42%/12%/44%)  d6  9.2 games/s (avg 0.5)  848.6K nps  ETA 00:01:07
+[2026-03-28T00:58:56.587] [INFO] [selfplay:0] [SelfPlay] 463/500 (92%)  pos=39048  W/D/B=199/57/207  (42%/12%/44%)  d6  8.5 games/s (avg 0.5)  849.8K nps  ETA 00:01:06
+[2026-03-28T00:58:59.039] [INFO] [selfplay:0] [SelfPlay] 464/500 (92%)  pos=39087  W/D/B=199/57/208  (42%/12%/44%)  d6  7.8 games/s (avg 0.5)  850.5K nps  ETA 00:01:02
+[2026-03-28T00:58:59.964] [INFO] [selfplay:0] [SelfPlay] 465/500 (93%)  pos=39199  W/D/B=199/58/208  (42%/12%/44%)  d6  7.2 games/s (avg 0.5)  852.1K nps  ETA 00:01:02
+[2026-03-28T00:59:00.202] [INFO] [selfplay:0] [SelfPlay] 466/500 (93%)  pos=39217  W/D/B=200/58/208  (42%/12%/44%)  d6  6.3 games/s (avg 0.5)  851.3K nps  ETA 00:01:02
+[2026-03-28T00:59:00.622] [INFO] [selfplay:0] [SelfPlay] 467/500 (93%)  pos=39316  W/D/B=201/58/208  (43%/12%/44%)  d6  6.0 games/s (avg 0.5)  853.2K nps  ETA 00:01:00
+[2026-03-28T00:59:04.299] [INFO] [selfplay:0] [SelfPlay] 468/500 (93%)  pos=39373  W/D/B=202/58/208  (43%/12%/44%)  d6  5.5 games/s (avg 0.5)  855.3K nps  ETA 00:00:54
+[2026-03-28T00:59:04.333] [INFO] [selfplay:0] [SelfPlay] 469/500 (93%)  pos=39417  W/D/B=203/58/208  (43%/12%/44%)  d6  5.1 games/s (avg 0.5)  857.1K nps  ETA 00:00:56
+[2026-03-28T00:59:10.890] [INFO] [selfplay:0] [SelfPlay] 470/500 (94%)  pos=39464  W/D/B=204/58/208  (43%/12%/44%)  d6  8.7 games/s (avg 0.5)  858.1K nps  ETA 00:00:47
+[2026-03-28T00:59:12.814] [INFO] [selfplay:0] [SelfPlay] 471/500 (94%)  pos=39507  W/D/B=204/58/209  (43%/12%/44%)  d6  8.0 games/s (avg 0.5)  859.2K nps  ETA 00:00:52
+[2026-03-28T00:59:13.843] [INFO] [selfplay:0] [SelfPlay] 472/500 (94%)  pos=39586  W/D/B=204/58/210  (43%/12%/44%)  d6  7.4 games/s (avg 0.5)  861.2K nps  ETA 00:00:50
+[2026-03-28T00:59:14.592] [INFO] [selfplay:0] [SelfPlay] 473/500 (94%)  pos=39685  W/D/B=205/58/210  (43%/12%/44%)  d6  6.5 games/s (avg 0.5)  861.1K nps  ETA 00:00:48
+[2026-03-28T00:59:17.887] [INFO] [selfplay:0] [SelfPlay] 474/500 (94%)  pos=39755  W/D/B=205/58/211  (43%/12%/44%)  d6  5.7 games/s (avg 0.5)  861.2K nps  ETA 00:00:43
+[2026-03-28T00:59:20.060] [INFO] [selfplay:0] [SelfPlay] 475/500 (95%)  pos=39889  W/D/B=205/58/212  (43%/12%/44%)  d6  5.3 games/s (avg 0.5)  863.7K nps  ETA 00:00:43
+[2026-03-28T00:59:20.917] [INFO] [selfplay:0] [SelfPlay] 476/500 (95%)  pos=39968  W/D/B=206/58/212  (43%/12%/44%)  d6  4.9 games/s (avg 0.5)  865.1K nps  ETA 00:00:42
+[2026-03-28T00:59:20.951] [INFO] [selfplay:0] [SelfPlay] 477/500 (95%)  pos=40064  W/D/B=206/58/213  (43%/12%/44%)  d6  4.3 games/s (avg 0.5)  866.1K nps  ETA 00:00:42
+[2026-03-28T00:59:25.050] [INFO] [selfplay:0] [SelfPlay] 478/500 (95%)  pos=40228  W/D/B=207/58/213  (43%/12%/44%)  d6  8.1 games/s (avg 0.5)  868.7K nps  ETA 00:00:36
+[2026-03-28T00:59:25.247] [INFO] [selfplay:0] [SelfPlay] 479/500 (95%)  pos=40304  W/D/B=208/58/213  (43%/12%/44%)  d6  7.5 games/s (avg 0.5)  870.2K nps  ETA 00:00:38
+[2026-03-28T00:59:26.805] [INFO] [selfplay:0] [SelfPlay] 480/500 (96%)  pos=40400  W/D/B=208/58/214  (43%/12%/44%)  d6  7.1 games/s (avg 0.5)  872.0K nps  ETA 00:00:35
+[2026-03-28T00:59:27.828] [INFO] [selfplay:0] [SelfPlay] 481/500 (96%)  pos=40531  W/D/B=209/58/214  (43%/12%/44%)  d6  6.6 games/s (avg 0.5)  874.1K nps  ETA 00:00:33
+[2026-03-28T00:59:31.379] [INFO] [selfplay:0] [SelfPlay] 482/500 (96%)  pos=40614  W/D/B=209/59/214  (43%/12%/44%)  d6  5.7 games/s (avg 0.5)  874.3K nps  ETA 00:00:28
+[2026-03-28T00:59:31.783] [INFO] [selfplay:0] [SelfPlay] 483/500 (96%)  pos=40673  W/D/B=210/59/214  (43%/12%/44%)  d6  5.3 games/s (avg 0.5)  875.4K nps  ETA 00:00:31
+[2026-03-28T00:59:34.033] [INFO] [selfplay:0] [SelfPlay] 484/500 (96%)  pos=40713  W/D/B=210/59/215  (43%/12%/44%)  d6  4.9 games/s (avg 0.5)  875.6K nps  ETA 00:00:26
+[2026-03-28T00:59:34.578] [INFO] [selfplay:0] [SelfPlay] 485/500 (97%)  pos=40774  W/D/B=210/60/215  (43%/12%/44%)  d6  4.5 games/s (avg 0.5)  877.2K nps  ETA 00:00:27
+[2026-03-28T00:59:34.938] [INFO] [selfplay:0] [SelfPlay] 486/500 (97%)  pos=40978  W/D/B=211/60/215  (43%/12%/44%)  d6  4.1 games/s (avg 0.5)  878.2K nps  ETA 00:00:24
+[2026-03-28T00:59:35.060] [INFO] [selfplay:0] [SelfPlay] 487/500 (97%)  pos=41164  W/D/B=212/60/215  (43%/12%/44%)  d6  3.9 games/s (avg 0.5)  879.7K nps  ETA 00:00:23
+[2026-03-28T00:59:35.222] [INFO] [selfplay:0] [SelfPlay] 488/500 (97%)  pos=41203  W/D/B=212/60/216  (43%/12%/44%)  d6  4.6 games/s (avg 0.6)  880.3K nps  ETA 00:00:21
+[2026-03-28T00:59:36.426] [INFO] [selfplay:0] [SelfPlay] 489/500 (97%)  pos=41262  W/D/B=213/60/216  (43%/12%/44%)  d6  4.8 games/s (avg 0.6)  881.4K nps  ETA 00:00:20
+[2026-03-28T00:59:42.521] [INFO] [selfplay:0] [SelfPlay] 490/500 (98%)  pos=41326  W/D/B=213/60/217  (43%/12%/44%)  d6  4.2 games/s (avg 0.6)  880.7K nps  ETA 00:00:15
+[2026-03-28T00:59:43.559] [INFO] [selfplay:0] [SelfPlay] 491/500 (98%)  pos=41473  W/D/B=214/60/217  (43%/12%/44%)  d6  3.9 games/s (avg 0.5)  882.4K nps  ETA 00:00:20
+[2026-03-28T00:59:46.298] [INFO] [selfplay:0] [SelfPlay] 492/500 (98%)  pos=41513  W/D/B=214/61/217  (43%/12%/44%)  d6  3.4 games/s (avg 0.5)  881.9K nps  ETA 00:00:18
+[2026-03-28T00:59:46.488] [INFO] [selfplay:0] [SelfPlay] 493/500 (98%)  pos=41555  W/D/B=214/61/218  (43%/12%/44%)  d6  3.0 games/s (avg 0.5)  878.5K nps  ETA 00:00:21
+[2026-03-28T00:59:46.937] [INFO] [selfplay:0] [SelfPlay] 494/500 (98%)  pos=41610  W/D/B=215/61/218  (43%/12%/44%)  d6  3.3 games/s (avg 0.6)  879.3K nps  ETA 00:00:20
+[2026-03-28T00:59:48.245] [INFO] [selfplay:0] [SelfPlay] 495/500 (99%)  pos=41671  W/D/B=216/61/218  (43%/12%/44%)  d6  3.2 games/s (avg 0.6)  879.9K nps  ETA 00:00:20
+[2026-03-28T00:59:50.089] [INFO] [selfplay:0] [SelfPlay] 496/500 (99%)  pos=41739  W/D/B=217/61/218  (43%/12%/43%)  d6  2.8 games/s (avg 0.6)  879.3K nps  ETA 00:00:19
+[2026-03-28T00:59:51.577] [INFO] [selfplay:0] [SelfPlay] 497/500 (99%)  pos=41854  W/D/B=217/61/219  (43%/12%/44%)  d6  2.5 games/s (avg 0.6)  878.6K nps  ETA 00:00:20
+[2026-03-28T00:59:53.784] [INFO] [selfplay:0] [SelfPlay] 498/500 (99%)  pos=41943  W/D/B=217/62/219  (43%/12%/43%)  d6  2.2 games/s (avg 0.6)  877.8K nps  ETA 00:00:19
+[2026-03-28T00:59:53.997] [INFO] [selfplay:0] [SelfPlay] 499/500 (99%)  pos=42066  W/D/B=217/63/219  (43%/12%/43%)  d6  1.9 games/s (avg 0.6)  876.2K nps  ETA 00:00:20
+[2026-03-28T00:59:54.840] [INFO] [selfplay:0] [SelfPlay] 500/500 (100%)  pos=42231  W/D/B=218/63/219  (43%/12%/43%)  d6  2.3 games/s (avg 0.6)  878.5K nps  ETA 00:00:00
+[2026-03-28T00:59:54.852] [INFO] [selfplay:0] [SelfPlay] Done. 42231 positions written to C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen3.bin
+[2026-03-28T00:59:54.923] [EVENT] [selfplay:3] PHASE_END success=true elapsed_sec=906.0
+[2026-03-28T00:59:56.061] [INFO] [selfplay:0]   Using Stockfish-labeled data: C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\training_data_sf.bin
+[2026-03-28T00:59:56.061] [INFO] [selfplay:0]   Self-play current gen (weight 0.0882, base gets 0.85)
+[2026-03-28T00:59:56.062] [INFO] [selfplay:0]   Replay buffer: gen 2 (weight 0.0618)
+[2026-03-28T00:59:56.062] [EVENT] [training:3] PHASE_START epochs=8 batch=2048 lr=0.001
+[2026-03-28T00:59:56.062] [CMD] [training:0] [CMD] py -3.10 -u "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\train_nnue.py" --data "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\training_data_sf.bin" --extra-data "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen3.bin" 0.0882 --extra-data "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen2.bin" 0.0618 --max-positions 100000 --epochs 8 --batch-size 2048 --lr 0.001 --lr-min 0.00001 --weight-decay 0.001 --dropout 0.2 --grad-clip 1.0 --grad-accum 4 --warmup-steps 500 --draw-weight 0.3 --mate-boost 10.0 --early-stop 6 --wdl-alpha 0.3 --wdl-draw-elo 50.0 --enhanced --plot --cosine-lr --no-cosine-restarts --swa --swa-start 5 --label-smoothing 0.01 --load-weights "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_gen2.bin" --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights.bin"
+[2026-03-28T00:59:59.330] [INFO] [training:0] === Enhanced mode v3: warmup=500, grad_accum=4, SWA=ON, label_smooth=0.01, filter_eval=1000.0, eval_soft_cap=800.0, draw_weight=0.3x, wdl_alpha=0.3, wdl_draw_elo=50.0, cosine_decay ===
+[2026-03-28T00:59:59.330] [INFO] [training:0] Using device: CPU (optimized)
+[2026-03-28T00:59:59.376] [INFO] [training:0]   CPU threads: 16
+[2026-03-28T00:59:59.377] [INFO] [training:0]   --max-positions: distributing 100,000 budget across 3 sources by ratio
+[2026-03-28T00:59:59.377] [INFO] [training:0]     training_data_sf.bin: 25,194,593 -> 90,187 (ratio 85.0%)
+[2026-03-28T00:59:59.377] [INFO] [training:0]     selfplay_gen3.bin: 42,231 -> 9,358 (ratio 8.8%)
+[2026-03-28T00:59:59.377] [INFO] [training:0] Datasets:             3 sources (ratio-based sampling)
+[2026-03-28T00:59:59.377] [INFO] [training:0]   - training_data_sf.bin                     ratio=85.0%  pos=90,187
+[2026-03-28T00:59:59.377] [INFO] [training:0]   - selfplay_gen3.bin                        ratio=8.8%  pos=9,358
+[2026-03-28T00:59:59.377] [INFO] [training:0]   - selfplay_gen2.bin                        ratio=6.2%  pos=454
+[2026-03-28T00:59:59.377] [INFO] [training:0]   Total positions: 99,999
+[2026-03-28T00:59:59.377] [INFO] [training:0]   Mode: PRELOAD (full dataset fits in RAM)
+[2026-03-28T00:59:59.662] [INFO] [training:0] Weights loaded from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_gen2.bin
+[2026-03-28T00:59:59.666] [INFO] [training:0] Loaded existing weights from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_gen2.bin
+[2026-03-28T01:00:00.550] [INFO] [training:0]   Fresh optimizer (--load-weights skips old optimizer state)
+[2026-03-28T01:00:00.550] [INFO] [training:0] ============================================================
+[2026-03-28T01:00:00.550] [INFO] [training:0] Training Configuration:
+[2026-03-28T01:00:00.550] [INFO] [training:0]   Positions:         99,999
+[2026-03-28T01:00:00.550] [INFO] [training:0]   Batch size:        2048 (effective: 8192 with grad accum x4)
+[2026-03-28T01:00:00.550] [INFO] [training:0]   Epochs:            8
+[2026-03-28T01:00:00.550] [INFO] [training:0]   Learning rate:     0.001
+[2026-03-28T01:00:00.550] [INFO] [training:0]   LR schedule:       Cosine Decay (T_max=1, warmup_epochs~41)
+[2026-03-28T01:00:00.550] [INFO] [training:0]   LR min:            1e-05
+[2026-03-28T01:00:00.550] [INFO] [training:0]   LR warmup:         500 optimizer steps
+[2026-03-28T01:00:00.550] [INFO] [training:0]   Lambda (eval/res): 0.5
+[2026-03-28T01:00:00.550] [INFO] [training:0]   Eval scale:        400.0
+[2026-03-28T01:00:00.550] [INFO] [training:0]   Phase balanced:    True
+[2026-03-28T01:00:00.550] [INFO] [training:0]   Early stop:        6 epochs
+[2026-03-28T01:00:00.550] [INFO] [training:0]   Weight decay:      0.001
+[2026-03-28T01:00:00.550] [INFO] [training:0]   Dropout:           0.2
+[2026-03-28T01:00:00.550] [INFO] [training:0]   Grad accumulation: 4x
+[2026-03-28T01:00:00.550] [INFO] [training:0]   Label smoothing:   0.01
+[2026-03-28T01:00:00.550] [INFO] [training:0]   SWA:               ON (start epoch 5)
+[2026-03-28T01:00:00.550] [INFO] [training:0]   Filter eval max:   1000.0
+[2026-03-28T01:00:00.550] [INFO] [training:0]   Eval soft-cap:     800.0
+[2026-03-28T01:00:00.550] [INFO] [training:0]   Draw weight:       0.3x
+[2026-03-28T01:00:00.550] [INFO] [training:0]   Mate boost:        10.0x
+[2026-03-28T01:00:00.550] [INFO] [training:0]   Async prefetch:    N/A (preload mode)
+[2026-03-28T01:00:00.550] [INFO] [training:0]   WDL CE loss:       ON (alpha=0.3, lambda=0.5 (from --lam), draw_elo=50.0)
+[2026-03-28T01:00:00.550] [INFO] [training:0]   Activation:        SCReLU (squared clipped ReLU)
+[2026-03-28T01:00:00.550] [INFO] [training:0]   Architecture:      40960->512->128->64->WDL(3)x3heads
+[2026-03-28T01:00:00.550] [INFO] [training:0]   Grad clip norm:    1.0
+[2026-03-28T01:00:00.550] [INFO] [training:0]   Streaming:         False
+[2026-03-28T01:00:00.550] [INFO] [training:0]   Datasets:          3 sources (ratio-based sampling)
+[2026-03-28T01:00:00.550] [INFO] [training:0]     - training_data_sf.bin            ratio=85.0%  pos=90,187
+[2026-03-28T01:00:00.550] [INFO] [training:0]     - selfplay_gen3.bin               ratio=8.8%  pos=9,358
+[2026-03-28T01:00:00.550] [INFO] [training:0]     - selfplay_gen2.bin               ratio=6.2%  pos=454
+[2026-03-28T01:00:00.550] [INFO] [training:0] ============================================================
+[2026-03-28T01:00:00.550] [INFO] [training:0]   Multi-dataset preload: ratios will be applied during epoch sampling.
+[2026-03-28T01:00:00.550] [INFO] [training:0]   Loading 3 datasets sequentially...
+[2026-03-28T01:00:00.550] [INFO] [training:0] Loading positions from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\training_data_sf.bin...
+[2026-03-28T01:00:00.550] [INFO] [training:0]   Total positions: 25,194,593 � using offset-cache fast path (avoids reading 1201 MB into RAM)
+[2026-03-28T01:00:00.550] [INFO] [training:0] Scanning C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\training_data_sf.bin for position offsets...
+[2026-03-28T01:00:00.668] [INFO] [training:0]   Loaded cached index: 25,194,593 offsets (C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\training_data_sf.bin.offidx)
+[2026-03-28T01:00:02.469] [INFO] [training:0]   Sampled 90,187 from 25,194,593 positions (reservoir)
+[2026-03-28T01:00:08.641] [INFO] [training:0]     Parsed 50,000/90,187 positions (14295 pos/s,
+[2026-03-28T01:00:08.641] [INFO] [training:0]   Parsed 90,187 positions in 6.2s (14,645 pos/s)
+[2026-03-28T01:00:08.641] [INFO] [training:0]   Vectorized HalfKAv2 conversion (90,187 positions)...
+[2026-03-28T01:00:08.961] [INFO] [training:0]   HalfKAv2 conversion: 0.3s (281,843 pos/s)
+[2026-03-28T01:00:08.976] [INFO] [training:0]   Converting to tensors...
+[2026-03-28T01:00:08.976] [INFO] [training:0] Phase distribution: Opening=25,773, Middlegame=28,725, Endgame=31,811
+[2026-03-28T01:00:08.977] [INFO] [training:0]   [training_data_sf.bin] loaded: 86,309 positions
+[2026-03-28T01:00:09.052] [INFO] [training:0] Loading positions from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen3.bin...
+[2026-03-28T01:00:09.052] [INFO] [training:0]   Total positions: 42,231 � using offset-cache fast path (avoids reading 2 MB into RAM)
+[2026-03-28T01:00:09.052] [INFO] [training:0] Scanning C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen3.bin for position offsets...
+[2026-03-28T01:00:09.053] [INFO] [training:0]   Building offset index (first time, may take several minutes)...
+[2026-03-28T01:00:09.053] [INFO] [training:0]   Total positions: 42,231 (header: versioned)
+[2026-03-28T01:00:09.078] [INFO] [training:0]   Scan complete: 42,231 positions indexed.[K
+[2026-03-28T01:00:09.082] [INFO] [training:0]   Saved offset cache: 0.3 MB (C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen3.bin.offidx)
+[2026-03-28T01:00:09.083] [INFO] [training:0]   Sampled 9,358 from 42,231 positions (reservoir)
+[2026-03-28T01:00:09.109] [INFO] [training:0]   Parsed 9,358 positions in 0.0s (367,884 pos/s)
+[2026-03-28T01:00:09.109] [INFO] [training:0]   Vectorized HalfKAv2 conversion (9,358 positions)...
+[2026-03-28T01:00:09.225] [INFO] [training:0]   HalfKAv2 conversion: 0.1s (80,333 pos/s)
+[2026-03-28T01:00:09.226] [INFO] [training:0]   Converting to tensors...
+[2026-03-28T01:00:09.226] [INFO] [training:0] Phase distribution: Opening=1,483, Middlegame=3,898, Endgame=3,685
+[2026-03-28T01:00:09.226] [INFO] [training:0]   [selfplay_gen3.bin] loaded: 9,066 positions
+[2026-03-28T01:00:09.305] [INFO] [training:0] Loading positions from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen2.bin...
+[2026-03-28T01:00:09.305] [INFO] [training:0]   Total positions: 454 (header: versioned)
+[2026-03-28T01:00:09.306] [INFO] [training:0]   Parsed 444 positions in 0.0s (444,032 pos/s)          
+[2026-03-28T01:00:09.306] [INFO] [training:0]   Filtered: 10 extreme-eval positions removed, 444 kept
+[2026-03-28T01:00:09.383] [INFO] [training:0]   Vectorized HalfKAv2 conversion (444 positions)...
+[2026-03-28T01:00:09.462] [INFO] [training:0]   HalfKAv2 conversion: 0.1s (5,604 pos/s)
+[2026-03-28T01:00:09.462] [INFO] [training:0]   Converting to tensors...
+[2026-03-28T01:00:09.462] [INFO] [training:0] Phase distribution: Opening=146, Middlegame=298, Endgame=0
+[2026-03-28T01:00:09.462] [INFO] [training:0]   [selfplay_gen2.bin] loaded: 444 positions
+[2026-03-28T01:00:09.551] [INFO] [training:0]   Train positions: 86,238
+[2026-03-28T01:00:09.551] [INFO] [training:0]   Val positions:   9,581
+[2026-03-28T01:00:09.611] [INFO] [training:0]   Phase-balanced samples: 95,976 (from 86,238 train)
+[2026-03-28T01:01:17.808] [INFO] [training:0]   Ep 1 | Batch 43/43 (100%) | Loss: 0.216210
+[2026-03-28T01:01:25.759] [INFO] [training:0] ----------------------------------------------------------------------
+[2026-03-28T01:01:25.759] [INFO] [training:0]   Epoch    1/8 | Train: 0.216210 (rebalanced) | Val: 0.360939 * | LR: 0.000020 | Acc: 0.4826
+[2026-03-28T01:01:25.759] [METRIC] [training:3] EPOCH epoch=1 train_loss=0.21621000 val_loss=0.36093900 lr=2.000000e-05 acc=0.4826
+[2026-03-28T01:01:25.759] [INFO] [training:0]   Time: 1m08s | Elapsed: 1m08s | 1,288 pos/s
+[2026-03-28T01:01:25.759] [INFO] [training:0]   Phase loss -> Opening: 0.389892  Middlegame: 0.366521  Endgame: 0.332568
+[2026-03-28T01:01:27.157] [INFO] [training:0] Weights saved to C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights.bin
+[2026-03-28T01:01:29.204] [INFO] [training:0] Checkpoint saved to C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_checkpoint.pt
+[2026-03-28T01:02:35.209] [INFO] [training:0]   Ep 2 | Batch 43/43 (100%) | Loss: 0.212668
+[2026-03-28T01:02:42.412] [INFO] [training:0] ----------------------------------------------------------------------
+[2026-03-28T01:02:42.413] [INFO] [training:0]   Epoch    2/8 | Train: 0.212668 (rebalanced) | Val: 0.358627 * | LR: 0.000042 | Acc: 0.4887
+[2026-03-28T01:02:42.413] [METRIC] [training:3] EPOCH epoch=2 train_loss=0.21266800 val_loss=0.35862700 lr=4.200000e-05 acc=0.4887
+[2026-03-28T01:02:42.413] [INFO] [training:0]   Time: 1m06s | Elapsed: 2m25s | 1,331 pos/s
+[2026-03-28T01:02:42.413] [INFO] [training:0]   Phase loss -> Opening: 0.385976  Middlegame: 0.364227  Endgame: 0.331522
+[2026-03-28T01:02:43.989] [INFO] [training:0] Weights saved to C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights.bin
+[2026-03-28T01:02:46.078] [INFO] [training:0] Checkpoint saved to C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_checkpoint.pt
+[2026-03-28T01:03:48.363] [INFO] [training:0]   Ep 3 | Batch 43/43 (100%) | Loss: 0.209797
+[2026-03-28T01:03:55.172] [INFO] [training:0] ----------------------------------------------------------------------
+[2026-03-28T01:03:55.172] [INFO] [training:0]   Epoch    3/8 | Train: 0.209797 (rebalanced) | Val: 0.356939 * | LR: 0.000064 | Acc: 0.4966
+[2026-03-28T01:03:55.172] [METRIC] [training:3] EPOCH epoch=3 train_loss=0.20979700 val_loss=0.35693900 lr=6.400000e-05 acc=0.4966
+[2026-03-28T01:03:55.172] [INFO] [training:0]   Time: 1m02s | Elapsed: 3m38s | 1,411 pos/s
+[2026-03-28T01:03:55.172] [INFO] [training:0]   Phase loss -> Opening: 0.383160  Middlegame: 0.362703  Endgame: 0.330585
+[2026-03-28T01:03:56.391] [INFO] [training:0] Weights saved to C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights.bin
+[2026-03-28T01:03:58.341] [INFO] [training:0] Checkpoint saved to C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_checkpoint.pt
+[2026-03-28T01:05:03.042] [INFO] [training:0]   Ep 4 | Batch 43/43 (100%) | Loss: 0.208172
+[2026-03-28T01:05:10.076] [INFO] [training:0] ----------------------------------------------------------------------
+[2026-03-28T01:05:10.076] [INFO] [training:0]   Epoch    4/8 | Train: 0.208172 (rebalanced) | Val: 0.357153 | LR: 0.000086 | Acc: 0.5014
+[2026-03-28T01:05:10.076] [METRIC] [training:3] EPOCH epoch=4 train_loss=0.20817200 val_loss=0.35715300 lr=8.600000e-05 acc=0.5014
+[2026-03-28T01:05:10.076] [INFO] [training:0]   Time: 1m04s | Elapsed: 4m53s | 1,358 pos/s
+[2026-03-28T01:05:10.076] [INFO] [training:0]   Phase loss -> Opening: 0.382879  Middlegame: 0.363191  Endgame: 0.330936
+[2026-03-28T01:06:12.144] [INFO] [training:0]   Ep 5 | Batch 43/43 (100%) | Loss: 0.204912
+[2026-03-28T01:06:19.302] [INFO] [training:0] ----------------------------------------------------------------------
+[2026-03-28T01:06:19.302] [INFO] [training:0]   Epoch    5/8 | Train: 0.204912 (rebalanced) | Val: 0.358433 | LR: 0.000108 | Acc: 0.5016
+[2026-03-28T01:06:19.302] [METRIC] [training:3] EPOCH epoch=5 train_loss=0.20491200 val_loss=0.35843300 lr=1.080000e-04 acc=0.5016
+[2026-03-28T01:06:19.303] [INFO] [training:0]   Time: 1m02s | Elapsed: 6m02s | 1,416 pos/s [SWA]
+[2026-03-28T01:06:19.303] [INFO] [training:0]   Phase loss -> Opening: 0.383268  Middlegame: 0.365189  Endgame: 0.332259
+[2026-03-28T01:06:19.303] [INFO] [training:0]   No improvement for 1/6 epochs
+[2026-03-28T01:07:20.088] [INFO] [training:0]   Ep 6 | Batch 43/43 (100%) | Loss: 0.201490
+[2026-03-28T01:07:27.117] [INFO] [training:0] ----------------------------------------------------------------------
+[2026-03-28T01:07:27.117] [INFO] [training:0]   Epoch    6/8 | Train: 0.201490 (rebalanced) | Val: 0.358094 | LR: 0.000130 | Acc: 0.5034
+[2026-03-28T01:07:27.117] [METRIC] [training:3] EPOCH epoch=6 train_loss=0.20149000 val_loss=0.35809400 lr=1.300000e-04 acc=0.5034
+[2026-03-28T01:07:27.117] [INFO] [training:0]   Time: 1m00s | Elapsed: 7m10s | 1,445 pos/s [SWA]
+[2026-03-28T01:07:27.117] [INFO] [training:0]   Phase loss -> Opening: 0.381780  Middlegame: 0.365518  Endgame: 0.332215
+[2026-03-28T01:07:27.117] [INFO] [training:0]   No improvement for 2/6 epochs
+[2026-03-28T01:08:29.281] [INFO] [training:0]   Ep 7 | Batch 43/43 (100%) | Loss: 0.199429
+[2026-03-28T01:08:36.339] [INFO] [training:0] ----------------------------------------------------------------------
+[2026-03-28T01:08:36.339] [INFO] [training:0]   Epoch    7/8 | Train: 0.199429 (rebalanced) | Val: 0.358146 | LR: 0.000152 | Acc: 0.4995
+[2026-03-28T01:08:36.339] [METRIC] [training:3] EPOCH epoch=7 train_loss=0.19942900 val_loss=0.35814600 lr=1.520000e-04 acc=0.4995
+[2026-03-28T01:08:36.339] [INFO] [training:0]   Time: 1m02s | Elapsed: 8m19s | 1,413 pos/s [SWA]
+[2026-03-28T01:08:36.339] [INFO] [training:0]   Phase loss -> Opening: 0.381592  Middlegame: 0.366350  Endgame: 0.331729
+[2026-03-28T01:08:36.339] [INFO] [training:0]   No improvement for 3/6 epochs
+[2026-03-28T01:09:36.341] [INFO] [training:0]   Ep 8 | Batch 43/43 (100%) | Loss: 0.194661
+[2026-03-28T01:09:43.450] [INFO] [training:0] ----------------------------------------------------------------------
+[2026-03-28T01:09:43.450] [INFO] [training:0]   Epoch    8/8 | Train: 0.194661 (rebalanced) | Val: 0.357113 | LR: 0.000174 | Acc: 0.4986
+[2026-03-28T01:09:43.450] [METRIC] [training:3] EPOCH epoch=8 train_loss=0.19466100 val_loss=0.35711300 lr=1.740000e-04 acc=0.4986
+[2026-03-28T01:09:43.450] [INFO] [training:0]   Time: 1m00s | Elapsed: 9m26s | 1,464 pos/s [SWA]
+[2026-03-28T01:09:43.450] [INFO] [training:0]   Phase loss -> Opening: 0.380593  Middlegame: 0.365545  Endgame: 0.330457
+[2026-03-28T01:09:43.450] [INFO] [training:0]   No improvement for 4/6 epochs
+[2026-03-28T01:09:43.451] [INFO] [training:0] Applying SWA averaged weights (4 snapshots)...
+[2026-03-28T01:09:43.478] [INFO] [training:0]   SWA: Applied averaged weights (4 snapshots)
+[2026-03-28T01:09:45.240] [INFO] [training:0] Weights saved to C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_swa.bin
+[2026-03-28T01:09:45.240] [INFO] [training:0]   SWA weights saved to C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_swa.bin
+[2026-03-28T01:09:45.240] [INFO] [training:0]   Best validation weights remain at C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights.bin
+[2026-03-28T01:09:45.240] [INFO] [training:0] ============================================================
+[2026-03-28T01:09:45.240] [INFO] [training:0] Training complete!
+[2026-03-28T01:09:45.240] [INFO] [training:0]   Total time:  9m35s
+[2026-03-28T01:09:45.240] [INFO] [training:0]   Best loss:   0.356939
+[2026-03-28T01:09:45.240] [INFO] [training:0]   Weights:     C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights.bin
+[2026-03-28T01:09:45.240] [INFO] [training:0]   SWA applied: Yes (4 snapshots averaged)
+[2026-03-28T01:09:45.240] [INFO] [training:0] ============================================================
+[2026-03-28T01:09:46.595] [INFO] [training:0] Progress graph saved to .\training progress\training_progress.png
+[2026-03-28T01:09:47.193] [EVENT] [training:3] PHASE_END success=true elapsed_sec=591.0
+[2026-03-28T01:09:47.264] [INFO] [training:0]   SWA weights archived to nnue_weights_swa_gen3.bin
+[2026-03-28T01:09:47.264] [EVENT] [swa_match:3] PHASE_START games=100
+[2026-03-28T01:09:47.264] [INFO] [swa_match:0] [SWA] Running best-of-two: Best-Val vs SWA (100 games)
+[2026-03-28T01:09:47.264] [CMD] [swa_match:0] [CMD] py -3 "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\swa_match.py" "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_swa_gen3.bin" "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_gen3.bin" 100 6
+[2026-03-28T01:10:00.899] [INFO] [swa_match:0] [SWA] 10/100: +5 =5 -0
+[2026-03-28T01:10:13.346] [INFO] [swa_match:0] [SWA] 20/100: +6 =13 -1
+[2026-03-28T01:10:25.473] [INFO] [swa_match:0] [SWA] 30/100: +7 =22 -1
+[2026-03-28T01:10:38.130] [INFO] [swa_match:0] [SWA] 40/100: +10 =26 -4
+[2026-03-28T01:10:51.125] [INFO] [swa_match:0] [SWA] 50/100: +12 =34 -4
+[2026-03-28T01:11:04.036] [INFO] [swa_match:0] [SWA] 60/100: +17 =39 -4
+[2026-03-28T01:11:15.922] [INFO] [swa_match:0] [SWA] 70/100: +18 =47 -5
+[2026-03-28T01:11:27.944] [INFO] [swa_match:0] [SWA] 80/100: +19 =56 -5
+[2026-03-28T01:11:40.585] [INFO] [swa_match:0] [SWA] 90/100: +22 =60 -8
+[2026-03-28T01:11:53.417] [INFO] [swa_match:0] [SWA] 100/100: +24 =68 -8
+[2026-03-28T01:11:53.417] [INFO] [swa_match:0] [SWA] Final: +24 =68 -8 SWA_ELO: 56
+[2026-03-28T01:11:53.430] [EVENT] [swa_match:3] PHASE_END success=true elapsed_sec=126.0
+[2026-03-28T01:11:53.430] [METRIC] [swa:3] ELO_RESULT elo=+56 wins=0 draws=0 losses=0
+[2026-03-28T01:11:53.430] [INFO] [swa_match:0] [SWA] SWA wins by +56 ELO — promoting SWA weights for gen 3
+[2026-03-28T01:11:53.473] [EVENT] [pipeline:3] GEN_SUMMARY gen=3 train_loss=0.19466100 val_loss=0.35711300 elo=+0 elapsed_sec=0.0
+[2026-03-28T01:11:54.577] [INFO] [swa_match:0] === Pipeline complete ===
+[2026-03-28T01:11:54.577] [EVENT] [pipeline:0] PIPELINE_END stopped=false total_elapsed_sec=1626.0 completed_gens=1
+# ── END OF LOG ── 2026-03-28T01:11:54.577

@@ -1,0 +1,29 @@
+# NNUE Training Runner - Structured Log
+# Format: [TIMESTAMP] [LEVEL] [PHASE:GEN] message
+# Structured events use KEY=VALUE pairs after the tag
+# Levels: INFO, WARN, ERROR, EVENT, METRIC, CONFIG, CMD
+# Generated: 2026-04-02T23:39:58.211
+#
+# ── HOW TO READ THIS LOG ──
+# Lines starting with [EVENT] mark pipeline milestones (start/stop/phase transitions)
+# Lines starting with [METRIC] contain numeric training data points
+# Lines starting with [ERROR] or [WARN] flag issues to investigate
+# Lines starting with [CONFIG] dump the full configuration used
+# Lines starting with [CMD] show exact command lines executed
+# Lines starting with [INFO] are general informational messages
+#
+[2026-04-02T23:39:58.214] [INFO] [selfplay:0] [LOG] Writing structured log to: C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\logs\training_run_20260402_233958.log
+[2026-04-02T23:39:58.214] [EVENT] [pipeline:0] PIPELINE_START first_gen=27 last_gen=36 total_gens=10
+[2026-04-02T23:39:58.215] [CONFIG] [pipeline:0] generations=10 startGen=26 gamesPerGen=3500 epochsPerGen=8 batchSize=2048 lr=5e-05 weightDecay=0.005 dropout=0.3 labelSmooth=0.03 gradAccum=4 warmupSteps=100 drawWeight=0.3 mateBoost=10 splRatio=0.42 frcMix=0 replayWindow=4 replayDecay=0.8 workers=12 depth=9 mixedDepthLow=5 mixedDepthRatio=0.5 depthShuffle=true depthShuffleBias=2 maxPositions=500000 earlyStop=3 cosineLr=true cosineT0=0 swa=true swaStart=3 drawPct=30 wdlAlpha=0.3 wdlDrawElo=50 eloValidate=false eloGames=100 swaGames=200 overfitDetect=true resignCp=500 contemptCp=0 maxPlies=250 drawCp=15 exeName=ChessEngine.exe pyScript=train_nnue.py dataDir=assets openingTemp=2 openingPlies=4 softmaxPlies=12 softmaxTemp=0.5 rootNoiseEps=0.03 recordMinPly=2 recordMaxEval=2000 resignCount=4 drawCount=8 drawMinPly=80 drawAdjMoves=10 drawAdjThreshold=6 drawAdjMinMove=60
+[2026-04-02T23:39:58.215] [INFO] [selfplay:0] --- Generation 27 ---
+[2026-04-02T23:39:58.215] [EVENT] [selfplay:27] PHASE_START games=3500 depth=9 workers=12
+[2026-04-02T23:39:58.216] [CMD] [selfplay:0] [CMD] "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" --generate --games 3500 --depth 9 --mixed-depth-ratio 0.5 --mixed-depth-low 5 --depth-shuffle --depth-shuffle-bias 2.0 --workers 12 --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen27.bin" --weights "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_gen26.bin" --openings "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt" --game-time-limit 720 --resign-cp 500 --contempt 0 --maxplies 250 --draw-cp 15 --resign-count 4 --draw-count 8 --draw-min-ply 80 --draw-adj-moves 10 --draw-adj-threshold 6 --draw-adj-min-move 60 --opening-plies 4 --opening-temp 2.0 --softmax-plies 12 --softmax-temp 0.5 --root-noise 0.03 --record-min-ply 2 --record-max-eval 2000
+[2026-04-02T23:39:58.637] [INFO] [selfplay:0] [SelfPlay] Loaded 2000 opening positions from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt
+[2026-04-02T23:39:58.637] [INFO] [selfplay:0] [SelfPlay] Starting 3500 games  depth=9  movetime=0ms  workers=12  output=C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen27.bin  openings=2000  openingTemp=2  openingPlies=4  softmaxPlies=12  softmaxTemp=0.5  rootNoise=0.03  recordMinPly=2  recordMaxEval=2000  resign=500cp/4ply  draw=15cp/8ply@80  drawAdj=6cp/10ply@60  depthShuffle=[d5..d8] bias=2 (50% shuffled)
+[2026-04-03T00:47:06.480] [INFO] [selfplay:0] [SelfPlay] 651/3500 (18%)  pos=59051  W/D/B=294/82/275  (45%/12%/42%)  d5~d8  0.5 games/s (avg 0.2)  1.9M nps  ETA 04:53:14
+[2026-04-03T00:47:06.480] [INFO] [selfplay:0] [INFO] Process terminated -- pipeline stopped by user.
+[2026-04-03T00:47:06.480] [EVENT] [selfplay:27] PHASE_END success=false elapsed_sec=4028.0
+[2026-04-03T00:47:06.480] [ERROR] [selfplay:0] [ERR] Self-play failed gen 27
+[2026-04-03T00:47:06.480] [INFO] [selfplay:0] === Pipeline stopped ===
+[2026-04-03T00:47:06.535] [EVENT] [pipeline:0] PIPELINE_END stopped=true total_elapsed_sec=4028.0 completed_gens=0
+# ── END OF LOG ── 2026-04-03T00:47:06.535

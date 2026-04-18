@@ -1,0 +1,301 @@
+# NNUE Training Runner - Structured Log
+# Format: [TIMESTAMP] [LEVEL] [PHASE:GEN] message
+# Structured events use KEY=VALUE pairs after the tag
+# Levels: INFO, WARN, ERROR, EVENT, METRIC, CONFIG, CMD
+# Generated: 2026-03-31T06:25:02.608
+#
+# â”€â”€ HOW TO READ THIS LOG â”€â”€
+# Lines starting with [EVENT] mark pipeline milestones (start/stop/phase transitions)
+# Lines starting with [METRIC] contain numeric training data points
+# Lines starting with [ERROR] or [WARN] flag issues to investigate
+# Lines starting with [CONFIG] dump the full configuration used
+# Lines starting with [CMD] show exact command lines executed
+# Lines starting with [INFO] are general informational messages
+#
+[2026-03-31T06:25:02.610] [INFO] [training:0] [LOG] Writing structured log to: C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\logs\training_run_20260331_062502.log
+[2026-03-31T06:25:02.610] [EVENT] [pipeline:0] PIPELINE_START first_gen=21 last_gen=30 total_gens=10
+[2026-03-31T06:25:02.610] [CONFIG] [pipeline:0] generations=10 startGen=20 gamesPerGen=3000 epochsPerGen=8 batchSize=2048 lr=5e-05 weightDecay=0.005 dropout=0.3 labelSmooth=0.03 gradAccum=4 warmupSteps=100 drawWeight=0.3 mateBoost=10 splRatio=0.42 frcMix=0 replayWindow=6 replayDecay=0.8 workers=12 depth=8 mixedDepthLow=4 mixedDepthRatio=0.4 depthShuffle=true depthShuffleBias=2 maxPositions=300000 earlyStop=4 cosineLr=true cosineT0=0 swa=true swaStart=3 drawPct=30 wdlAlpha=0.3 wdlDrawElo=50 eloValidate=false eloGames=100 swaGames=150 overfitDetect=true resignCp=500 contemptCp=0 maxPlies=250 drawCp=15 exeName=ChessEngine.exe pyScript=train_nnue.py dataDir=assets openingTemp=2 openingPlies=4 softmaxPlies=12 softmaxTemp=0.5 rootNoiseEps=0.03 recordMinPly=2 recordMaxEval=2000 resignCount=4 drawCount=8 drawMinPly=80 drawAdjMoves=10 drawAdjThreshold=6 drawAdjMinMove=60
+[2026-03-31T06:25:02.610] [INFO] [training:0] --- Generation 21 ---
+[2026-03-31T06:25:02.611] [EVENT] [selfplay:21] PHASE_START games=3000 depth=8 workers=12
+[2026-03-31T06:25:02.611] [CMD] [selfplay:0] [CMD] "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" --generate --games 3000 --depth 8 --mixed-depth-ratio 0.4 --mixed-depth-low 4 --depth-shuffle --depth-shuffle-bias 2.0 --workers 12 --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen21.bin" --weights "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_gen20.bin" --openings "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt" --game-time-limit 720 --resign-cp 500 --contempt 0 --maxplies 250 --draw-cp 15 --resign-count 4 --draw-count 8 --draw-min-ply 80 --draw-adj-moves 10 --draw-adj-threshold 6 --draw-adj-min-move 60 --opening-plies 4 --opening-temp 2.0 --softmax-plies 12 --softmax-temp 0.5 --root-noise 0.03 --record-min-ply 2 --record-max-eval 2000
+[2026-03-31T06:25:03.383] [INFO] [selfplay:0] [SelfPlay] Loaded 2000 opening positions from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt
+[2026-03-31T06:25:03.383] [INFO] [selfplay:0] [SelfPlay] Starting 3000 games  depth=8  movetime=0ms  workers=12  output=C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen21.bin  openings=2000  openingTemp=2  openingPlies=4  softmaxPlies=12  softmaxTemp=0.5  rootNoise=0.03  recordMinPly=2  recordMaxEval=2000  resign=500cp/4ply  draw=15cp/8ply@80  drawAdj=6cp/10ply@60  depthShuffle=[d4..d7] bias=2 (40% shuffled)
+[2026-03-31T07:56:17.398] [INFO] [selfplay:0] [SelfPlay] 3000/3000 (100%)  pos=274817  W/D/B=1377/326/1297  (45%/10%/43%)  d4~d7  1.4 games/s (avg 0.5)  3.1M nps  ETA 00:00:00
+[2026-03-31T07:56:17.398] [INFO] [selfplay:0] [SelfPlay] Depth distribution: d4=88 d5=165 d6=299 d7=658 d8=1790
+[2026-03-31T07:56:17.461] [INFO] [selfplay:0] [SelfPlay] Done. 274817 positions written to C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen21.bin
+[2026-03-31T07:56:17.543] [EVENT] [selfplay:21] PHASE_END success=true elapsed_sec=5474.0
+[2026-03-31T07:56:18.183] [INFO] [selfplay:0]   Using Stockfish-labeled data: C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\training_data_sf.bin
+[2026-03-31T07:56:18.183] [INFO] [selfplay:0]   Self-play current gen (weight 0.1159, base gets 0.58)
+[2026-03-31T07:56:18.183] [INFO] [selfplay:0]   Replay buffer: gen 20 (weight 0.0927)
+[2026-03-31T07:56:18.183] [INFO] [selfplay:0]   Replay buffer: gen 19 (weight 0.0742)
+[2026-03-31T07:56:18.183] [INFO] [selfplay:0]   Replay buffer: gen 18 (weight 0.0593)
+[2026-03-31T07:56:18.183] [INFO] [selfplay:0]   Replay buffer: gen 17 (weight 0.0475)
+[2026-03-31T07:56:18.183] [INFO] [selfplay:0]   Replay buffer: gen 15 (weight 0.0304)
+[2026-03-31T07:56:18.183] [EVENT] [training:21] PHASE_START epochs=8 batch=2048 lr=0.00005
+[2026-03-31T07:56:18.183] [CMD] [training:0] [CMD] py -3.10 -u "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\train_nnue.py" --data "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\training_data_sf.bin" --extra-data "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen21.bin" 0.1159 --extra-data "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen20.bin" 0.0927 --extra-data "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen19.bin" 0.0742 --extra-data "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen18.bin" 0.0593 --extra-data "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen17.bin" 0.0475 --extra-data "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen15.bin" 0.0304 --max-positions 300000 --epochs 8 --batch-size 2048 --lr 0.00005 --lr-min 0.00001 --weight-decay 0.005 --dropout 0.3 --grad-clip 1.0 --grad-accum 4 --warmup-steps 100 --draw-weight 0.3 --mate-boost 10.0 --early-stop 4 --wdl-alpha 0.3 --wdl-draw-elo 50.0 --enhanced --plot --cosine-lr --no-cosine-restarts --swa --swa-start 3 --label-smoothing 0.03 --extra-data "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\training_data_draws.bin" 0.3 --load-weights "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_gen20.bin" --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights.bin"
+[2026-03-31T07:56:20.860] [INFO] [training:0] === Enhanced mode v3: warmup=100, grad_accum=4, SWA=ON, label_smooth=0.03, filter_eval=1000.0, eval_soft_cap=800.0, draw_weight=0.3x, wdl_alpha=0.3, wdl_draw_elo=50.0, cosine_decay ===
+[2026-03-31T07:56:20.861] [INFO] [training:0] Using device: CPU (optimized)
+[2026-03-31T07:56:20.941] [INFO] [training:0]   CPU threads: 16
+[2026-03-31T07:56:20.946] [INFO] [training:0]   --max-positions: distributing 300,000 budget across 8 sources by ratio
+[2026-03-31T07:56:20.946] [INFO] [training:0]     training_data_sf.bin: 29,687,570 -> 84,000 (ratio 28.0%)
+[2026-03-31T07:56:20.946] [INFO] [training:0]     selfplay_gen21.bin: 274,817 -> 34,770 (ratio 11.6%)
+[2026-03-31T07:56:20.946] [INFO] [training:0]     selfplay_gen20.bin: 276,997 -> 27,810 (ratio 9.3%)
+[2026-03-31T07:56:20.946] [INFO] [training:0]     selfplay_gen19.bin: 280,061 -> 22,260 (ratio 7.4%)
+[2026-03-31T07:56:20.946] [INFO] [training:0]     selfplay_gen18.bin: 274,003 -> 17,790 (ratio 5.9%)
+[2026-03-31T07:56:20.946] [INFO] [training:0]     selfplay_gen17.bin: 270,955 -> 14,250 (ratio 4.8%)
+[2026-03-31T07:56:20.946] [INFO] [training:0]     selfplay_gen15.bin: 221,541 -> 9,120 (ratio 3.0%)
+[2026-03-31T07:56:20.946] [INFO] [training:0]     training_data_draws.bin: 35,143,613 -> 90,000 (ratio 30.0%)
+[2026-03-31T07:56:20.946] [INFO] [training:0] Datasets:             8 sources (ratio-based sampling)
+[2026-03-31T07:56:20.946] [INFO] [training:0]   - training_data_sf.bin                     ratio=28.0%  pos=84,000
+[2026-03-31T07:56:20.946] [INFO] [training:0]   - selfplay_gen21.bin                       ratio=11.6%  pos=34,770
+[2026-03-31T07:56:20.946] [INFO] [training:0]   - selfplay_gen20.bin                       ratio=9.3%  pos=27,810
+[2026-03-31T07:56:20.946] [INFO] [training:0]   - selfplay_gen19.bin                       ratio=7.4%  pos=22,260
+[2026-03-31T07:56:20.946] [INFO] [training:0]   - selfplay_gen18.bin                       ratio=5.9%  pos=17,790
+[2026-03-31T07:56:20.946] [INFO] [training:0]   - selfplay_gen17.bin                       ratio=4.8%  pos=14,250
+[2026-03-31T07:56:20.946] [INFO] [training:0]   - selfplay_gen15.bin                       ratio=3.0%  pos=9,120
+[2026-03-31T07:56:20.946] [INFO] [training:0]   - training_data_draws.bin                  ratio=30.0%  pos=90,000
+[2026-03-31T07:56:20.946] [INFO] [training:0]   Total positions: 300,000
+[2026-03-31T07:56:20.946] [INFO] [training:0]   Mode: PRELOAD (full dataset fits in RAM)
+[2026-03-31T07:56:23.266] [INFO] [training:0]   torch.compile:     ENABLED (reduce-overhead mode)
+[2026-03-31T07:56:23.387] [INFO] [training:0] Weights loaded from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_gen20.bin
+[2026-03-31T07:56:23.395] [INFO] [training:0] Loaded existing weights from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_gen20.bin
+[2026-03-31T07:56:23.395] [INFO] [training:0]   Fresh optimizer (--load-weights skips old optimizer state)
+[2026-03-31T07:56:23.395] [INFO] [training:0] ============================================================
+[2026-03-31T07:56:23.395] [INFO] [training:0] Training Configuration:
+[2026-03-31T07:56:23.395] [INFO] [training:0]   Positions:         300,000
+[2026-03-31T07:56:23.395] [INFO] [training:0]   Batch size:        2048 (effective: 8192 with grad accum x4)
+[2026-03-31T07:56:23.395] [INFO] [training:0]   Epochs:            8
+[2026-03-31T07:56:23.395] [INFO] [training:0]   Learning rate:     5e-05
+[2026-03-31T07:56:23.395] [INFO] [training:0]   LR schedule:       Cosine Decay (T_max=6, warmup_epochs~2)
+[2026-03-31T07:56:23.395] [INFO] [training:0]   LR min:            1e-05
+[2026-03-31T07:56:23.395] [INFO] [training:0]   LR warmup:         100 optimizer steps
+[2026-03-31T07:56:23.395] [INFO] [training:0]   Lambda (eval/res): 0.5
+[2026-03-31T07:56:23.395] [INFO] [training:0]   Eval scale:        400.0
+[2026-03-31T07:56:23.395] [INFO] [training:0]   Phase balanced:    True
+[2026-03-31T07:56:23.395] [INFO] [training:0]   Early stop:        4 epochs
+[2026-03-31T07:56:23.395] [INFO] [training:0]   Weight decay:      0.005
+[2026-03-31T07:56:23.395] [INFO] [training:0]   Dropout:           0.3
+[2026-03-31T07:56:23.395] [INFO] [training:0]   Grad accumulation: 4x
+[2026-03-31T07:56:23.396] [INFO] [training:0]   Label smoothing:   0.03
+[2026-03-31T07:56:23.396] [INFO] [training:0]   SWA:               ON (start epoch 3)
+[2026-03-31T07:56:23.396] [INFO] [training:0]   Filter eval max:   1000.0
+[2026-03-31T07:56:23.396] [INFO] [training:0]   Eval soft-cap:     800.0
+[2026-03-31T07:56:23.396] [INFO] [training:0]   Draw weight:       0.3x
+[2026-03-31T07:56:23.396] [INFO] [training:0]   Mate boost:        10.0x
+[2026-03-31T07:56:23.396] [INFO] [training:0]   Async prefetch:    N/A (preload mode)
+[2026-03-31T07:56:23.396] [INFO] [training:0]   WDL CE loss:       ON (alpha=0.3, lambda=0.5 (from --lam), draw_elo=50.0)
+[2026-03-31T07:56:23.396] [INFO] [training:0]   Activation:        SCReLU (squared clipped ReLU)
+[2026-03-31T07:56:23.396] [INFO] [training:0]   Architecture:      40960->512->128->64->WDL(3)x3heads
+[2026-03-31T07:56:23.396] [INFO] [training:0]   Grad clip norm:    1.0
+[2026-03-31T07:56:23.396] [INFO] [training:0]   Streaming:         False
+[2026-03-31T07:56:23.396] [INFO] [training:0]   Datasets:          8 sources (ratio-based sampling)
+[2026-03-31T07:56:23.396] [INFO] [training:0]     - training_data_sf.bin            ratio=28.0%  pos=84,000
+[2026-03-31T07:56:23.396] [INFO] [training:0]     - selfplay_gen21.bin              ratio=11.6%  pos=34,770
+[2026-03-31T07:56:23.396] [INFO] [training:0]     - selfplay_gen20.bin              ratio=9.3%  pos=27,810
+[2026-03-31T07:56:23.396] [INFO] [training:0]     - selfplay_gen19.bin              ratio=7.4%  pos=22,260
+[2026-03-31T07:56:23.396] [INFO] [training:0]     - selfplay_gen18.bin              ratio=5.9%  pos=17,790
+[2026-03-31T07:56:23.396] [INFO] [training:0]     - selfplay_gen17.bin              ratio=4.8%  pos=14,250
+[2026-03-31T07:56:23.396] [INFO] [training:0]     - selfplay_gen15.bin              ratio=3.0%  pos=9,120
+[2026-03-31T07:56:23.396] [INFO] [training:0]     - training_data_draws.bin         ratio=30.0%  pos=90,000
+[2026-03-31T07:56:23.396] [INFO] [training:0] ============================================================
+[2026-03-31T07:56:23.396] [INFO] [training:0]   Multi-dataset preload: ratios will be applied during epoch sampling.
+[2026-03-31T07:56:23.396] [INFO] [training:0]   Loading 8 datasets sequentially...
+[2026-03-31T07:56:23.396] [INFO] [training:0] Loading positions from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\training_data_sf.bin...
+[2026-03-31T07:56:23.396] [INFO] [training:0]   Total positions: 29,687,570 — using offset-cache fast path (avoids reading 1415 MB into RAM)
+[2026-03-31T07:56:23.396] [INFO] [training:0] Scanning C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\training_data_sf.bin for position offsets...
+[2026-03-31T07:56:24.489] [INFO] [training:0]   Loaded cached index: 29,687,570 offsets (C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\training_data_sf.bin.offidx)
+[2026-03-31T07:56:27.222] [INFO] [training:0]   Sampled 84,000 from 29,687,570 positions (reservoir)
+[2026-03-31T07:56:35.088] [INFO] [training:0]     Parsed 50,000/84,000 positions (9833 pos/s,
+[2026-03-31T07:56:35.088] [INFO] [training:0]   Parsed 84,000 positions in 7.8s (10,732 pos/s)
+[2026-03-31T07:56:35.088] [INFO] [training:0]   Vectorized HalfKAv2 conversion (84,000 positions)...
+[2026-03-31T07:56:35.523] [INFO] [training:0]   HalfKAv2 conversion: 0.4s (193,120 pos/s)
+[2026-03-31T07:56:35.543] [INFO] [training:0]   Converting to tensors...
+[2026-03-31T07:56:35.543] [INFO] [training:0] Phase distribution: Opening=24,069, Middlegame=26,834, Endgame=29,377
+[2026-03-31T07:56:35.544] [INFO] [training:0]   [training_data_sf.bin] loaded: 80,280 positions
+[2026-03-31T07:56:35.681] [INFO] [training:0] Loading positions from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen21.bin...
+[2026-03-31T07:56:35.681] [INFO] [training:0]   Total positions: 274,817 — using offset-cache fast path (avoids reading 13 MB into RAM)
+[2026-03-31T07:56:35.681] [INFO] [training:0] Scanning C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen21.bin for position offsets...
+[2026-03-31T07:56:35.692] [INFO] [training:0]   Cache stale or corrupt, rebuilding...
+[2026-03-31T07:56:35.692] [INFO] [training:0]   Building offset index (first time, may take several minutes)...
+[2026-03-31T07:56:35.692] [INFO] [training:0]   Total positions: 274,817 (header: versioned)
+[2026-03-31T07:56:35.901] [INFO] [training:0]   Scan complete: 274,817 positions indexed.[K
+[2026-03-31T07:56:35.903] [INFO] [training:0]   Saved offset cache: 2.1 MB (C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen21.bin.offidx)
+[2026-03-31T07:56:35.909] [INFO] [training:0]   Sampled 34,770 from 274,817 positions (reservoir)
+[2026-03-31T07:56:36.041] [INFO] [training:0]   Parsed 34,770 positions in 0.1s (265,675 pos/s)
+[2026-03-31T07:56:36.041] [INFO] [training:0]   Vectorized HalfKAv2 conversion (34,770 positions)...
+[2026-03-31T07:56:36.293] [INFO] [training:0]   HalfKAv2 conversion: 0.3s (138,142 pos/s)
+[2026-03-31T07:56:36.299] [INFO] [training:0]   Converting to tensors...
+[2026-03-31T07:56:36.299] [INFO] [training:0] Phase distribution: Opening=6,584, Middlegame=15,605, Endgame=12,497
+[2026-03-31T07:56:36.299] [INFO] [training:0]   [selfplay_gen21.bin] loaded: 34,686 positions
+[2026-03-31T07:56:36.429] [INFO] [training:0] Loading positions from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen20.bin...
+[2026-03-31T07:56:36.429] [INFO] [training:0]   Total positions: 276,997 — using offset-cache fast path (avoids reading 13 MB into RAM)
+[2026-03-31T07:56:36.429] [INFO] [training:0] Scanning C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen20.bin for position offsets...
+[2026-03-31T07:56:36.441] [INFO] [training:0]   Loaded cached index: 276,997 offsets (C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen20.bin.offidx)
+[2026-03-31T07:56:36.447] [INFO] [training:0]   Sampled 27,810 from 276,997 positions (reservoir)
+[2026-03-31T07:56:36.599] [INFO] [training:0]   Parsed 27,810 positions in 0.2s (183,853 pos/s)
+[2026-03-31T07:56:36.599] [INFO] [training:0]   Vectorized HalfKAv2 conversion (27,810 positions)...
+[2026-03-31T07:56:36.816] [INFO] [training:0]   HalfKAv2 conversion: 0.2s (128,282 pos/s)
+[2026-03-31T07:56:36.823] [INFO] [training:0]   Converting to tensors...
+[2026-03-31T07:56:36.823] [INFO] [training:0] Phase distribution: Opening=5,145, Middlegame=12,472, Endgame=10,118
+[2026-03-31T07:56:36.823] [INFO] [training:0]   [selfplay_gen20.bin] loaded: 27,735 positions
+[2026-03-31T07:56:36.953] [INFO] [training:0] Loading positions from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen19.bin...
+[2026-03-31T07:56:36.953] [INFO] [training:0]   Total positions: 280,061 — using offset-cache fast path (avoids reading 13 MB into RAM)
+[2026-03-31T07:56:36.953] [INFO] [training:0] Scanning C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen19.bin for position offsets...
+[2026-03-31T07:56:36.966] [INFO] [training:0]   Loaded cached index: 280,061 offsets (C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen19.bin.offidx)
+[2026-03-31T07:56:36.973] [INFO] [training:0]   Sampled 22,260 from 280,061 positions (reservoir)
+[2026-03-31T07:56:37.132] [INFO] [training:0]   Parsed 22,260 positions in 0.2s (139,945 pos/s)
+[2026-03-31T07:56:37.132] [INFO] [training:0]   Vectorized HalfKAv2 conversion (22,260 positions)...
+[2026-03-31T07:56:37.353] [INFO] [training:0]   HalfKAv2 conversion: 0.2s (100,915 pos/s)
+[2026-03-31T07:56:37.358] [INFO] [training:0]   Converting to tensors...
+[2026-03-31T07:56:37.358] [INFO] [training:0] Phase distribution: Opening=4,180, Middlegame=9,907, Endgame=8,123
+[2026-03-31T07:56:37.359] [INFO] [training:0]   [selfplay_gen19.bin] loaded: 22,210 positions
+[2026-03-31T07:56:37.483] [INFO] [training:0] Loading positions from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen18.bin...
+[2026-03-31T07:56:37.483] [INFO] [training:0]   Total positions: 274,003 — using offset-cache fast path (avoids reading 13 MB into RAM)
+[2026-03-31T07:56:37.484] [INFO] [training:0] Scanning C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen18.bin for position offsets...
+[2026-03-31T07:56:37.499] [INFO] [training:0]   Loaded cached index: 274,003 offsets (C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen18.bin.offidx)
+[2026-03-31T07:56:37.504] [INFO] [training:0]   Sampled 17,790 from 274,003 positions (reservoir)
+[2026-03-31T07:56:37.629] [INFO] [training:0]   Parsed 17,790 positions in 0.1s (143,217 pos/s)
+[2026-03-31T07:56:37.629] [INFO] [training:0]   Vectorized HalfKAv2 conversion (17,790 positions)...
+[2026-03-31T07:56:37.818] [INFO] [training:0]   HalfKAv2 conversion: 0.2s (93,881 pos/s)
+[2026-03-31T07:56:37.823] [INFO] [training:0]   Converting to tensors...
+[2026-03-31T07:56:37.823] [INFO] [training:0] Phase distribution: Opening=3,245, Middlegame=8,227, Endgame=6,271
+[2026-03-31T07:56:37.824] [INFO] [training:0]   [selfplay_gen18.bin] loaded: 17,743 positions
+[2026-03-31T07:56:37.949] [INFO] [training:0] Loading positions from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen17.bin...
+[2026-03-31T07:56:37.950] [INFO] [training:0]   Total positions: 270,955 — using offset-cache fast path (avoids reading 12 MB into RAM)
+[2026-03-31T07:56:37.950] [INFO] [training:0] Scanning C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen17.bin for position offsets...
+[2026-03-31T07:56:37.963] [INFO] [training:0]   Loaded cached index: 270,955 offsets (C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen17.bin.offidx)
+[2026-03-31T07:56:37.968] [INFO] [training:0]   Sampled 14,250 from 270,955 positions (reservoir)
+[2026-03-31T07:56:38.096] [INFO] [training:0]   Parsed 14,250 positions in 0.1s (112,395 pos/s)
+[2026-03-31T07:56:38.096] [INFO] [training:0]   Vectorized HalfKAv2 conversion (14,250 positions)...
+[2026-03-31T07:56:38.296] [INFO] [training:0]   HalfKAv2 conversion: 0.2s (71,049 pos/s)
+[2026-03-31T07:56:38.300] [INFO] [training:0]   Converting to tensors...
+[2026-03-31T07:56:38.300] [INFO] [training:0] Phase distribution: Opening=2,441, Middlegame=6,582, Endgame=5,197
+[2026-03-31T07:56:38.300] [INFO] [training:0]   [selfplay_gen17.bin] loaded: 14,220 positions
+[2026-03-31T07:56:38.422] [INFO] [training:0] Loading positions from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen15.bin...
+[2026-03-31T07:56:38.422] [INFO] [training:0]   Total positions: 221,541 — using offset-cache fast path (avoids reading 10 MB into RAM)
+[2026-03-31T07:56:38.422] [INFO] [training:0] Scanning C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen15.bin for position offsets...
+[2026-03-31T07:56:38.430] [INFO] [training:0]   Loaded cached index: 221,541 offsets (C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen15.bin.offidx)
+[2026-03-31T07:56:38.434] [INFO] [training:0]   Sampled 9,120 from 221,541 positions (reservoir)
+[2026-03-31T07:56:38.525] [INFO] [training:0]   Parsed 9,120 positions in 0.1s (99,439 pos/s)
+[2026-03-31T07:56:38.525] [INFO] [training:0]   Vectorized HalfKAv2 conversion (9,120 positions)...
+[2026-03-31T07:56:38.674] [INFO] [training:0]   HalfKAv2 conversion: 0.1s (61,114 pos/s)
+[2026-03-31T07:56:38.676] [INFO] [training:0]   Converting to tensors...
+[2026-03-31T07:56:38.676] [INFO] [training:0] Phase distribution: Opening=1,879, Middlegame=4,013, Endgame=3,205
+[2026-03-31T07:56:38.677] [INFO] [training:0]   [selfplay_gen15.bin] loaded: 9,097 positions
+[2026-03-31T07:56:38.799] [INFO] [training:0] Loading positions from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\training_data_draws.bin...
+[2026-03-31T07:56:38.799] [INFO] [training:0]   Total positions: 35,143,613 — using offset-cache fast path (avoids reading 1675 MB into RAM)
+[2026-03-31T07:56:38.799] [INFO] [training:0] Scanning C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\training_data_draws.bin for position offsets...
+[2026-03-31T07:56:40.358] [INFO] [training:0]   Loaded cached index: 35,143,613 offsets (C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\training_data_draws.bin.offidx)
+[2026-03-31T07:56:43.146] [INFO] [training:0]   Sampled 90,000 from 35,143,613 positions (reservoir)
+[2026-03-31T07:56:53.381] [INFO] [training:0]     Parsed 50,000/90,000 positions (9211 pos/s,
+[2026-03-31T07:56:53.381] [INFO] [training:0]   Parsed 90,000 positions in 10.2s (8,832 pos/s)
+[2026-03-31T07:56:53.381] [INFO] [training:0]   Vectorized HalfKAv2 conversion (90,000 positions)...
+[2026-03-31T07:56:53.810] [INFO] [training:0]   HalfKAv2 conversion: 0.4s (210,029 pos/s)
+[2026-03-31T07:56:53.810] [INFO] [training:0]   Converting to tensors...
+[2026-03-31T07:56:53.810] [INFO] [training:0] Phase distribution: Opening=29,792, Middlegame=24,955, Endgame=35,253
+[2026-03-31T07:56:53.811] [INFO] [training:0]   [training_data_draws.bin] loaded: 90,000 positions
+[2026-03-31T07:56:54.015] [INFO] [training:0]   Train positions: 266,374
+[2026-03-31T07:56:54.015] [INFO] [training:0]   Val positions:   29,597
+[2026-03-31T07:56:54.228] [INFO] [training:0]   Phase-balanced samples: 297,231 (from 266,374 train)
+[2026-03-31T08:00:31.862] [INFO] [training:0]   Ep 1 | Batch 131/131 (100%) | Loss: 0.192349
+[2026-03-31T08:01:01.694] [INFO] [training:0] ----------------------------------------------------------------------
+[2026-03-31T08:01:01.694] [INFO] [training:0]   Epoch    1/8 | Train: 0.192349 (rebalanced) | Val: 0.324151 * | LR: 0.000016 | Acc: 0.6385
+[2026-03-31T08:01:01.696] [METRIC] [training:21] EPOCH epoch=1 train_loss=0.19234900 val_loss=0.32415100 lr=1.600000e-05 acc=0.6385
+[2026-03-31T08:01:01.696] [INFO] [training:0]   Time: 3m37s | Elapsed: 3m37s | 1,232 pos/s
+[2026-03-31T08:01:01.696] [INFO] [training:0]   Phase loss -> Opening: 0.346221  Middlegame: 0.317027  Endgame: 0.315813
+[2026-03-31T08:01:02.899] [INFO] [training:0] Weights saved to C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights.bin
+[2026-03-31T08:01:04.626] [INFO] [training:0] Checkpoint saved to C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_checkpoint.pt
+[2026-03-31T08:03:52.114] [INFO] [training:0]   Ep 2 | Batch 131/131 (100%) | Loss: 0.192276
+[2026-03-31T08:04:11.981] [INFO] [training:0] ----------------------------------------------------------------------
+[2026-03-31T08:04:11.982] [INFO] [training:0]   Epoch    2/8 | Train: 0.192276 (rebalanced) | Val: 0.324047 * | LR: 0.000033 | Acc: 0.6390
+[2026-03-31T08:04:11.982] [METRIC] [training:21] EPOCH epoch=2 train_loss=0.19227600 val_loss=0.32404700 lr=3.300000e-05 acc=0.6390
+[2026-03-31T08:04:11.982] [INFO] [training:0]   Time: 2m47s | Elapsed: 6m58s | 1,600 pos/s
+[2026-03-31T08:04:11.982] [INFO] [training:0]   Phase loss -> Opening: 0.346079  Middlegame: 0.316866  Endgame: 0.315793
+[2026-03-31T08:04:13.317] [INFO] [training:0] Weights saved to C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights.bin
+[2026-03-31T08:04:15.395] [INFO] [training:0] Checkpoint saved to C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_checkpoint.pt
+[2026-03-31T08:07:02.643] [INFO] [training:0]   Ep 3 | Batch 131/131 (100%) | Loss: 0.191510
+[2026-03-31T08:07:22.439] [INFO] [training:0] ----------------------------------------------------------------------
+[2026-03-31T08:07:22.439] [INFO] [training:0]   Epoch    3/8 | Train: 0.191510 (rebalanced) | Val: 0.324004 * | LR: 0.000049 | Acc: 0.6403
+[2026-03-31T08:07:22.439] [METRIC] [training:21] EPOCH epoch=3 train_loss=0.19151000 val_loss=0.32400400 lr=4.900000e-05 acc=0.6403
+[2026-03-31T08:07:22.439] [INFO] [training:0]   Time: 2m47s | Elapsed: 10m08s | 1,603 pos/s [SWA]
+[2026-03-31T08:07:22.439] [INFO] [training:0]   Phase loss -> Opening: 0.346123  Middlegame: 0.316633  Endgame: 0.315880
+[2026-03-31T08:10:17.025] [INFO] [training:0]   Ep 4 | Batch 131/131 (100%) | Loss: 0.189871
+[2026-03-31T08:10:37.272] [INFO] [training:0] ----------------------------------------------------------------------
+[2026-03-31T08:10:37.272] [INFO] [training:0]   Epoch    4/8 | Train: 0.189871 (rebalanced) | Val: 0.323920 * | LR: 0.000047 | Acc: 0.6376
+[2026-03-31T08:10:37.273] [METRIC] [training:21] EPOCH epoch=4 train_loss=0.18987100 val_loss=0.32392000 lr=4.700000e-05 acc=0.6376
+[2026-03-31T08:10:37.273] [INFO] [training:0]   Time: 2m54s | Elapsed: 13m23s | 1,535 pos/s [SWA]
+[2026-03-31T08:10:37.273] [INFO] [training:0]   Phase loss -> Opening: 0.345944  Middlegame: 0.316691  Endgame: 0.315719
+[2026-03-31T08:10:37.273] [INFO] [training:0]   No improvement for 1/4 epochs
+[2026-03-31T08:10:38.470] [INFO] [training:0] Weights saved to C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights.bin
+[2026-03-31T08:10:41.763] [INFO] [training:0] Checkpoint saved to C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_checkpoint.pt
+[2026-03-31T08:13:33.316] [INFO] [training:0]   Ep 5 | Batch 131/131 (100%) | Loss: 0.189436
+[2026-03-31T08:13:54.058] [INFO] [training:0] ----------------------------------------------------------------------
+[2026-03-31T08:13:54.058] [INFO] [training:0]   Epoch    5/8 | Train: 0.189436 (rebalanced) | Val: 0.323850 * | LR: 0.000040 | Acc: 0.6377
+[2026-03-31T08:13:54.059] [METRIC] [training:21] EPOCH epoch=5 train_loss=0.18943600 val_loss=0.32385000 lr=4.000000e-05 acc=0.6377
+[2026-03-31T08:13:54.059] [INFO] [training:0]   Time: 2m51s | Elapsed: 16m39s | 1,563 pos/s [SWA]
+[2026-03-31T08:13:54.059] [INFO] [training:0]   Phase loss -> Opening: 0.345713  Middlegame: 0.316646  Endgame: 0.315737
+[2026-03-31T08:16:44.588] [INFO] [training:0]   Ep 6 | Batch 131/131 (100%) | Loss: 0.188710
+[2026-03-31T08:17:04.101] [INFO] [training:0] ----------------------------------------------------------------------
+[2026-03-31T08:17:04.101] [INFO] [training:0]   Epoch    6/8 | Train: 0.188710 (rebalanced) | Val: 0.324109 | LR: 0.000030 | Acc: 0.6364
+[2026-03-31T08:17:04.102] [METRIC] [training:21] EPOCH epoch=6 train_loss=0.18871000 val_loss=0.32410900 lr=3.000000e-05 acc=0.6364
+[2026-03-31T08:17:04.102] [INFO] [training:0]   Time: 2m50s | Elapsed: 19m50s | 1,572 pos/s [SWA]
+[2026-03-31T08:17:04.102] [INFO] [training:0]   Phase loss -> Opening: 0.345861  Middlegame: 0.316997  Endgame: 0.315984
+[2026-03-31T08:17:04.102] [INFO] [training:0]   No improvement for 1/4 epochs
+[2026-03-31T08:19:52.465] [INFO] [training:0]   Ep 7 | Batch 131/131 (100%) | Loss: 0.187716
+[2026-03-31T08:20:12.585] [INFO] [training:0] ----------------------------------------------------------------------
+[2026-03-31T08:20:12.585] [INFO] [training:0]   Epoch    7/8 | Train: 0.187716 (rebalanced) | Val: 0.324015 | LR: 0.000020 | Acc: 0.6368
+[2026-03-31T08:20:12.585] [METRIC] [training:21] EPOCH epoch=7 train_loss=0.18771600 val_loss=0.32401500 lr=2.000000e-05 acc=0.6368
+[2026-03-31T08:20:12.585] [INFO] [training:0]   Time: 2m48s | Elapsed: 22m58s | 1,592 pos/s [SWA]
+[2026-03-31T08:20:12.586] [INFO] [training:0]   Phase loss -> Opening: 0.345891  Middlegame: 0.316927  Endgame: 0.315779
+[2026-03-31T08:20:12.586] [INFO] [training:0]   No improvement for 2/4 epochs
+[2026-03-31T08:23:11.684] [INFO] [training:0]   Ep 8 | Batch 131/131 (100%) | Loss: 0.187611
+[2026-03-31T08:23:33.033] [INFO] [training:0] ----------------------------------------------------------------------
+[2026-03-31T08:23:33.033] [INFO] [training:0]   Epoch    8/8 | Train: 0.187611 (rebalanced) | Val: 0.323838 * | LR: 0.000013 | Acc: 0.6373
+[2026-03-31T08:23:33.034] [METRIC] [training:21] EPOCH epoch=8 train_loss=0.18761100 val_loss=0.32383800 lr=1.300000e-05 acc=0.6373
+[2026-03-31T08:23:33.034] [INFO] [training:0]   Time: 2m59s | Elapsed: 26m17s | 1,497 pos/s [SWA]
+[2026-03-31T08:23:33.034] [INFO] [training:0]   Phase loss -> Opening: 0.345381  Middlegame: 0.316792  Endgame: 0.315793
+[2026-03-31T08:23:33.034] [INFO] [training:0]   No improvement for 3/4 epochs
+[2026-03-31T08:23:33.035] [INFO] [training:0] Early stopping: no improvement for 4 epochs.
+[2026-03-31T08:23:33.035] [INFO] [training:0] Applying SWA averaged weights (6 snapshots)...
+[2026-03-31T08:23:33.065] [INFO] [training:0]   SWA: Applied averaged weights (6 snapshots)
+[2026-03-31T08:23:34.362] [INFO] [training:0] Weights saved to C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_swa.bin
+[2026-03-31T08:23:34.362] [INFO] [training:0]   SWA weights saved to C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_swa.bin
+[2026-03-31T08:23:34.362] [INFO] [training:0]   Best validation weights remain at C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights.bin
+[2026-03-31T08:23:34.362] [INFO] [training:0] ============================================================
+[2026-03-31T08:23:34.362] [INFO] [training:0] Training complete!
+[2026-03-31T08:23:34.362] [INFO] [training:0]   Total time:  26m40s
+[2026-03-31T08:23:34.362] [INFO] [training:0]   Best loss:   0.323920
+[2026-03-31T08:23:34.362] [INFO] [training:0]   Weights:     C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights.bin
+[2026-03-31T08:23:34.362] [INFO] [training:0]   SWA applied: Yes (6 snapshots averaged)
+[2026-03-31T08:23:34.362] [INFO] [training:0] ============================================================
+[2026-03-31T08:23:36.149] [INFO] [training:0] Progress graph saved to .\training progress\training_progress.png
+[2026-03-31T08:23:38.033] [EVENT] [training:21] PHASE_END success=true elapsed_sec=1639.0
+[2026-03-31T08:23:38.236] [INFO] [training:0]   SWA weights archived to nnue_weights_swa_gen21.bin
+[2026-03-31T08:23:38.239] [EVENT] [swa_match:21] PHASE_START games=150
+[2026-03-31T08:23:38.239] [INFO] [swa_match:0] [SWA] Running best-of-two: Best-Val vs SWA (150 games)
+[2026-03-31T08:23:38.241] [CMD] [swa_match:0] [CMD] py -3 "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\uci_match.py" "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_swa_gen21.bin" "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_gen21.bin" 150 8 swa
+[2026-03-31T08:23:51.138] [INFO] [swa_match:0] [SWA] 10/150: +1 =8 -1
+[2026-03-31T08:24:03.151] [INFO] [swa_match:0] [SWA] 20/150: +2 =14 -4
+[2026-03-31T08:24:14.872] [INFO] [swa_match:0] [SWA] 30/150: +2 =21 -7
+[2026-03-31T08:24:25.943] [INFO] [swa_match:0] [SWA] 40/150: +2 =28 -10
+[2026-03-31T08:24:38.193] [INFO] [swa_match:0] [SWA] 50/150: +4 =32 -14
+[2026-03-31T08:24:49.604] [INFO] [swa_match:0] [SWA] 60/150: +6 =38 -16
+[2026-03-31T08:25:01.073] [INFO] [swa_match:0] [SWA] 70/150: +7 =47 -16
+[2026-03-31T08:25:12.430] [INFO] [swa_match:0] [SWA] 80/150: +7 =54 -19
+[2026-03-31T08:25:23.391] [INFO] [swa_match:0] [SWA] 90/150: +10 =60 -20
+[2026-03-31T08:25:35.069] [INFO] [swa_match:0] [SWA] 100/150: +12 =68 -20
+[2026-03-31T08:25:46.140] [INFO] [swa_match:0] [SWA] 110/150: +16 =74 -20
+[2026-03-31T08:25:57.734] [INFO] [swa_match:0] [SWA] 120/150: +19 =81 -20
+[2026-03-31T08:26:08.495] [INFO] [swa_match:0] [SWA] 130/150: +21 =85 -24
+[2026-03-31T08:26:18.949] [INFO] [swa_match:0] [SWA] 140/150: +23 =92 -25
+[2026-03-31T08:26:29.805] [INFO] [swa_match:0] [SWA] 150/150: +25 =100 -25
+[2026-03-31T08:26:29.805] [INFO] [swa_match:0] [SWA] Final: +25 =100 -25 SWA_ELO: 0
+[2026-03-31T08:26:29.824] [EVENT] [swa_match:21] PHASE_END success=true elapsed_sec=171.0
+[2026-03-31T08:26:29.824] [METRIC] [swa:21] ELO_RESULT elo=+0 wins=0 draws=0 losses=0
+[2026-03-31T08:26:29.824] [INFO] [swa_match:0] [SWA] Draw â€” keeping best-val weights for gen 21
+[2026-03-31T08:26:29.882] [EVENT] [pipeline:21] GEN_SUMMARY gen=21 train_loss=0.18761100 val_loss=0.32383800 elo=+0 elapsed_sec=7287.0
+[2026-03-31T08:26:31.264] [INFO] [swa_match:1] --- Generation 22 ---
+[2026-03-31T08:26:31.266] [EVENT] [selfplay:22] PHASE_START games=3000 depth=8 workers=12
+[2026-03-31T08:26:31.266] [CMD] [selfplay:1] [CMD] "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" --generate --games 3000 --depth 8 --mixed-depth-ratio 0.4 --mixed-depth-low 4 --depth-shuffle --depth-shuffle-bias 2.0 --workers 12 --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen22.bin" --weights "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_gen21.bin" --openings "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt" --game-time-limit 720 --resign-cp 500 --contempt 0 --maxplies 250 --draw-cp 15 --resign-count 4 --draw-count 8 --draw-min-ply 80 --draw-adj-moves 10 --draw-adj-threshold 6 --draw-adj-min-move 60 --opening-plies 4 --opening-temp 2.0 --softmax-plies 12 --softmax-temp 0.5 --root-noise 0.03 --record-min-ply 2 --record-max-eval 2000
+[2026-03-31T08:26:31.739] [INFO] [selfplay:1] [SelfPlay] Loaded 2000 opening positions from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt
+[2026-03-31T08:26:31.740] [INFO] [selfplay:1] [SelfPlay] Starting 3000 games  depth=8  movetime=0ms  workers=12  output=C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen22.bin  openings=2000  openingTemp=2  openingPlies=4  softmaxPlies=12  softmaxTemp=0.5  rootNoise=0.03  recordMinPly=2  recordMaxEval=2000  resign=500cp/4ply  draw=15cp/8ply@80  drawAdj=6cp/10ply@60  depthShuffle=[d4..d7] bias=2 (40% shuffled)

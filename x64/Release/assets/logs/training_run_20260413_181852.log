@@ -1,0 +1,18 @@
+# NNUE Training Runner - Structured Log
+# Format: [TIMESTAMP] [LEVEL] [PHASE:GEN] message
+# Generated: 2026-04-13T18:18:52.410
+#
+[2026-04-13T18:18:52.410] [EVENT] [pipeline:0] PIPELINE_START first_gen=39 last_gen=43 total_gens=5
+[2026-04-13T18:18:52.410] [CONFIG] [pipeline:0] variant=Standard Chess generations=5 startGen=38 gamesPerGen=750 depth=6 workers=12 epochsPerGen=12 batchSize=2048 lr=0.0005 weightDecay=0.0001 maxPositions=100000 splRatio=0.45 drawWeight=1 mateBoost=3 eloValidate=false
+[2026-04-13T18:18:52.410] [EVENT] [pipeline:39] GEN_START gen=39
+[2026-04-13T18:18:52.412] [CMD] [selfplay:39] "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" --generate --games 750 --depth 6 --workers 12 --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen39.bin" --resign-cp 500 --resign-count 3 --draw-cp 8 --draw-count 6 --draw-min-ply 40 --draw-adj-moves 12 --draw-adj-threshold 4 --draw-adj-min-move 50 --maxplies 250 --contempt 25 --opening-plies 4 --opening-temp 1.5 --softmax-plies 8 --softmax-temp 0.5 --record-min-ply 10 --record-max-eval 2500 --openings "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt"
+[2026-04-13T18:18:52.412] [EVENT] [selfplay:39] PHASE_START games=750 depth=6 workers=12
+[2026-04-13T18:18:53.061] [INFO] [selfplay:39] [SelfPlay] Starting 750 games  depth=6  movetime=0ms  workers=12  output=C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen39.bin  openings=2000  contempt=25  openingTemp=1.5  openingPlies=4  softmaxPlies=8  softmaxTemp=0.5  recordMinPly=10  recordMaxEval=2500  resign=500cp/3ply  draw=8cp/6ply@40  drawAdj=4cp/12ply@50
+[2026-04-13T18:18:54.067] [INFO] [selfplay:39] [SelfPlay] Done. 0 positions written to C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen39.bin
+[2026-04-13T18:18:54.136] [EVENT] [selfplay:39] PHASE_END success=true
+[2026-04-13T18:18:54.137] [EVENT] [training:39] PHASE_START epochs=12 lr=0.0005 batch=2048
+[2026-04-13T18:21:37.266] [METRIC] [training:39] EPOCH epoch=1 train_loss=0.58344100 val_loss=0.56843800 lr=1.500000e-04
+[2026-04-13T18:21:49.511] [EVENT] [training:39] PHASE_END success=false
+[2026-04-13T18:21:49.511] [ERROR] [training:39] Training failed
+[2026-04-13T18:21:49.511] [EVENT] [pipeline:0] PIPELINE_END stopped=true completed_gens=0
+# END OF LOG 2026-04-13T18:21:49.511

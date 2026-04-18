@@ -1,0 +1,15 @@
+# NNUE Training Runner - Structured Log
+# Format: [TIMESTAMP] [LEVEL] [PHASE:GEN] message
+# Generated: 2026-04-17T21:14:16.314
+#
+[2026-04-17T21:14:16.314] [EVENT] [pipeline:0] PIPELINE_START first_gen=1 last_gen=10 total_gens=10
+[2026-04-17T21:14:16.314] [CONFIG] [pipeline:0] variant=Duck Chess generations=10 startGen=0 gamesPerGen=500 depth=3 workers=12 epochsPerGen=20 batchSize=512 lr=0.001 weightDecay=0.0001 maxPositions=300000 splRatio=0.4 drawWeight=0.2 mateBoost=8 eloValidate=false
+[2026-04-17T21:14:16.314] [EVENT] [pipeline:1] GEN_START gen=1
+[2026-04-17T21:14:16.315] [CMD] [selfplay:1] "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" --generate --games 500 --depth 3 --workers 12 --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen1.bin" --duck-chess --resign-cp 500 --resign-count 3 --draw-cp 50 --draw-count 6 --draw-min-ply 40 --draw-adj-moves 12 --draw-adj-threshold 4 --draw-adj-min-move 50 --maxplies 250 --contempt 25 --opening-plies 4 --opening-temp 1.5 --softmax-plies 8 --softmax-temp 0.5 --record-min-ply 10 --record-max-eval 2500 --nps-samples 20
+[2026-04-17T21:14:16.315] [EVENT] [selfplay:1] PHASE_START games=500 depth=3 workers=12
+[2026-04-17T21:14:16.672] [INFO] [selfplay:1] [SelfPlay] Starting 500 games  depth=3  movetime=0ms  workers=12  output=C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen1.bin  contempt=25  openingTemp=1.5  openingPlies=4  softmaxPlies=8  softmaxTemp=0.5  recordMinPly=10  recordMaxEval=2500  resign=500cp/3ply  draw=50cp/6ply@40  drawAdj=4cp/12ply@50
+[2026-04-17T21:14:20.407] [INFO] [selfplay:1] [ERR] Process exited with code 3221225477
+[2026-04-17T21:14:20.407] [EVENT] [selfplay:1] PHASE_END success=false output_size=1.8 MB
+[2026-04-17T21:14:21.001] [ERROR] [selfplay:1] Self-play CRASHED
+[2026-04-17T21:14:21.001] [EVENT] [pipeline:0] PIPELINE_END reason=crash completed_gens=0
+# END OF LOG 2026-04-17T21:14:21.001

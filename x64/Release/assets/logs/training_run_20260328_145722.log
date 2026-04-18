@@ -1,0 +1,29 @@
+# NNUE Training Runner - Structured Log
+# Format: [TIMESTAMP] [LEVEL] [PHASE:GEN] message
+# Structured events use KEY=VALUE pairs after the tag
+# Levels: INFO, WARN, ERROR, EVENT, METRIC, CONFIG, CMD
+# Generated: 2026-03-28T14:57:22.869
+#
+# ── HOW TO READ THIS LOG ──
+# Lines starting with [EVENT] mark pipeline milestones (start/stop/phase transitions)
+# Lines starting with [METRIC] contain numeric training data points
+# Lines starting with [ERROR] or [WARN] flag issues to investigate
+# Lines starting with [CONFIG] dump the full configuration used
+# Lines starting with [CMD] show exact command lines executed
+# Lines starting with [INFO] are general informational messages
+#
+[2026-03-28T14:57:22.869] [INFO] [general:0] [LOG] Writing structured log to: C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\logs\training_run_20260328_145722.log
+[2026-03-28T14:57:22.869] [EVENT] [pipeline:0] PIPELINE_START first_gen=9 last_gen=18 total_gens=10
+[2026-03-28T14:57:22.870] [CONFIG] [pipeline:0] generations=10 startGen=8 gamesPerGen=1500 epochsPerGen=12 batchSize=2048 lr=0.0002 weightDecay=0.0015 dropout=0.3 labelSmooth=0.01 gradAccum=4 warmupSteps=100 drawWeight=0.3 mateBoost=10 splRatio=0.25 frcMix=0 replayWindow=4 replayDecay=0.7 workers=12 depth=7 mixedDepthLow=4 mixedDepthRatio=0.2 maxPositions=200000 earlyStop=6 cosineLr=true cosineT0=0 swa=true swaStart=8 drawPct=30 wdlAlpha=0.3 wdlDrawElo=50 eloValidate=false eloGames=100 swaGames=100 overfitDetect=true resignCp=500 contemptCp=20 maxPlies=250 drawCp=0 exeName=ChessEngine.exe pyScript=train_nnue.py dataDir=assets
+[2026-03-28T14:57:22.870] [INFO] [general:0] --- Generation 9 ---
+[2026-03-28T14:57:22.872] [EVENT] [selfplay:9] PHASE_START games=1500 depth=7 workers=12
+[2026-03-28T14:57:22.872] [CMD] [selfplay:0] [CMD] "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" --generate --games 1500 --depth 7 --mixed-depth-ratio 0.200000 --mixed-depth-low 4 --workers 12 --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen9.bin" --weights "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_gen8.bin" --openings "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt" --game-time-limit 480 --resigncp 500 --contempt 20 --maxplies 250 --drawcp 0
+[2026-03-28T14:57:24.240] [INFO] [selfplay:0] [SelfPlay] Loaded 2000 opening positions from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt
+[2026-03-28T14:57:24.248] [INFO] [selfplay:0] [SelfPlay] Starting 1500 games  depth=7  movetime=0ms  workers=12  output=C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen9.bin  openings=2000  contempt=20  openingTemp=1.5  softmaxPlies=8  softmaxTemp=0.5  recordMinPly=10  mixedDepth=4/7 (20%/80%)
+[2026-03-28T14:57:29.349] [INFO] [selfplay:0] [Game] #4 D(3fold) ply=71 eval=-28 pos=61 d
+[2026-03-28T14:57:29.349] [INFO] [selfplay:0] [INFO] Process terminated -- pipeline stopped by user.
+[2026-03-28T14:57:29.349] [EVENT] [selfplay:9] PHASE_END success=false elapsed_sec=6.0
+[2026-03-28T14:57:29.349] [ERROR] [selfplay:0] [ERR] Self-play failed gen 9
+[2026-03-28T14:57:29.349] [INFO] [selfplay:0] === Pipeline stopped ===
+[2026-03-28T14:57:29.349] [EVENT] [pipeline:0] PIPELINE_END stopped=true total_elapsed_sec=6.0 completed_gens=0
+# ── END OF LOG ── 2026-03-28T14:57:29.349

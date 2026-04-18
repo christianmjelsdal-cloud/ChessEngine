@@ -1,0 +1,177 @@
+# NNUE Training Runner - Structured Log
+# Format: [TIMESTAMP] [LEVEL] [PHASE:GEN] message
+# Structured events use KEY=VALUE pairs after the tag
+# Levels: INFO, WARN, ERROR, EVENT, METRIC, CONFIG, CMD
+# Generated: 2026-04-08T15:21:11.377
+#
+# ── HOW TO READ THIS LOG ──
+# Lines starting with [EVENT] mark pipeline milestones (start/stop/phase transitions)
+# Lines starting with [METRIC] contain numeric training data points
+# Lines starting with [ERROR] or [WARN] flag issues to investigate
+# Lines starting with [CONFIG] dump the full configuration used
+# Lines starting with [CMD] show exact command lines executed
+# Lines starting with [INFO] are general informational messages
+#
+[2026-04-08T15:21:11.389] [INFO] [selfplay:0] [LOG] Writing structured log to: C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\logs\training_run_20260408_152111.log
+[2026-04-08T15:21:11.389] [EVENT] [pipeline:0] PIPELINE_START first_gen=36 last_gen=45 total_gens=10
+[2026-04-08T15:21:11.389] [CONFIG] [pipeline:0] generations=10 startGen=35 gamesPerGen=3500 epochsPerGen=6 batchSize=2048 lr=5e-05 weightDecay=0.005 dropout=0.2 labelSmooth=0.03 gradAccum=4 warmupSteps=100 drawWeight=0.3 mateBoost=10 splRatio=0.55 frcMix=0 replayWindow=4 replayDecay=0.8 workers=12 depth=9 mixedDepthLow=5 mixedDepthRatio=0.5 depthShuffle=true depthShuffleBias=2 maxPositions=750000 earlyStop=3 cosineLr=true cosineT0=0 swa=true swaStart=3 drawPct=30 wdlAlpha=0.3 wdlDrawElo=50 eloValidate=false eloGames=100 swaGames=50 overfitDetect=true resignCp=500 contemptCp=0 maxPlies=250 drawCp=15 exeName=ChessEngine.exe pyScript=train_nnue.py dataDir=assets openingTemp=2 openingPlies=4 softmaxPlies=12 softmaxTemp=0.5 rootNoiseEps=0.03 recordMinPly=0 recordMaxEval=2000 resignCount=4 drawCount=8 drawMinPly=80 drawAdjMoves=10 drawAdjThreshold=6 drawAdjMinMove=60
+[2026-04-08T15:21:11.389] [INFO] [selfplay:0] --- Generation 36 ---
+[2026-04-08T15:21:11.391] [EVENT] [selfplay:36] PHASE_START games=3500 depth=9 workers=12
+[2026-04-08T15:21:11.391] [CMD] [selfplay:0] [CMD] "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" --generate --games 3500 --depth 9 --mixed-depth-ratio 0.5 --mixed-depth-low 5 --depth-shuffle --depth-shuffle-bias 2.0 --workers 12 --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen36.bin" --weights "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_gen35.bin" --openings "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt" --game-time-limit 720 --resign-cp 500 --contempt 0 --maxplies 250 --draw-cp 15 --resign-count 4 --draw-count 8 --draw-min-ply 80 --draw-adj-moves 10 --draw-adj-threshold 6 --draw-adj-min-move 60 --opening-plies 4 --opening-temp 2.0 --softmax-plies 12 --softmax-temp 0.5 --root-noise 0.03 --record-min-ply 0 --record-max-eval 2000
+[2026-04-08T15:21:11.842] [INFO] [selfplay:0] [SelfPlay] Syzygy tablebases auto-loaded (5-piece) from: C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\Syzygy345
+[2026-04-08T15:21:11.844] [INFO] [selfplay:0] [SelfPlay] Loaded 2000 opening positions from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt
+[2026-04-08T15:21:11.844] [INFO] [selfplay:0] [SelfPlay] Starting 3500 games  depth=9  movetime=0ms  workers=12  output=C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen36.bin  openings=2000  openingTemp=2  openingPlies=4  softmaxPlies=12  softmaxTemp=0.5  rootNoise=0.03  recordMaxEval=2000  resign=500cp/4ply  draw=15cp/8ply@80  drawAdj=6cp/10ply@60  depthShuffle=[d5..d8] bias=2 (50% shuffled)
+[2026-04-08T15:21:19.689] [EVENT] [selfplay:0] [SKIP] Skipping current phase...
+[2026-04-08T15:21:22.861] [INFO] [selfplay:0] [SelfPlay] 1/3500 (0%)  pos=197  W/D/B=1/0/0  (100%/0%/0%)  d5~d8  0.2 games/s (avg 0.2)  152.5K nps  ETA 05:24:20     
+[2026-04-08T15:21:22.869] [INFO] [selfplay:0] [INFO] Process terminated -- phase skipped by user.
+[2026-04-08T15:21:22.870] [EVENT] [selfplay:36] PHASE_END success=true elapsed_sec=11.0
+[2026-04-08T15:21:23.499] [EVENT] [selfplay:0] [SKIP] Self-play skipped — using partial data
+[2026-04-08T15:21:23.500] [INFO] [selfplay:0]   Using Stockfish-labeled data: C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\training_data_sf.bin
+[2026-04-08T15:21:23.501] [INFO] [selfplay:0]   Replay buffer: gen 34 (weight 0.2254)
+[2026-04-08T15:21:23.501] [INFO] [selfplay:0]   Replay buffer: gen 33 (weight 0.1803)
+[2026-04-08T15:21:23.501] [INFO] [selfplay:0]   Replay buffer: gen 32 (weight 0.1443)
+[2026-04-08T15:21:23.501] [EVENT] [training:36] PHASE_START epochs=6 batch=2048 lr=0.00005
+[2026-04-08T15:21:23.501] [CMD] [training:0] [CMD] py -3.10 -u "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\train_nnue.py" --data "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\training_data_sf.bin" --extra-data "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen34.bin" 0.2254 --extra-data "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen33.bin" 0.1803 --extra-data "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen32.bin" 0.1443 --max-positions 750000 --epochs 6 --batch-size 2048 --lr 0.00005 --lr-min 0.00001 --weight-decay 0.005 --dropout 0.2 --grad-clip 1.0 --grad-accum 4 --warmup-steps 100 --draw-weight 0.3 --mate-boost 10.0 --early-stop 3 --wdl-alpha 0.3 --wdl-draw-elo 50.0 --enhanced --plot --cosine-lr --no-cosine-restarts --swa --swa-start 3 --label-smoothing 0.03 --extra-data "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\training_data_draws.bin" 0.3 --load-weights "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_gen35.bin" --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights.bin"
+[2026-04-08T15:21:28.002] [INFO] [training:0] === Enhanced mode v3: warmup=100, grad_accum=4, SWA=ON, label_smooth=0.03, filter_eval=1000.0, eval_soft_cap=800.0, draw_weight=0.3x, wdl_alpha=0.3, wdl_draw_elo=50.0, cosine_decay ===
+[2026-04-08T15:21:28.002] [INFO] [training:0] Using device: CPU (optimized)
+[2026-04-08T15:21:28.035] [INFO] [training:0]   CPU threads: 16
+[2026-04-08T15:21:28.041] [INFO] [training:0]   --max-positions: distributing 750,000 budget across 5 sources by ratio
+[2026-04-08T15:21:28.041] [INFO] [training:0]     training_data_sf.bin: 55,462,097 -> 112,500 (ratio 15.0%)
+[2026-04-08T15:21:28.041] [INFO] [training:0]     selfplay_gen34.bin: 294,068 -> 169,050 (ratio 22.5%)
+[2026-04-08T15:21:28.041] [INFO] [training:0]     selfplay_gen33.bin: 298,317 -> 135,225 (ratio 18.0%)
+[2026-04-08T15:21:28.041] [INFO] [training:0]     selfplay_gen32.bin: 298,133 -> 108,225 (ratio 14.4%)
+[2026-04-08T15:21:28.041] [INFO] [training:0]     training_data_draws.bin: 35,143,613 -> 225,000 (ratio 30.0%)
+[2026-04-08T15:21:28.041] [INFO] [training:0] Datasets:             5 sources (ratio-based sampling)
+[2026-04-08T15:21:28.041] [INFO] [training:0]   - training_data_sf.bin                     ratio=15.0%  pos=112,500
+[2026-04-08T15:21:28.041] [INFO] [training:0]   - selfplay_gen34.bin                       ratio=22.5%  pos=169,050
+[2026-04-08T15:21:28.041] [INFO] [training:0]   - selfplay_gen33.bin                       ratio=18.0%  pos=135,225
+[2026-04-08T15:21:28.041] [INFO] [training:0]   - selfplay_gen32.bin                       ratio=14.4%  pos=108,225
+[2026-04-08T15:21:28.041] [INFO] [training:0]   - training_data_draws.bin                  ratio=30.0%  pos=225,000
+[2026-04-08T15:21:28.041] [INFO] [training:0]   Total positions: 750,000
+[2026-04-08T15:21:28.041] [INFO] [training:0]   Mode: PRELOAD (full dataset fits in RAM)
+[2026-04-08T15:21:30.753] [INFO] [training:0]   torch.compile:     ENABLED (reduce-overhead mode)
+[2026-04-08T15:21:30.791] [INFO] [training:0] Weights loaded from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_gen35.bin
+[2026-04-08T15:21:30.794] [INFO] [training:0] Loaded existing weights from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_gen35.bin
+[2026-04-08T15:21:30.795] [INFO] [training:0]   Fresh optimizer (--load-weights skips old optimizer state)
+[2026-04-08T15:21:30.795] [INFO] [training:0] ============================================================
+[2026-04-08T15:21:30.795] [INFO] [training:0] Training Configuration:
+[2026-04-08T15:21:30.795] [INFO] [training:0]   Positions:         750,000
+[2026-04-08T15:21:30.795] [INFO] [training:0]   Batch size:        2048 (effective: 8192 with grad accum x4)
+[2026-04-08T15:21:30.795] [INFO] [training:0]   Epochs:            6
+[2026-04-08T15:21:30.795] [INFO] [training:0]   Learning rate:     5e-05
+[2026-04-08T15:21:30.795] [INFO] [training:0]   LR schedule:       Cosine Decay (T_max=5, warmup_epochs~1)
+[2026-04-08T15:21:30.795] [INFO] [training:0]   LR min:            1e-05
+[2026-04-08T15:21:30.795] [INFO] [training:0]   LR warmup:         100 optimizer steps
+[2026-04-08T15:21:30.795] [INFO] [training:0]   Lambda (eval/res): 0.5
+[2026-04-08T15:21:30.795] [INFO] [training:0]   Eval scale:        400.0
+[2026-04-08T15:21:30.795] [INFO] [training:0]   Phase balanced:    True
+[2026-04-08T15:21:30.795] [INFO] [training:0]   Early stop:        3 epochs
+[2026-04-08T15:21:30.795] [INFO] [training:0]   Weight decay:      0.005
+[2026-04-08T15:21:30.795] [INFO] [training:0]   Dropout:           0.2
+[2026-04-08T15:21:30.795] [INFO] [training:0]   Grad accumulation: 4x
+[2026-04-08T15:21:30.795] [INFO] [training:0]   Label smoothing:   0.03
+[2026-04-08T15:21:30.795] [INFO] [training:0]   SWA:               ON (start epoch 3)
+[2026-04-08T15:21:30.795] [INFO] [training:0]   Filter eval max:   1000.0
+[2026-04-08T15:21:30.795] [INFO] [training:0]   Eval soft-cap:     800.0
+[2026-04-08T15:21:30.795] [INFO] [training:0]   Draw weight:       0.3x
+[2026-04-08T15:21:30.795] [INFO] [training:0]   Mate boost:        10.0x
+[2026-04-08T15:21:30.795] [INFO] [training:0]   Async prefetch:    N/A (preload mode)
+[2026-04-08T15:21:30.795] [INFO] [training:0]   WDL CE loss:       ON (alpha=0.3, lambda=0.5 (from --lam), draw_elo=50.0)
+[2026-04-08T15:21:30.795] [INFO] [training:0]   Activation:        SCReLU (squared clipped ReLU)
+[2026-04-08T15:21:30.795] [INFO] [training:0]   Architecture:      40960->512->128->64->WDL(3)x3heads
+[2026-04-08T15:21:30.795] [INFO] [training:0]   Grad clip norm:    1.0
+[2026-04-08T15:21:30.795] [INFO] [training:0]   Streaming:         False
+[2026-04-08T15:21:30.795] [INFO] [training:0]   Datasets:          5 sources (ratio-based sampling)
+[2026-04-08T15:21:30.795] [INFO] [training:0]     - training_data_sf.bin            ratio=15.0%  pos=112,500
+[2026-04-08T15:21:30.795] [INFO] [training:0]     - selfplay_gen34.bin              ratio=22.5%  pos=169,050
+[2026-04-08T15:21:30.795] [INFO] [training:0]     - selfplay_gen33.bin              ratio=18.0%  pos=135,225
+[2026-04-08T15:21:30.795] [INFO] [training:0]     - selfplay_gen32.bin              ratio=14.4%  pos=108,225
+[2026-04-08T15:21:30.795] [INFO] [training:0]     - training_data_draws.bin         ratio=30.0%  pos=225,000
+[2026-04-08T15:21:30.795] [INFO] [training:0] ============================================================
+[2026-04-08T15:21:30.795] [INFO] [training:0]   Multi-dataset preload: ratios will be applied during epoch sampling.
+[2026-04-08T15:21:30.795] [INFO] [training:0]   Loading 5 datasets sequentially...
+[2026-04-08T15:21:30.795] [INFO] [training:0] Loading positions from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\training_data_sf.bin...
+[2026-04-08T15:21:30.795] [INFO] [training:0]   Total positions: 55,462,097 � using offset-cache fast path (avoids reading 2644 MB into RAM)
+[2026-04-08T15:21:30.795] [INFO] [training:0] Scanning C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\training_data_sf.bin for position offsets...
+[2026-04-08T15:21:30.797] [INFO] [training:0]   Cache stale or corrupt, rebuilding...
+[2026-04-08T15:21:30.797] [INFO] [training:0]   Building offset index (first time, may take several minutes)...
+[2026-04-08T15:21:30.797] [INFO] [training:0]   Total positions: 55,462,097 (header: versioned)
+[2026-04-08T15:22:02.727] [INFO] [training:0]   Scan complete: 55,462,097 positions indexed.[K
+[2026-04-08T15:22:06.681] [INFO] [training:0]   Saved offset cache: 423.1 MB (C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\training_data_sf.bin.offidx)
+[2026-04-08T15:22:10.531] [INFO] [training:0]   Sampled 112,500 from 55,462,097 positions (reservoir)
+[2026-04-08T15:22:11.061] [INFO] [training:0]     Parsed 100,000/112,500 positions (262813 pos/s,
+[2026-04-08T15:22:11.061] [INFO] [training:0]   Parsed 112,500 positions in 0.5s (230,733 pos/s)
+[2026-04-08T15:22:11.061] [INFO] [training:0]   Vectorized HalfKAv2 conversion (112,500 positions)...
+[2026-04-08T15:22:11.415] [INFO] [training:0]   HalfKAv2 conversion: 0.4s (316,567 pos/s)
+[2026-04-08T15:22:11.441] [INFO] [training:0]   Converting to tensors...
+[2026-04-08T15:22:11.442] [INFO] [training:0] Phase distribution: Opening=30,709, Middlegame=36,364, Endgame=40,189
+[2026-04-08T15:22:11.443] [INFO] [training:0]   [training_data_sf.bin] loaded: 107,262 positions
+[2026-04-08T15:22:11.569] [INFO] [training:0] Loading positions from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen34.bin...
+[2026-04-08T15:22:11.569] [INFO] [training:0]   Total positions: 294,068 � using offset-cache fast path (avoids reading 14 MB into RAM)
+[2026-04-08T15:22:11.569] [INFO] [training:0] Scanning C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen34.bin for position offsets...
+[2026-04-08T15:22:11.587] [INFO] [training:0]   Loaded cached index: 294,068 offsets (C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen34.bin.offidx)
+[2026-04-08T15:22:11.594] [INFO] [training:0]   Sampled 169,050 from 294,068 positions (reservoir)
+[2026-04-08T15:22:12.015] [INFO] [training:0]     Parsed 150,000/169,050 positions (404557 pos/s,
+[2026-04-08T15:22:12.015] [INFO] [training:0]   Parsed 169,050 positions in 0.4s (404,607 pos/s)
+[2026-04-08T15:22:12.015] [INFO] [training:0]   Vectorized HalfKAv2 conversion (169,050 positions)...
+[2026-04-08T15:22:12.562] [INFO] [training:0]   HalfKAv2 conversion: 0.5s (308,814 pos/s)
+[2026-04-08T15:22:12.592] [INFO] [training:0]   Converting to tensors...
+[2026-04-08T15:22:12.592] [INFO] [training:0] Phase distribution: Opening=34,930, Middlegame=84,085, Endgame=49,742
+[2026-04-08T15:22:12.593] [INFO] [training:0]   [selfplay_gen34.bin] loaded: 168,757 positions
+[2026-04-08T15:22:12.722] [INFO] [training:0] Loading positions from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen33.bin...
+[2026-04-08T15:22:12.722] [INFO] [training:0]   Total positions: 298,317 � using offset-cache fast path (avoids reading 14 MB into RAM)
+[2026-04-08T15:22:12.722] [INFO] [training:0] Scanning C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen33.bin for position offsets...
+[2026-04-08T15:22:12.736] [INFO] [training:0]   Loaded cached index: 298,317 offsets (C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen33.bin.offidx)
+[2026-04-08T15:22:12.742] [INFO] [training:0]   Sampled 135,225 from 298,317 positions (reservoir)
+[2026-04-08T15:22:13.097] [INFO] [training:0]     Parsed 100,000/135,225 positions (374691 pos/s,
+[2026-04-08T15:22:13.098] [INFO] [training:0]   Parsed 135,225 positions in 0.4s (383,434 pos/s)
+[2026-04-08T15:22:13.098] [INFO] [training:0]   Vectorized HalfKAv2 conversion (135,225 positions)...
+[2026-04-08T15:22:13.541] [INFO] [training:0]   HalfKAv2 conversion: 0.4s (305,178 pos/s)
+[2026-04-08T15:22:13.562] [INFO] [training:0]   Converting to tensors...
+[2026-04-08T15:22:13.563] [INFO] [training:0] Phase distribution: Opening=27,765, Middlegame=66,556, Endgame=40,667
+[2026-04-08T15:22:13.564] [INFO] [training:0]   [selfplay_gen33.bin] loaded: 134,988 positions
+[2026-04-08T15:22:13.676] [INFO] [training:0] Loading positions from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen32.bin...
+[2026-04-08T15:22:13.676] [INFO] [training:0]   Total positions: 298,133 � using offset-cache fast path (avoids reading 14 MB into RAM)
+[2026-04-08T15:22:13.676] [INFO] [training:0] Scanning C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen32.bin for position offsets...
+[2026-04-08T15:22:13.691] [INFO] [training:0]   Loaded cached index: 298,133 offsets (C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen32.bin.offidx)
+[2026-04-08T15:22:13.696] [INFO] [training:0]   Sampled 108,225 from 298,133 positions (reservoir)
+[2026-04-08T15:22:13.980] [INFO] [training:0]     Parsed 100,000/108,225 positions (381300 pos/s,
+[2026-04-08T15:22:13.980] [INFO] [training:0]   Parsed 108,225 positions in 0.3s (382,705 pos/s)
+[2026-04-08T15:22:13.980] [INFO] [training:0]   Vectorized HalfKAv2 conversion (108,225 positions)...
+[2026-04-08T15:22:14.326] [INFO] [training:0]   HalfKAv2 conversion: 0.3s (312,656 pos/s)
+[2026-04-08T15:22:14.348] [INFO] [training:0]   Converting to tensors...
+[2026-04-08T15:22:14.348] [INFO] [training:0] Phase distribution: Opening=22,084, Middlegame=52,910, Endgame=33,042
+[2026-04-08T15:22:14.349] [INFO] [training:0]   [selfplay_gen32.bin] loaded: 108,036 positions
+[2026-04-08T15:22:14.466] [INFO] [training:0] Loading positions from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\training_data_draws.bin...
+[2026-04-08T15:22:14.466] [INFO] [training:0]   Total positions: 35,143,613 � using offset-cache fast path (avoids reading 1675 MB into RAM)
+[2026-04-08T15:22:14.466] [INFO] [training:0] Scanning C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\training_data_draws.bin for position offsets...
+[2026-04-08T15:22:15.960] [INFO] [training:0]   Loaded cached index: 35,143,613 offsets (C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\training_data_draws.bin.offidx)
+[2026-04-08T15:22:18.200] [INFO] [training:0]   Sampled 225,000 from 35,143,613 positions (reservoir)
+[2026-04-08T15:22:27.493] [INFO] [training:0]     Parsed 200,000/225,000 positions (25082 pos/s,
+[2026-04-08T15:22:27.494] [INFO] [training:0]   Parsed 225,000 positions in 9.3s (24,287 pos/s)
+[2026-04-08T15:22:27.494] [INFO] [training:0]   Vectorized HalfKAv2 conversion (225,000 positions)...
+[2026-04-08T15:22:28.330] [INFO] [training:0]   HalfKAv2 conversion: 0.8s (269,000 pos/s)
+[2026-04-08T15:22:28.331] [INFO] [training:0]   Converting to tensors...
+[2026-04-08T15:22:28.331] [INFO] [training:0] Phase distribution: Opening=74,340, Middlegame=62,165, Endgame=88,495
+[2026-04-08T15:22:28.332] [INFO] [training:0]   [training_data_draws.bin] loaded: 225,000 positions
+[2026-04-08T15:22:28.580] [INFO] [training:0]   Train positions: 694,043
+[2026-04-08T15:22:28.580] [INFO] [training:0]   Val positions:   50,000
+[2026-04-08T15:22:28.985] [INFO] [training:0]   Phase-balanced samples: 845,364 (from 694,043 train)
+[2026-04-08T15:23:32.584] [EVENT] [training:0] [SKIP] Skipping current phase...
+[2026-04-08T15:23:44.386] [INFO] [training:0]   Ep 1 | Batch 40/339 (12%) | Loss: 0.197494
+[2026-04-08T15:23:44.392] [INFO] [training:0] [INFO] Process terminated -- phase skipped by user.
+[2026-04-08T15:23:44.392] [EVENT] [training:36] PHASE_END success=true elapsed_sec=140.0
+[2026-04-08T15:23:45.283] [INFO] [training:0]   SWA weights archived to nnue_weights_swa_gen36.bin
+[2026-04-08T15:23:45.283] [EVENT] [training:0] [SKIP] Training skipped — using best checkpoint
+[2026-04-08T15:23:45.283] [EVENT] [swa_match:36] PHASE_START games=50
+[2026-04-08T15:23:45.283] [INFO] [swa_match:0] [SWA] Running best-of-two: Best-Val vs SWA (50 games)
+[2026-04-08T15:23:45.283] [CMD] [swa_match:0] [CMD] py -3 "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\uci_match.py" "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_swa_gen36.bin" "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_gen36.bin" 50 9 swa
+[2026-04-08T15:23:56.890] [INFO] [swa_match:0] [SWA] 10/50: +3 =6 -1
+[2026-04-08T15:24:07.782] [INFO] [swa_match:0] [SWA] 20/50: +4 =11 -5
+[2026-04-08T15:24:08.916] [INFO] [swa_match:0] [INFO] Process terminated -- pipeline stopped by user.
+[2026-04-08T15:24:08.916] [EVENT] [swa_match:36] PHASE_END success=true elapsed_sec=23.0
+[2026-04-08T15:24:08.916] [METRIC] [swa:36] ELO_RESULT elo=+0 wins=0 draws=0 losses=0
+[2026-04-08T15:24:08.916] [INFO] [swa_match:0] [SWA] Draw — keeping best-val weights for gen 36
+[2026-04-08T15:24:08.916] [INFO] [swa_match:0] === Pipeline stopped ===
+[2026-04-08T15:24:08.978] [EVENT] [pipeline:0] PIPELINE_END stopped=true total_elapsed_sec=177.0 completed_gens=0
+# ── END OF LOG ── 2026-04-08T15:24:08.978

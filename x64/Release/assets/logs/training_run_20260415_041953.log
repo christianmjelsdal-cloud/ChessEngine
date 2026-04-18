@@ -1,0 +1,15 @@
+# NNUE Training Runner - Structured Log
+# Format: [TIMESTAMP] [LEVEL] [PHASE:GEN] message
+# Generated: 2026-04-15T04:19:53.156
+#
+[2026-04-15T04:19:53.156] [EVENT] [pipeline:0] PIPELINE_START first_gen=2 last_gen=6 total_gens=5
+[2026-04-15T04:19:53.156] [CONFIG] [pipeline:0] variant=Duck Chess generations=5 startGen=1 gamesPerGen=10000 depth=3 workers=12 epochsPerGen=15 batchSize=512 lr=0.001 weightDecay=0.0001 maxPositions=1000000 splRatio=0.3 drawWeight=0.8 mateBoost=5 eloValidate=false
+[2026-04-15T04:19:53.156] [EVENT] [pipeline:2] GEN_START gen=2
+[2026-04-15T04:19:53.158] [CMD] [selfplay:2] "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" --generate --games 10000 --depth 3 --workers 12 --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen2.bin" --duck-chess --resign-cp 600 --resign-count 5 --draw-cp 100 --draw-count 8 --draw-min-ply 60 --draw-adj-moves 14 --draw-adj-threshold 8 --draw-adj-min-move 14 --maxplies 300 --contempt 25 --opening-plies 4 --opening-temp 1.5 --softmax-plies 10 --softmax-temp 0.8 --record-min-ply 10 --record-max-eval 2500 --openings "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt"
+[2026-04-15T04:19:53.158] [EVENT] [selfplay:2] PHASE_START games=10000 depth=3 workers=12
+[2026-04-15T04:19:53.601] [INFO] [selfplay:2] [SelfPlay] Starting 10000 games  depth=3  movetime=0ms  workers=12  output=C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen2.bin  openings=2000  contempt=25  openingTemp=1.5  openingPlies=4  softmaxPlies=10  softmaxTemp=0.8  recordMinPly=10  recordMaxEval=2500  resign=600cp/5ply  draw=100cp/8ply@60  drawAdj=8cp/14ply@14
+[2026-04-15T04:21:39.211] [INFO] [selfplay:2] [STOP] Pipeline stopped by user (exit code 1)
+[2026-04-15T04:21:39.211] [EVENT] [selfplay:2] PHASE_END success=false output_size=94 KB
+[2026-04-15T04:21:39.211] [ERROR] [selfplay:2] Self-play stopped by user
+[2026-04-15T04:21:39.211] [EVENT] [pipeline:0] PIPELINE_END reason=user_stop completed_gens=0
+# END OF LOG 2026-04-15T04:21:39.211

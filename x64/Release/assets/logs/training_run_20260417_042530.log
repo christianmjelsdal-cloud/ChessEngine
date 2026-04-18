@@ -1,0 +1,45 @@
+# NNUE Training Runner - Structured Log
+# Format: [TIMESTAMP] [LEVEL] [PHASE:GEN] message
+# Generated: 2026-04-17T04:25:30.460
+#
+[2026-04-17T04:25:30.460] [EVENT] [pipeline:0] PIPELINE_START first_gen=5 last_gen=14 total_gens=10
+[2026-04-17T04:25:30.460] [CONFIG] [pipeline:0] variant=Duck Chess generations=10 startGen=4 gamesPerGen=5000 depth=4 workers=12 epochsPerGen=20 batchSize=512 lr=0.001 weightDecay=0.0001 maxPositions=150000 splRatio=0.4 drawWeight=0.2 mateBoost=8 eloValidate=false
+[2026-04-17T04:25:30.460] [EVENT] [pipeline:5] GEN_START gen=5
+[2026-04-17T04:25:30.464] [CMD] [selfplay:5] "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" --generate --games 5000 --depth 4 --workers 12 --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen5.bin" --duck-chess --resign-cp 500 --resign-count 3 --draw-cp 50 --draw-count 6 --draw-min-ply 40 --draw-adj-moves 12 --draw-adj-threshold 4 --draw-adj-min-move 50 --maxplies 250 --contempt 25 --opening-plies 4 --opening-temp 1.5 --softmax-plies 8 --softmax-temp 0.5 --record-min-ply 10 --record-max-eval 2500 --nps-samples 20 --openings "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt"
+[2026-04-17T04:25:30.464] [EVENT] [selfplay:5] PHASE_START games=5000 depth=4 workers=12
+[2026-04-17T04:25:30.812] [INFO] [selfplay:5] [SelfPlay] Starting 5000 games  depth=4  movetime=0ms  workers=12  output=C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen5.bin  openings=2000  contempt=25  openingTemp=1.5  openingPlies=4  softmaxPlies=8  softmaxTemp=0.5  recordMinPly=10  recordMaxEval=2500  resign=500cp/3ply  draw=50cp/6ply@40  drawAdj=4cp/12ply@50
+[2026-04-17T04:49:31.006] [STATS] [selfplay:5] PROGRESS pct=25% pos=29625 W/D/B=379/781/90 4.8 games/s 15.5K nps
+[2026-04-17T05:07:17.139] [INFO] [selfplay:5] [SKIP] Phase skipped by user — continuing pipeline
+[2026-04-17T05:07:17.140] [EVENT] [selfplay:5] PHASE_END success=true output_size=10 KB
+[2026-04-17T05:07:17.824] [EVENT] [training:5] PHASE_START epochs=20 lr=0.001 batch=512
+[2026-04-17T05:08:43.233] [METRIC] [training:5] EPOCH epoch=0 train_loss=0.02485000 val_loss=0.00958150
+[2026-04-17T05:10:04.778] [METRIC] [training:5] EPOCH epoch=0 train_loss=0.02707000 val_loss=0.00976996
+[2026-04-17T05:11:32.496] [METRIC] [training:5] EPOCH epoch=0 train_loss=0.02496000 val_loss=0.00959159
+[2026-04-17T05:13:05.997] [METRIC] [training:5] EPOCH epoch=0 train_loss=0.02647000 val_loss=0.00968068
+[2026-04-17T05:14:34.514] [METRIC] [training:5] EPOCH epoch=0 train_loss=0.02750000 val_loss=0.00968865
+[2026-04-17T05:16:02.346] [METRIC] [training:5] EPOCH epoch=0 train_loss=0.02826000 val_loss=0.00967645
+[2026-04-17T05:17:24.067] [METRIC] [training:5] EPOCH epoch=0 train_loss=0.02619000 val_loss=0.00980312
+[2026-04-17T05:18:44.080] [METRIC] [training:5] EPOCH epoch=0 train_loss=0.02447000 val_loss=0.00989565
+[2026-04-17T05:20:05.428] [METRIC] [training:5] EPOCH epoch=0 train_loss=0.02236000 val_loss=0.00961330
+[2026-04-17T05:21:26.291] [METRIC] [training:5] EPOCH epoch=0 train_loss=0.02960000 val_loss=0.00950586
+[2026-04-17T05:22:50.846] [METRIC] [training:5] EPOCH epoch=0 train_loss=0.02042000 val_loss=0.00955731
+[2026-04-17T05:24:10.741] [METRIC] [training:5] EPOCH epoch=0 train_loss=0.01997000 val_loss=0.00972628
+[2026-04-17T05:25:34.673] [METRIC] [training:5] EPOCH epoch=0 train_loss=0.02059000 val_loss=0.00959896
+[2026-04-17T05:27:02.491] [METRIC] [training:5] EPOCH epoch=0 train_loss=0.02567000 val_loss=0.00965033
+[2026-04-17T05:28:36.704] [METRIC] [training:5] EPOCH epoch=0 train_loss=0.02748000 val_loss=0.00964426
+[2026-04-17T05:30:12.570] [METRIC] [training:5] EPOCH epoch=0 train_loss=0.02914000 val_loss=0.00953403
+[2026-04-17T05:31:40.771] [METRIC] [training:5] EPOCH epoch=0 train_loss=0.02318000 val_loss=0.00966725
+[2026-04-17T05:33:03.983] [METRIC] [training:5] EPOCH epoch=0 train_loss=0.02363000 val_loss=0.00984492
+[2026-04-17T05:34:34.428] [METRIC] [training:5] EPOCH epoch=0 train_loss=0.02084000 val_loss=0.00973164
+[2026-04-17T05:36:08.205] [METRIC] [training:5] EPOCH epoch=0 train_loss=0.02172000 val_loss=0.00957137
+[2026-04-17T05:36:09.045] [EVENT] [training:5] PHASE_END success=true duration=28m 51s best_train=0.02172 best_val=0.00957137 weights_size=2.2 MB
+[2026-04-17T05:36:09.045] [EVENT] [pipeline:5] GEN_SUMMARY gen=5 train_loss=0.02172 val_loss=0.00957137 elo=0 weights_size=2.2 MB
+[2026-04-17T05:36:09.688] [EVENT] [pipeline:6] GEN_START gen=6
+[2026-04-17T05:36:09.690] [CMD] [selfplay:6] "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" --generate --games 5000 --depth 4 --workers 12 --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen6.bin" --duck-chess --resign-cp 500 --resign-count 3 --draw-cp 50 --draw-count 6 --draw-min-ply 40 --draw-adj-moves 12 --draw-adj-threshold 4 --draw-adj-min-move 50 --maxplies 250 --contempt 25 --opening-plies 4 --opening-temp 1.5 --softmax-plies 8 --softmax-temp 0.5 --record-min-ply 10 --record-max-eval 2500 --nps-samples 20 --openings "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt"
+[2026-04-17T05:36:09.690] [EVENT] [selfplay:6] PHASE_START games=5000 depth=4 workers=12
+[2026-04-17T05:36:10.129] [INFO] [selfplay:6] [SelfPlay] Starting 5000 games  depth=4  movetime=0ms  workers=12  output=C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen6.bin  openings=2000  contempt=25  openingTemp=1.5  openingPlies=4  softmaxPlies=8  softmaxTemp=0.5  recordMinPly=10  recordMaxEval=2500  resign=500cp/3ply  draw=50cp/6ply@40  drawAdj=4cp/12ply@50
+[2026-04-17T05:36:31.165] [INFO] [selfplay:6] [STOP] Pipeline stopped by user (exit code 1)
+[2026-04-17T05:36:31.165] [EVENT] [selfplay:6] PHASE_END success=false output_size=unknown
+[2026-04-17T05:36:31.165] [ERROR] [selfplay:6] Self-play stopped by user
+[2026-04-17T05:36:31.165] [EVENT] [pipeline:0] PIPELINE_END reason=user_stop completed_gens=1
+# END OF LOG 2026-04-17T05:36:31.165

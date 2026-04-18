@@ -1,0 +1,24 @@
+# NNUE Training Runner - Structured Log
+# Format: [TIMESTAMP] [LEVEL] [PHASE:GEN] message
+# Generated: 2026-04-17T05:39:44.513
+#
+[2026-04-17T05:39:44.513] [EVENT] [pipeline:0] PIPELINE_START first_gen=8 last_gen=17 total_gens=10
+[2026-04-17T05:39:44.513] [CONFIG] [pipeline:0] variant=Duck Chess generations=10 startGen=7 gamesPerGen=50 depth=4 workers=12 epochsPerGen=20 batchSize=512 lr=0.001 weightDecay=0.0001 maxPositions=5000 splRatio=0.4 drawWeight=0.2 mateBoost=8 eloValidate=false
+[2026-04-17T05:39:44.513] [EVENT] [pipeline:8] GEN_START gen=8
+[2026-04-17T05:39:44.515] [CMD] [selfplay:8] "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" --generate --games 50 --depth 4 --workers 12 --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen8.bin" --duck-chess --resign-cp 500 --resign-count 3 --draw-cp 50 --draw-count 6 --draw-min-ply 40 --draw-adj-moves 12 --draw-adj-threshold 4 --draw-adj-min-move 50 --maxplies 250 --contempt 25 --opening-plies 4 --opening-temp 1.5 --softmax-plies 8 --softmax-temp 0.5 --record-min-ply 10 --record-max-eval 2500 --nps-samples 20 --openings "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt"
+[2026-04-17T05:39:44.518] [EVENT] [selfplay:8] PHASE_START games=50 depth=4 workers=12
+[2026-04-17T05:39:44.895] [INFO] [selfplay:8] [SelfPlay] Starting 50 games  depth=4  movetime=0ms  workers=12  output=C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen8.bin  openings=2000  contempt=25  openingTemp=1.5  openingPlies=4  softmaxPlies=8  softmaxTemp=0.5  recordMinPly=10  recordMaxEval=2500  resign=500cp/3ply  draw=50cp/6ply@40  drawAdj=4cp/12ply@50
+[2026-04-17T05:39:50.200] [STATS] [selfplay:8] PROGRESS pct=26% pos=127 W/D/B=3/8/2 6.9 games/s 1.3K nps
+[2026-04-17T05:39:59.523] [STATS] [selfplay:8] PROGRESS pct=50% pos=213 W/D/B=9/14/2 6.2 games/s 41.0K nps
+[2026-04-17T05:40:12.665] [STATS] [selfplay:8] PROGRESS pct=76% pos=362 W/D/B=17/19/2 5.3 games/s 19.8K nps
+[2026-04-17T05:41:29.385] [STATS] [selfplay:8] PROGRESS pct=100% pos=920 W/D/B=21/26/3 2.2 games/s 17.4K nps
+[2026-04-17T05:41:29.915] [STATS] [selfplay:8] [SelfPlay] Done. 920 positions written to C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen8.bin
+[2026-04-17T05:41:29.976] [EVENT] [selfplay:8] PHASE_END success=true output_size=25 KB
+[2026-04-17T05:41:30.564] [EVENT] [training:8] PHASE_START epochs=20 lr=0.001 batch=512
+[2026-04-17T05:43:57.241] [METRIC] [training:8] EPOCH epoch=0 train_loss=0.10171000 val_loss=0.03088398
+[2026-04-17T05:44:49.734] [METRIC] [training:8] EPOCH epoch=0 train_loss=0.09457000
+[2026-04-17T05:44:49.889] [ERROR] [training:8] [STOP] Pipeline stopped by user (exit code 1)
+[2026-04-17T05:44:49.890] [EVENT] [training:8] PHASE_END success=false duration=3m 19s best_train=0.09457 best_val=0.03088398 weights_size=2.2 MB
+[2026-04-17T05:44:49.890] [ERROR] [training:8] Training stopped by user
+[2026-04-17T05:44:49.890] [EVENT] [pipeline:0] PIPELINE_END reason=user_stop completed_gens=0
+# END OF LOG 2026-04-17T05:44:49.890

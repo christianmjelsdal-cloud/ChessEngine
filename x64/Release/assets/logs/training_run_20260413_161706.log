@@ -1,0 +1,14 @@
+# NNUE Training Runner - Structured Log
+# Format: [TIMESTAMP] [LEVEL] [PHASE:GEN] message
+# Generated: 2026-04-13T16:17:06.770
+#
+[2026-04-13T16:17:06.770] [EVENT] [pipeline:0] PIPELINE_START first_gen=39 last_gen=48 total_gens=10
+[2026-04-13T16:17:06.770] [CONFIG] [pipeline:0] variant=Standard Chess generations=10 startGen=38 gamesPerGen=3500 depth=9 workers=12 epochsPerGen=6 batchSize=2048 lr=5e-05 weightDecay=0.005 maxPositions=750000 splRatio=0.55 drawWeight=0.3 mateBoost=10 eloValidate=false
+[2026-04-13T16:17:06.770] [EVENT] [pipeline:39] GEN_START gen=39
+[2026-04-13T16:17:06.774] [EVENT] [selfplay:39] PHASE_START games=3500 depth=9 workers=12
+[2026-04-13T16:17:08.339] [EVENT] [selfplay:39] PHASE_END success=true
+[2026-04-13T16:17:08.340] [EVENT] [training:39] PHASE_START epochs=6 lr=5e-05 batch=2048
+[2026-04-13T16:19:03.508] [EVENT] [training:39] PHASE_END success=false
+[2026-04-13T16:19:03.508] [ERROR] [training:39] Training failed
+[2026-04-13T16:19:03.508] [EVENT] [pipeline:0] PIPELINE_END stopped=true completed_gens=0
+# END OF LOG 2026-04-13T16:19:03.508

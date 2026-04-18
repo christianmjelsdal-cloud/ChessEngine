@@ -1,0 +1,40 @@
+# NNUE Training Runner - Structured Log
+# Format: [TIMESTAMP] [LEVEL] [PHASE:GEN] message
+# Generated: 2026-04-15T02:46:01.665
+#
+[2026-04-15T02:46:01.665] [EVENT] [pipeline:0] PIPELINE_START first_gen=1 last_gen=5 total_gens=5
+[2026-04-15T02:46:01.665] [CONFIG] [pipeline:0] variant=Duck Chess generations=5 startGen=0 gamesPerGen=1000 depth=6 workers=12 epochsPerGen=8 batchSize=2048 lr=0.0005 weightDecay=0.0001 maxPositions=1000000 splRatio=0.15 drawWeight=0.7 mateBoost=10 eloValidate=true
+[2026-04-15T02:46:01.665] [EVENT] [pipeline:1] GEN_START gen=1
+[2026-04-15T02:46:01.667] [CMD] [selfplay:1] "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" --generate --games 1000 --depth 6 --workers 12 --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen1.bin" --duck-chess --resign-cp 500 --resign-count 3 --draw-cp 50 --draw-count 6 --draw-min-ply 40 --draw-adj-moves 12 --draw-adj-threshold 4 --draw-adj-min-move 50 --maxplies 250 --contempt 60 --opening-plies 4 --opening-temp 1.5 --softmax-plies 8 --softmax-temp 0.5 --record-min-ply 10 --record-max-eval 2500 --openings "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt"
+[2026-04-15T02:46:01.667] [EVENT] [selfplay:1] PHASE_START games=1000 depth=6 workers=12
+[2026-04-15T02:46:02.184] [INFO] [selfplay:1] [SelfPlay] Starting 1000 games  depth=6  movetime=0ms  workers=12  output=C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen1.bin  openings=2000  contempt=60  openingTemp=1.5  openingPlies=4  softmaxPlies=8  softmaxTemp=0.5  recordMinPly=10  recordMaxEval=2500  resign=500cp/3ply  draw=50cp/6ply@40  drawAdj=4cp/12ply@50
+[2026-04-15T02:52:49.182] [INFO] [selfplay:1] [SKIP] Phase skipped by user — continuing pipeline
+[2026-04-15T02:52:49.183] [EVENT] [selfplay:1] PHASE_END success=true output_size=95 KB
+[2026-04-15T02:52:49.950] [EVENT] [training:1] PHASE_START epochs=8 lr=0.0005 batch=2048
+[2026-04-15T02:52:50.613] [METRIC] [training:1] EPOCH epoch=1 train_loss=0.08721975
+[2026-04-15T02:52:50.613] [METRIC] [training:1] PHASE_LOSS opening=0.0464921 middlegame=0.104303 endgame=0.109806
+[2026-04-15T02:52:51.189] [METRIC] [training:1] EPOCH epoch=2 train_loss=0.08712526
+[2026-04-15T02:52:51.189] [METRIC] [training:1] PHASE_LOSS opening=0.046488 middlegame=0.104302 endgame=0.10979
+[2026-04-15T02:52:51.801] [METRIC] [training:1] EPOCH epoch=3 train_loss=0.08656348
+[2026-04-15T02:52:51.801] [METRIC] [training:1] PHASE_LOSS opening=0.0464844 middlegame=0.104301 endgame=0.109775
+[2026-04-15T02:52:52.479] [METRIC] [training:1] EPOCH epoch=4 train_loss=0.08746260
+[2026-04-15T02:52:52.479] [METRIC] [training:1] PHASE_LOSS opening=0.0464813 middlegame=0.104301 endgame=0.109761
+[2026-04-15T02:52:53.106] [METRIC] [training:1] EPOCH epoch=5 train_loss=0.08723453
+[2026-04-15T02:52:53.106] [METRIC] [training:1] PHASE_LOSS opening=0.0464782 middlegame=0.104302 endgame=0.109747
+[2026-04-15T02:52:53.764] [METRIC] [training:1] EPOCH epoch=6 train_loss=0.08692513
+[2026-04-15T02:52:53.764] [METRIC] [training:1] PHASE_LOSS opening=0.0464756 middlegame=0.104302 endgame=0.109734
+[2026-04-15T02:52:54.381] [METRIC] [training:1] EPOCH epoch=7 train_loss=0.08741558
+[2026-04-15T02:52:54.381] [METRIC] [training:1] PHASE_LOSS opening=0.0464735 middlegame=0.104303 endgame=0.109722
+[2026-04-15T02:52:54.936] [METRIC] [training:1] EPOCH epoch=8 train_loss=0.08691499
+[2026-04-15T02:52:54.936] [METRIC] [training:1] PHASE_LOSS opening=0.0464715 middlegame=0.104304 endgame=0.109709
+[2026-04-15T02:52:55.014] [EVENT] [training:1] PHASE_END success=true duration=0m 5s best_train=0.08691499 best_val=0 weights_size=2.2 MB
+[2026-04-15T02:52:55.014] [EVENT] [pipeline:1] GEN_SUMMARY gen=1 train_loss=0.08691499 val_loss=0 elo=0 weights_size=2.2 MB
+[2026-04-15T02:52:55.180] [EVENT] [pipeline:2] GEN_START gen=2
+[2026-04-15T02:52:55.182] [CMD] [selfplay:2] "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" --generate --games 1000 --depth 6 --workers 12 --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen2.bin" --duck-chess --resign-cp 500 --resign-count 3 --draw-cp 50 --draw-count 6 --draw-min-ply 40 --draw-adj-moves 12 --draw-adj-threshold 4 --draw-adj-min-move 50 --maxplies 250 --contempt 60 --opening-plies 4 --opening-temp 1.5 --softmax-plies 8 --softmax-temp 0.5 --record-min-ply 10 --record-max-eval 2500 --openings "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt"
+[2026-04-15T02:52:55.182] [EVENT] [selfplay:2] PHASE_START games=1000 depth=6 workers=12
+[2026-04-15T02:52:55.588] [INFO] [selfplay:2] [SelfPlay] Starting 1000 games  depth=6  movetime=0ms  workers=12  output=C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen2.bin  openings=2000  contempt=60  openingTemp=1.5  openingPlies=4  softmaxPlies=8  softmaxTemp=0.5  recordMinPly=10  recordMaxEval=2500  resign=500cp/3ply  draw=50cp/6ply@40  drawAdj=4cp/12ply@50
+[2026-04-15T02:53:27.167] [INFO] [selfplay:2] [STOP] Pipeline stopped by user (exit code 1)
+[2026-04-15T02:53:27.168] [EVENT] [selfplay:2] PHASE_END success=false output_size=95 KB
+[2026-04-15T02:53:27.168] [ERROR] [selfplay:2] Self-play stopped by user
+[2026-04-15T02:53:27.168] [EVENT] [pipeline:0] PIPELINE_END reason=user_stop completed_gens=1
+# END OF LOG 2026-04-15T02:53:27.168

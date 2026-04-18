@@ -1,0 +1,15 @@
+# NNUE Training Runner - Structured Log
+# Format: [TIMESTAMP] [LEVEL] [PHASE:GEN] message
+# Generated: 2026-04-17T21:29:49.998
+#
+[2026-04-17T21:29:49.999] [EVENT] [pipeline:0] PIPELINE_START first_gen=4 last_gen=13 total_gens=10
+[2026-04-17T21:29:49.999] [CONFIG] [pipeline:0] variant=Duck Chess generations=10 startGen=3 gamesPerGen=5000 depth=5 workers=12 epochsPerGen=30 batchSize=512 lr=0.002 weightDecay=0.0001 maxPositions=300000 splRatio=0.4 drawWeight=0.75 mateBoost=3 eloValidate=false
+[2026-04-17T21:29:49.999] [EVENT] [pipeline:4] GEN_START gen=4
+[2026-04-17T21:29:50.030] [CMD] [selfplay:4] "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" --generate --games 5000 --depth 5 --workers 12 --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen4.bin" --duck-chess --resign-cp 500 --resign-count 3 --draw-cp 50 --draw-count 6 --draw-min-ply 40 --draw-adj-moves 12 --draw-adj-threshold 4 --draw-adj-min-move 50 --maxplies 250 --contempt 25 --opening-plies 4 --opening-temp 1.5 --softmax-plies 8 --softmax-temp 0.5 --record-min-ply 10 --record-max-eval 2500 --nps-samples 30 --depth-shuffle --depth-shuffle-bias 2
+[2026-04-17T21:29:50.030] [EVENT] [selfplay:4] PHASE_START games=5000 depth=5 workers=12
+[2026-04-17T21:29:50.380] [INFO] [selfplay:4] [SelfPlay] Starting 5000 games  depth=5  movetime=0ms  workers=12  output=C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen4.bin  contempt=25  openingTemp=1.5  openingPlies=4  softmaxPlies=8  softmaxTemp=0.5  recordMinPly=10  recordMaxEval=2500  resign=500cp/3ply  draw=50cp/6ply@40  drawAdj=4cp/12ply@50
+[2026-04-17T21:31:03.364] [INFO] [selfplay:4] [STOP] Pipeline stopped by user (exit code 1)
+[2026-04-17T21:31:03.364] [EVENT] [selfplay:4] PHASE_END success=false output_size=1.7 MB
+[2026-04-17T21:31:03.364] [ERROR] [selfplay:4] Self-play stopped by user
+[2026-04-17T21:31:03.364] [EVENT] [pipeline:0] PIPELINE_END reason=user_stop completed_gens=0
+# END OF LOG 2026-04-17T21:31:03.364

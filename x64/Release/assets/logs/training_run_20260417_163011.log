@@ -1,0 +1,16 @@
+# NNUE Training Runner - Structured Log
+# Format: [TIMESTAMP] [LEVEL] [PHASE:GEN] message
+# Generated: 2026-04-17T16:30:11.002
+#
+[2026-04-17T16:30:11.002] [EVENT] [pipeline:0] PIPELINE_START first_gen=4 last_gen=13 total_gens=10
+[2026-04-17T16:30:11.002] [CONFIG] [pipeline:0] variant=Duck Chess generations=10 startGen=3 gamesPerGen=3000 depth=5 workers=12 epochsPerGen=30 batchSize=512 lr=0.002 weightDecay=0.0001 maxPositions=150000 splRatio=0.4 drawWeight=0.95 mateBoost=3 eloValidate=false
+[2026-04-17T16:30:11.002] [EVENT] [pipeline:4] GEN_START gen=4
+[2026-04-17T16:30:11.006] [CMD] [selfplay:4] "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" --generate --games 3000 --depth 5 --workers 12 --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen4.bin" --duck-chess --resign-cp 800 --resign-count 5 --draw-cp 50 --draw-count 6 --draw-min-ply 40 --draw-adj-moves 12 --draw-adj-threshold 15 --draw-adj-min-move 50 --maxplies 250 --contempt 75 --opening-plies 6 --opening-temp 2 --softmax-plies 8 --softmax-temp 0.5 --root-noise 0.15 --record-min-ply 10 --record-max-eval 2500 --nps-samples 30 --mixed-depth-ratio 0.6 --mixed-depth-low 4 --depth-shuffle --depth-shuffle-bias 2
+[2026-04-17T16:30:11.006] [EVENT] [selfplay:4] PHASE_START games=3000 depth=5 workers=12
+[2026-04-17T16:30:11.358] [INFO] [selfplay:4] [SelfPlay] Starting 3000 games  depth=5  movetime=0ms  workers=12  output=C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen4.bin  contempt=75  openingTemp=2  openingPlies=6  softmaxPlies=8  softmaxTemp=0.5  rootNoise=0.15  recordMinPly=10  recordMaxEval=2500  resign=800cp/5ply  draw=50cp/6ply@40  drawAdj=15cp/12ply@50  mixedDepth=4/5 (60%/39%)
+[2026-04-17T16:30:11.358] [STATS] [selfplay:4] PROGRESS pct=60% 
+[2026-04-17T16:38:44.491] [INFO] [selfplay:4] [STOP] Pipeline stopped by user (exit code 1)
+[2026-04-17T16:38:44.491] [EVENT] [selfplay:4] PHASE_END success=false output_size=1.7 MB
+[2026-04-17T16:38:44.491] [ERROR] [selfplay:4] Self-play stopped by user
+[2026-04-17T16:38:44.491] [EVENT] [pipeline:0] PIPELINE_END reason=user_stop completed_gens=0
+# END OF LOG 2026-04-17T16:38:44.491

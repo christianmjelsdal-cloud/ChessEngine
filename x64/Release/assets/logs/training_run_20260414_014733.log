@@ -1,0 +1,48 @@
+# NNUE Training Runner - Structured Log
+# Format: [TIMESTAMP] [LEVEL] [PHASE:GEN] message
+# Generated: 2026-04-14T01:47:33.956
+#
+[2026-04-14T01:47:33.956] [EVENT] [pipeline:0] PIPELINE_START first_gen=2 last_gen=4 total_gens=3
+[2026-04-14T01:47:33.956] [CONFIG] [pipeline:0] variant=Duck Chess generations=3 startGen=1 gamesPerGen=50 depth=2 workers=12 epochsPerGen=3 batchSize=1024 lr=0.001 weightDecay=1e-05 maxPositions=100000 splRatio=0.4 drawWeight=1 mateBoost=3 eloValidate=false
+[2026-04-14T01:47:33.956] [EVENT] [pipeline:2] GEN_START gen=2
+[2026-04-14T01:47:33.958] [CMD] [selfplay:2] "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" --generate --games 50 --depth 2 --workers 12 --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen2.bin" --duck-chess --resign-cp 500 --resign-count 3 --draw-cp 8 --draw-count 6 --draw-min-ply 40 --draw-adj-moves 12 --draw-adj-threshold 4 --draw-adj-min-move 50 --maxplies 250 --contempt 25 --opening-plies 4 --opening-temp 1.5 --softmax-plies 8 --softmax-temp 0.5 --record-min-ply 10 --record-max-eval 2500 --openings "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt"
+[2026-04-14T01:47:33.958] [EVENT] [selfplay:2] PHASE_START games=50 depth=2 workers=12
+[2026-04-14T01:47:34.471] [INFO] [selfplay:2] NNUE: Legacy weight file incompatible with current architecture. Starting with random weights — please retrain.
+[2026-04-14T01:47:34.823] [INFO] [selfplay:2] [SelfPlay] WARNING: Could not load C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets/duck_nnue_weights.bin - falling back to handcrafted evaluation.
+[2026-04-14T01:47:34.848] [INFO] [selfplay:2] [SelfPlay] Starting 50 games  depth=2  movetime=0ms  workers=12  output=C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen2.bin  openings=2000  contempt=25  openingTemp=1.5  openingPlies=4  softmaxPlies=8  softmaxTemp=0.5  recordMinPly=10  recordMaxEval=2500  resign=500cp/3ply  draw=8cp/6ply@40  drawAdj=4cp/12ply@50
+[2026-04-14T01:47:42.859] [INFO] [selfplay:2] [SelfPlay] Done. 1477 positions written to C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen2.bin
+[2026-04-14T01:47:42.926] [EVENT] [selfplay:2] PHASE_END success=true
+[2026-04-14T01:47:43.624] [EVENT] [training:2] PHASE_START epochs=3 lr=0.001 batch=1024
+[2026-04-14T01:47:47.476] [METRIC] [training:2] EPOCH epoch=1 train_loss=0.07240100
+[2026-04-14T01:47:51.204] [METRIC] [training:2] EPOCH epoch=2 train_loss=0.07162600
+[2026-04-14T01:47:55.059] [METRIC] [training:2] EPOCH epoch=3 train_loss=0.07207600
+[2026-04-14T01:47:55.128] [EVENT] [training:2] PHASE_END success=true
+[2026-04-14T01:47:55.128] [EVENT] [pipeline:2] GEN_SUMMARY gen=2 train_loss=0.072076 val_loss=0 elo=0
+[2026-04-14T01:47:55.681] [EVENT] [pipeline:3] GEN_START gen=3
+[2026-04-14T01:47:55.683] [CMD] [selfplay:3] "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" --generate --games 50 --depth 2 --workers 12 --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen3.bin" --duck-chess --resign-cp 500 --resign-count 3 --draw-cp 8 --draw-count 6 --draw-min-ply 40 --draw-adj-moves 12 --draw-adj-threshold 4 --draw-adj-min-move 50 --maxplies 250 --contempt 25 --opening-plies 4 --opening-temp 1.5 --softmax-plies 8 --softmax-temp 0.5 --record-min-ply 10 --record-max-eval 2500 --openings "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt"
+[2026-04-14T01:47:55.683] [EVENT] [selfplay:3] PHASE_START games=50 depth=2 workers=12
+[2026-04-14T01:47:56.087] [INFO] [selfplay:3] NNUE: Legacy weight file incompatible with current architecture. Starting with random weights — please retrain.
+[2026-04-14T01:47:56.437] [INFO] [selfplay:3] [SelfPlay] WARNING: Could not load C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets/duck_nnue_weights.bin - falling back to handcrafted evaluation.
+[2026-04-14T01:47:56.461] [INFO] [selfplay:3] [SelfPlay] Starting 50 games  depth=2  movetime=0ms  workers=12  output=C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen3.bin  openings=2000  contempt=25  openingTemp=1.5  openingPlies=4  softmaxPlies=8  softmaxTemp=0.5  recordMinPly=10  recordMaxEval=2500  resign=500cp/3ply  draw=8cp/6ply@40  drawAdj=4cp/12ply@50
+[2026-04-14T01:48:04.471] [INFO] [selfplay:3] [SelfPlay] Done. 1477 positions written to C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen3.bin
+[2026-04-14T01:48:04.534] [EVENT] [selfplay:3] PHASE_END success=true
+[2026-04-14T01:48:05.090] [EVENT] [training:3] PHASE_START epochs=3 lr=0.001 batch=1024
+[2026-04-14T01:48:09.807] [METRIC] [training:3] EPOCH epoch=1 train_loss=0.06534100
+[2026-04-14T01:48:14.539] [METRIC] [training:3] EPOCH epoch=2 train_loss=0.06644300
+[2026-04-14T01:48:19.242] [METRIC] [training:3] EPOCH epoch=3 train_loss=0.06723000
+[2026-04-14T01:48:19.310] [EVENT] [training:3] PHASE_END success=true
+[2026-04-14T01:48:19.310] [EVENT] [pipeline:3] GEN_SUMMARY gen=3 train_loss=0.06723 val_loss=0 elo=0
+[2026-04-14T01:48:19.876] [EVENT] [pipeline:4] GEN_START gen=4
+[2026-04-14T01:48:19.878] [CMD] [selfplay:4] "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" --generate --games 50 --depth 2 --workers 12 --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen4.bin" --duck-chess --resign-cp 500 --resign-count 3 --draw-cp 8 --draw-count 6 --draw-min-ply 40 --draw-adj-moves 12 --draw-adj-threshold 4 --draw-adj-min-move 50 --maxplies 250 --contempt 25 --opening-plies 4 --opening-temp 1.5 --softmax-plies 8 --softmax-temp 0.5 --record-min-ply 10 --record-max-eval 2500 --openings "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt"
+[2026-04-14T01:48:19.878] [EVENT] [selfplay:4] PHASE_START games=50 depth=2 workers=12
+[2026-04-14T01:48:20.311] [INFO] [selfplay:4] NNUE: Legacy weight file incompatible with current architecture. Starting with random weights — please retrain.
+[2026-04-14T01:48:20.695] [INFO] [selfplay:4] [SelfPlay] WARNING: Could not load C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets/duck_nnue_weights.bin - falling back to handcrafted evaluation.
+[2026-04-14T01:48:20.730] [INFO] [selfplay:4] [SelfPlay] Starting 50 games  depth=2  movetime=0ms  workers=12  output=C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen4.bin  openings=2000  contempt=25  openingTemp=1.5  openingPlies=4  softmaxPlies=8  softmaxTemp=0.5  recordMinPly=10  recordMaxEval=2500  resign=500cp/3ply  draw=8cp/6ply@40  drawAdj=4cp/12ply@50
+[2026-04-14T01:48:28.747] [INFO] [selfplay:4] [SelfPlay] Done. 1477 positions written to C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen4.bin
+[2026-04-14T01:48:28.810] [EVENT] [selfplay:4] PHASE_END success=true
+[2026-04-14T01:48:29.133] [EVENT] [training:4] PHASE_START epochs=3 lr=0.001 batch=1024
+[2026-04-14T01:48:32.619] [ERROR] [training:4] [STOP] Pipeline stopped by user (exit code 1)
+[2026-04-14T01:48:32.619] [EVENT] [training:4] PHASE_END success=false
+[2026-04-14T01:48:32.619] [ERROR] [training:4] Training stopped by user
+[2026-04-14T01:48:32.619] [EVENT] [pipeline:0] PIPELINE_END reason=user_stop completed_gens=2
+# END OF LOG 2026-04-14T01:48:32.619

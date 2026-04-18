@@ -1,0 +1,60 @@
+# NNUE Training Runner - Structured Log
+# Format: [TIMESTAMP] [LEVEL] [PHASE:GEN] message
+# Structured events use KEY=VALUE pairs after the tag
+# Levels: INFO, WARN, ERROR, EVENT, METRIC, CONFIG, CMD
+# Generated: 2026-03-28T02:46:02.600
+#
+# ── HOW TO READ THIS LOG ──
+# Lines starting with [EVENT] mark pipeline milestones (start/stop/phase transitions)
+# Lines starting with [METRIC] contain numeric training data points
+# Lines starting with [ERROR] or [WARN] flag issues to investigate
+# Lines starting with [CONFIG] dump the full configuration used
+# Lines starting with [CMD] show exact command lines executed
+# Lines starting with [INFO] are general informational messages
+#
+[2026-03-28T02:46:02.603] [INFO] [swa_match:0] [LOG] Writing structured log to: C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\logs\training_run_20260328_024602.log
+[2026-03-28T02:46:02.603] [EVENT] [pipeline:0] PIPELINE_START first_gen=6 last_gen=15 total_gens=10
+[2026-03-28T02:46:02.603] [CONFIG] [pipeline:0] generations=10 startGen=5 gamesPerGen=750 epochsPerGen=8 batchSize=2048 lr=0.0002 weightDecay=0.0005 dropout=0.2 labelSmooth=0.01 gradAccum=4 warmupSteps=500 drawWeight=0.3 mateBoost=10 splRatio=0.25 frcMix=0 replayWindow=4 replayDecay=0.7 workers=12 depth=7 mixedDepthLow=4 mixedDepthRatio=0.2 maxPositions=200000 earlyStop=5 cosineLr=true cosineT0=0 swa=true swaStart=5 drawPct=30 wdlAlpha=0.3 wdlDrawElo=50 eloValidate=false eloGames=100 swaGames=100 overfitDetect=true resignCp=500 contemptCp=20 maxPlies=250 drawCp=0 exeName=ChessEngine.exe pyScript=train_nnue.py dataDir=assets
+[2026-03-28T02:46:02.603] [INFO] [swa_match:0] --- Generation 6 ---
+[2026-03-28T02:46:02.604] [EVENT] [selfplay:6] PHASE_START games=750 depth=7 workers=12
+[2026-03-28T02:46:02.604] [CMD] [selfplay:0] [CMD] "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" --generate --games 750 --depth 7 --mixed-depth-ratio 0.200000 --mixed-depth-low 4 --workers 12 --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen6.bin" --weights "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_gen5.bin" --openings "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt" --game-time-limit 480 --resigncp 500 --contempt 20 --maxplies 250 --drawcp 0
+[2026-03-28T02:46:03.182] [INFO] [selfplay:0] [SelfPlay] Loaded 2000 opening positions from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt
+[2026-03-28T02:46:03.182] [INFO] [selfplay:0] [SelfPlay] Starting 750 games  depth=7  movetime=0ms  workers=12  output=C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen6.bin  openings=2000  contempt=20  openingTemp=1.5  softmaxPlies=8  softmaxTemp=0.5  recordMinPly=10  mixedDepth=4/7 (20%/80%)
+[2026-03-28T02:46:06.408] [INFO] [selfplay:0] [SelfPlay] 1/750 (0%)  pos=81  W/D/B=0/0/1  (0%/0%/100%)  d4/d7  0.3 games/s (avg 0.3)  63.7K nps  ETA 00:36:16        
+[2026-03-28T02:46:07.338] [INFO] [selfplay:0] [SelfPlay] 2/750 (0%)  pos=164  W/D/B=1/0/1  (50%/0%/50%)  d4/d7  0.8 games/s (avg 0.6)  119.0K nps  ETA 00:20:05      
+[2026-03-28T02:46:10.837] [INFO] [selfplay:0] [SelfPlay] 3/750 (0%)  pos=271  W/D/B=1/1/1  (33%/33%/33%)  d4/d7  0.8 games/s (avg 0.7)  149.8K nps  ETA 00:17:11     
+[2026-03-28T02:46:12.770] [INFO] [selfplay:0] [SelfPlay] 4/750 (0%)  pos=407  W/D/B=1/1/2  (25%/25%/50%)  d4/d7  0.7 games/s (avg 0.5)  116.5K nps  ETA 00:23:45     
+[2026-03-28T02:46:14.338] [INFO] [selfplay:0] [SelfPlay] 5/750 (0%)  pos=503  W/D/B=1/1/3  (20%/20%/60%)  d4/d7  0.7 games/s (avg 0.5)  125.9K nps  ETA 00:23:46     
+[2026-03-28T02:46:26.653] [INFO] [selfplay:0] [SelfPlay] 6/750 (0%)  pos=598  W/D/B=1/2/3  (16%/33%/50%)  d4/d7  0.7 games/s (avg 0.5)  126.3K nps  ETA 00:22:51     
+[2026-03-28T02:46:27.868] [INFO] [selfplay:0] [SelfPlay] 7/750 (0%)  pos=645  W/D/B=2/2/3  (28%/28%/42%)  d4/d7  0.6 games/s (avg 0.3)  106.2K nps  ETA 00:41:30     
+[2026-03-28T02:46:28.042] [INFO] [selfplay:0] [SelfPlay] 8/750 (1%)  pos=745  W/D/B=3/2/3  (37%/25%/37%)  d4/d7  0.6 games/s (avg 0.3)  156.7K nps  ETA 00:38:09     
+[2026-03-28T02:46:28.958] [INFO] [selfplay:0] [SelfPlay] 9/750 (1%)  pos=855  W/D/B=3/2/4  (33%/22%/44%)  d4/d7  1.4 games/s (avg 0.4)  213.2K nps  ETA 00:34:05     
+[2026-03-28T02:46:32.507] [INFO] [selfplay:0] [SelfPlay] 10/750 (1%)  pos=946  W/D/B=4/2/4  (40%/20%/40%)  d4/d7  1.4 games/s (avg 0.4)  260.6K nps  ETA 00:31:43    
+[2026-03-28T02:46:32.661] [INFO] [selfplay:0] [SelfPlay] 11/750 (1%)  pos=1091  W/D/B=4/3/4  (36%/27%/36%)  d4/d7  1.2 games/s (avg 0.4)  238.4K nps  ETA 00:32:50   
+[2026-03-28T02:46:37.347] [INFO] [selfplay:0] [SelfPlay] 12/750 (1%)  pos=1157  W/D/B=5/3/4  (41%/25%/33%)  d4/d7  2.0 games/s (avg 0.4)  244.5K nps  ETA 00:30:07   
+[2026-03-28T02:46:38.327] [INFO] [selfplay:0] [SelfPlay] 13/750 (1%)  pos=1227  W/D/B=5/3/5  (38%/23%/38%)  d4/d7  1.7 games/s (avg 0.4)  267.3K nps  ETA 00:32:15   
+[2026-03-28T02:46:38.430] [INFO] [selfplay:0] [SelfPlay] 14/750 (1%)  pos=1272  W/D/B=5/3/6  (35%/21%/42%)  d4/d7  1.6 games/s (avg 0.4)  295.1K nps  ETA 00:30:47   
+[2026-03-28T02:46:42.490] [INFO] [selfplay:0] [SelfPlay] 15/750 (2%)  pos=1383  W/D/B=5/3/7  (33%/20%/46%)  d4/d7  2.8 games/s (avg 0.4)  348.6K nps  ETA 00:28:43   
+[2026-03-28T02:46:44.244] [INFO] [selfplay:0] [SelfPlay] 16/750 (2%)  pos=1466  W/D/B=6/3/7  (37%/18%/43%)  d4/d7  2.6 games/s (avg 0.4)  353.0K nps  ETA 00:30:01   
+[2026-03-28T02:46:45.128] [INFO] [selfplay:0] [SelfPlay] 17/750 (2%)  pos=1589  W/D/B=7/3/7  (41%/17%/41%)  d4/d7  2.3 games/s (avg 0.4)  396.7K nps  ETA 00:29:30   
+[2026-03-28T02:46:46.478] [INFO] [selfplay:0] [SelfPlay] 18/750 (2%)  pos=1642  W/D/B=7/3/8  (38%/16%/44%)  d4/d7  2.1 games/s (avg 0.4)  445.2K nps  ETA 00:28:23   
+[2026-03-28T02:46:49.724] [INFO] [selfplay:0] [SelfPlay] 19/750 (2%)  pos=1845  W/D/B=7/4/8  (36%/21%/42%)  d4/d7  1.9 games/s (avg 0.4)  478.3K nps  ETA 00:27:42   
+[2026-03-28T02:46:50.909] [INFO] [selfplay:0] [SelfPlay] 20/750 (2%)  pos=1944  W/D/B=8/4/8  (40%/20%/40%)  d4/d7  1.7 games/s (avg 0.4)  446.1K nps  ETA 00:28:17   
+[2026-03-28T02:46:50.924] [INFO] [selfplay:0] [SelfPlay] 21/750 (2%)  pos=1957  W/D/B=8/4/9  (38%/19%/42%)  d4/d7  1.6 games/s (avg 0.4)  440.9K nps  ETA 00:27:36   
+[2026-03-28T02:46:53.391] [INFO] [selfplay:0] [SelfPlay] 22/750 (2%)  pos=2074  W/D/B=9/4/9  (40%/18%/40%)  d4/d7  11.0 games/s (avg 0.5)  503.1K nps  ETA 00:26:16  
+[2026-03-28T02:46:54.481] [INFO] [selfplay:0] [SelfPlay] 23/750 (3%)  pos=2129  W/D/B=10/4/9  (43%/17%/39%)  d4/d7  10.2 games/s (avg 0.5)  505.0K nps  ETA 00:26:26 
+[2026-03-28T02:46:58.491] [INFO] [selfplay:0] [SelfPlay] 24/750 (3%)  pos=2193  W/D/B=10/4/10  (41%/16%/41%)  d4/d7  9.4 games/s (avg 0.5)  525.7K nps  ETA 00:25:47 
+[2026-03-28T02:47:00.146] [INFO] [selfplay:0] [SelfPlay] 25/750 (3%)  pos=2245  W/D/B=11/4/10  (44%/16%/40%)  d4/d7  8.7 games/s (avg 0.5)  591.1K nps  ETA 00:26:42 
+[2026-03-28T02:47:00.520] [INFO] [selfplay:0] [SelfPlay] 26/750 (3%)  pos=2289  W/D/B=12/4/10  (46%/15%/38%)  d4/d7  8.1 games/s (avg 0.5)  619.8K nps  ETA 00:26:25 
+[2026-03-28T02:47:01.686] [INFO] [selfplay:0] [SelfPlay] 27/750 (3%)  pos=2395  W/D/B=12/4/11  (44%/14%/40%)  d4/d7  7.3 games/s (avg 0.5)  621.7K nps  ETA 00:25:34 
+[2026-03-28T02:47:01.692] [INFO] [selfplay:0] [SelfPlay] 28/750 (3%)  pos=2466  W/D/B=13/4/11  (46%/14%/39%)  d4/d7  6.3 games/s (avg 0.5)  645.7K nps  ETA 00:25:08 
+[2026-03-28T02:47:03.316] [INFO] [selfplay:0] [SelfPlay] 29/750 (3%)  pos=2538  W/D/B=13/5/11  (44%/17%/37%)  d4/d7  30.8 games/s (avg 0.5)  677.0K nps  ETA 00:24:12
+[2026-03-28T02:47:05.579] [INFO] [selfplay:0] [SelfPlay] 30/750 (4%)  pos=2542  W/D/B=14/5/11  (46%/16%/36%)  d4/d7  28.5 games/s (avg 0.5)  680.0K nps  ETA 00:24:01
+[2026-03-28T02:47:05.633] [INFO] [selfplay:0] [SelfPlay] 31/750 (4%)  pos=2595  W/D/B=15/5/11  (48%/16%/35%)  d4/d7  26.3 games/s (avg 0.5)  683.6K nps  ETA 00:24:07
+[2026-03-28T02:47:08.656] [INFO] [selfplay:0] [SelfPlay] 32/750 (4%)  pos=2702  W/D/B=16/5/11  (50%/15%/34%)  d4/d7  25.2 games/s (avg 0.5)  708.9K nps  ETA 00:23:20
+[2026-03-28T02:47:08.656] [INFO] [selfplay:0] [INFO] Process terminated -- pipeline stopped by user.
+[2026-03-28T02:47:08.657] [EVENT] [selfplay:6] PHASE_END success=false elapsed_sec=66.0
+[2026-03-28T02:47:08.657] [ERROR] [selfplay:0] [ERR] Self-play failed gen 6
+[2026-03-28T02:47:08.657] [INFO] [selfplay:0] === Pipeline stopped ===
+[2026-03-28T02:47:08.657] [EVENT] [pipeline:0] PIPELINE_END stopped=true total_elapsed_sec=66.0 completed_gens=0
+# ── END OF LOG ── 2026-03-28T02:47:08.657

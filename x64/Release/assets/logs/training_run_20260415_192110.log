@@ -1,0 +1,16 @@
+# NNUE Training Runner - Structured Log
+# Format: [TIMESTAMP] [LEVEL] [PHASE:GEN] message
+# Generated: 2026-04-15T19:21:10.222
+#
+[2026-04-15T19:21:10.222] [EVENT] [pipeline:0] PIPELINE_START first_gen=8 last_gen=12 total_gens=5
+[2026-04-15T19:21:10.222] [CONFIG] [pipeline:0] variant=Duck Chess generations=5 startGen=7 gamesPerGen=1000 depth=4 workers=12 epochsPerGen=15 batchSize=512 lr=0.001 weightDecay=0.0001 maxPositions=100000 splRatio=0.3 drawWeight=0.2 mateBoost=5 eloValidate=false
+[2026-04-15T19:21:10.222] [EVENT] [pipeline:8] GEN_START gen=8
+[2026-04-15T19:21:10.226] [CMD] [selfplay:8] "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" --generate --games 1000 --depth 4 --workers 12 --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen8.bin" --duck-chess --resign-cp 500 --resign-count 3 --draw-cp 50 --draw-count 6 --draw-min-ply 40 --draw-adj-moves 12 --draw-adj-threshold 4 --draw-adj-min-move 50 --maxplies 250 --contempt 25 --opening-plies 4 --opening-temp 1.5 --softmax-plies 8 --softmax-temp 0.5 --record-min-ply 10 --record-max-eval 1500 --openings "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt"
+[2026-04-15T19:21:10.226] [EVENT] [selfplay:8] PHASE_START games=1000 depth=4 workers=12
+[2026-04-15T19:21:10.680] [INFO] [selfplay:8] [SelfPlay] Starting 1000 games  depth=4  movetime=0ms  workers=12  output=C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen8.bin  openings=2000  contempt=25  openingTemp=1.5  openingPlies=4  softmaxPlies=8  softmaxTemp=0.5  recordMinPly=10  recordMaxEval=1500  resign=500cp/3ply  draw=50cp/6ply@40  drawAdj=4cp/12ply@50
+[2026-04-15T19:49:30.111] [STATS] [selfplay:8] PROGRESS pct=25% pos=10998 W/D/B=14/213/23 0.4 games/s 266 nps
+[2026-04-15T20:13:14.602] [INFO] [selfplay:8] [STOP] Pipeline stopped by user (exit code 1)
+[2026-04-15T20:13:14.604] [EVENT] [selfplay:8] PHASE_END success=false output_size=unknown
+[2026-04-15T20:13:14.604] [ERROR] [selfplay:8] Self-play stopped by user
+[2026-04-15T20:13:14.604] [EVENT] [pipeline:0] PIPELINE_END reason=user_stop completed_gens=0
+# END OF LOG 2026-04-15T20:13:14.604

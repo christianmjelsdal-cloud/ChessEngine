@@ -1,0 +1,114 @@
+# NNUE Training Runner - Structured Log
+# Format: [TIMESTAMP] [LEVEL] [PHASE:GEN] message
+# Generated: 2026-04-16T16:26:47.877
+#
+[2026-04-16T16:26:47.877] [EVENT] [pipeline:0] PIPELINE_START first_gen=1 last_gen=10 total_gens=10
+[2026-04-16T16:26:47.877] [CONFIG] [pipeline:0] variant=Duck Chess generations=10 startGen=0 gamesPerGen=500 depth=3 workers=12 epochsPerGen=20 batchSize=512 lr=0.001 weightDecay=0.0001 maxPositions=50000 splRatio=0.4 drawWeight=0.2 mateBoost=8 eloValidate=false
+[2026-04-16T16:26:47.877] [EVENT] [pipeline:1] GEN_START gen=1
+[2026-04-16T16:26:47.883] [CMD] [selfplay:1] "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" --generate --games 500 --depth 3 --workers 12 --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen1.bin" --duck-chess --resign-cp 350 --resign-count 3 --draw-cp 50 --draw-count 10 --draw-min-ply 60 --draw-adj-moves 12 --draw-adj-threshold 4 --draw-adj-min-move 80 --maxplies 250 --contempt 75 --opening-plies 4 --opening-temp 1.5 --softmax-plies 8 --softmax-temp 0.5 --record-min-ply 10 --record-max-eval 2500 --openings "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt"
+[2026-04-16T16:26:47.883] [EVENT] [selfplay:1] PHASE_START games=500 depth=3 workers=12
+[2026-04-16T16:26:48.250] [INFO] [selfplay:1] [SelfPlay] Starting 500 games  depth=3  movetime=0ms  workers=12  output=C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen1.bin  openings=2000  contempt=75  openingTemp=1.5  openingPlies=4  softmaxPlies=8  softmaxTemp=0.5  recordMinPly=10  recordMaxEval=2500  resign=350cp/3ply  draw=50cp/10ply@60  drawAdj=4cp/12ply@80
+[2026-04-16T16:34:26.690] [STATS] [selfplay:1] PROGRESS pct=25% pos=10039 W/D/B=25/70/30 4.8 games/s 3.4K nps
+[2026-04-16T16:41:11.585] [STATS] [selfplay:1] PROGRESS pct=50% pos=19042 W/D/B=52/138/60 2.7 games/s 10.0K nps
+[2026-04-16T16:48:07.647] [STATS] [selfplay:1] PROGRESS pct=75% pos=28190 W/D/B=75/211/89 0.6 games/s 3.5K nps
+[2026-04-16T16:55:17.481] [STATS] [selfplay:1] PROGRESS pct=100% pos=37913 W/D/B=96/281/123 3.0 games/s 8.3K nps
+[2026-04-16T16:55:18.281] [STATS] [selfplay:1] [SelfPlay] Done. 37913 positions written to C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen1.bin
+[2026-04-16T16:55:18.356] [EVENT] [selfplay:1] PHASE_END success=true output_size=1.8 MB
+[2026-04-16T16:55:18.930] [EVENT] [training:1] PHASE_START epochs=20 lr=0.001 batch=512
+[2026-04-16T16:55:37.217] [METRIC] [training:1] EPOCH epoch=0 train_loss=0.14027000 val_loss=0.02727031
+[2026-04-16T16:55:54.488] [METRIC] [training:1] EPOCH epoch=0 train_loss=0.10974000 val_loss=0.03198595
+[2026-04-16T16:56:12.784] [METRIC] [training:1] EPOCH epoch=0 train_loss=0.06427000 val_loss=0.02486124
+[2026-04-16T16:56:31.178] [METRIC] [training:1] EPOCH epoch=0 train_loss=0.07126000 val_loss=0.02390772
+[2026-04-16T16:56:49.528] [METRIC] [training:1] EPOCH epoch=0 train_loss=0.06472000 val_loss=0.02225740
+[2026-04-16T16:57:07.196] [METRIC] [training:1] EPOCH epoch=0 train_loss=0.05312000 val_loss=0.02172629
+[2026-04-16T16:57:25.721] [METRIC] [training:1] EPOCH epoch=0 train_loss=0.03591000 val_loss=0.02015937
+[2026-04-16T16:57:43.882] [METRIC] [training:1] EPOCH epoch=0 train_loss=0.05737000 val_loss=0.02036759
+[2026-04-16T16:58:02.328] [METRIC] [training:1] EPOCH epoch=0 train_loss=0.04472000 val_loss=0.02066738
+[2026-04-16T16:58:20.715] [METRIC] [training:1] EPOCH epoch=0 train_loss=0.04200000 val_loss=0.01956286
+[2026-04-16T16:58:39.102] [METRIC] [training:1] EPOCH epoch=0 train_loss=0.03076000 val_loss=0.01876179
+[2026-04-16T16:58:57.476] [METRIC] [training:1] EPOCH epoch=0 train_loss=0.03903000 val_loss=0.01882228
+[2026-04-16T16:59:15.743] [METRIC] [training:1] EPOCH epoch=0 train_loss=0.03577000 val_loss=0.01847106
+[2026-04-16T16:59:33.484] [METRIC] [training:1] EPOCH epoch=0 train_loss=0.03168000 val_loss=0.01795015
+[2026-04-16T16:59:49.529] [METRIC] [training:1] EPOCH epoch=0 train_loss=0.03395000 val_loss=0.01770473
+[2026-04-16T17:00:05.454] [METRIC] [training:1] EPOCH epoch=0 train_loss=0.04564000 val_loss=0.01783304
+[2026-04-16T17:00:21.440] [METRIC] [training:1] EPOCH epoch=0 train_loss=0.03739000 val_loss=0.01744972
+[2026-04-16T17:00:37.370] [METRIC] [training:1] EPOCH epoch=0 train_loss=0.03170000 val_loss=0.01724049
+[2026-04-16T17:00:53.492] [METRIC] [training:1] EPOCH epoch=0 train_loss=0.03198000 val_loss=0.01741172
+[2026-04-16T17:01:09.371] [METRIC] [training:1] EPOCH epoch=0 train_loss=0.03832000 val_loss=0.01688313
+[2026-04-16T17:01:09.495] [EVENT] [training:1] PHASE_END success=true duration=5m 50s best_train=0.03832 best_val=0.01688313 weights_size=2.2 MB
+[2026-04-16T17:01:09.495] [EVENT] [pipeline:1] GEN_SUMMARY gen=1 train_loss=0.03832 val_loss=0.01688313 elo=0 weights_size=2.2 MB
+[2026-04-16T17:01:10.075] [EVENT] [pipeline:2] GEN_START gen=2
+[2026-04-16T17:01:10.076] [CMD] [selfplay:2] "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" --generate --games 500 --depth 3 --workers 12 --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen2.bin" --duck-chess --resign-cp 350 --resign-count 3 --draw-cp 50 --draw-count 10 --draw-min-ply 60 --draw-adj-moves 12 --draw-adj-threshold 4 --draw-adj-min-move 80 --maxplies 250 --contempt 75 --opening-plies 4 --opening-temp 1.5 --softmax-plies 8 --softmax-temp 0.5 --record-min-ply 10 --record-max-eval 2500 --openings "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt"
+[2026-04-16T17:01:10.076] [EVENT] [selfplay:2] PHASE_START games=500 depth=3 workers=12
+[2026-04-16T17:01:10.496] [INFO] [selfplay:2] [SelfPlay] Starting 500 games  depth=3  movetime=0ms  workers=12  output=C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen2.bin  openings=2000  contempt=75  openingTemp=1.5  openingPlies=4  softmaxPlies=8  softmaxTemp=0.5  recordMinPly=10  recordMaxEval=2500  resign=350cp/3ply  draw=50cp/10ply@60  drawAdj=4cp/12ply@80
+[2026-04-16T17:09:05.368] [STATS] [selfplay:2] PROGRESS pct=25% pos=6446 W/D/B=30/51/44 3.0 games/s 10.3K nps
+[2026-04-16T17:17:01.162] [STATS] [selfplay:2] PROGRESS pct=50% pos=13667 W/D/B=54/111/85 0.8 games/s 19.5K nps
+[2026-04-16T17:24:52.424] [STATS] [selfplay:2] PROGRESS pct=75% pos=20211 W/D/B=85/166/124 3.4 games/s 5.9K nps
+[2026-04-16T17:33:43.888] [STATS] [selfplay:2] PROGRESS pct=100% pos=27504 W/D/B=110/226/164 1.2 games/s 8.8K nps
+[2026-04-16T17:33:44.526] [STATS] [selfplay:2] [SelfPlay] Done. 27504 positions written to C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen2.bin
+[2026-04-16T17:33:44.590] [EVENT] [selfplay:2] PHASE_END success=true output_size=1.4 MB
+[2026-04-16T17:33:45.168] [EVENT] [training:2] PHASE_START epochs=20 lr=0.001 batch=512
+[2026-04-16T17:34:04.836] [METRIC] [training:2] EPOCH epoch=0 train_loss=0.03990000 val_loss=0.01752917
+[2026-04-16T17:34:22.891] [METRIC] [training:2] EPOCH epoch=0 train_loss=0.05909000 val_loss=0.01778172
+[2026-04-16T17:34:39.656] [METRIC] [training:2] EPOCH epoch=0 train_loss=0.03341000 val_loss=0.01734930
+[2026-04-16T17:34:55.961] [METRIC] [training:2] EPOCH epoch=0 train_loss=0.03379000 val_loss=0.01730455
+[2026-04-16T17:35:12.436] [METRIC] [training:2] EPOCH epoch=0 train_loss=0.02741000 val_loss=0.01743789
+[2026-04-16T17:35:28.971] [METRIC] [training:2] EPOCH epoch=0 train_loss=0.02764000 val_loss=0.01716145
+[2026-04-16T17:35:46.341] [METRIC] [training:2] EPOCH epoch=0 train_loss=0.02765000 val_loss=0.01700049
+[2026-04-16T17:36:04.354] [METRIC] [training:2] EPOCH epoch=0 train_loss=0.02979000 val_loss=0.01689894
+[2026-04-16T17:36:22.968] [METRIC] [training:2] EPOCH epoch=0 train_loss=0.03336000 val_loss=0.01708706
+[2026-04-16T17:36:41.740] [METRIC] [training:2] EPOCH epoch=0 train_loss=0.03524000 val_loss=0.01674281
+[2026-04-16T17:37:00.299] [METRIC] [training:2] EPOCH epoch=0 train_loss=0.01902000 val_loss=0.01660944
+[2026-04-16T17:37:18.303] [METRIC] [training:2] EPOCH epoch=0 train_loss=0.04185000 val_loss=0.01689872
+[2026-04-16T17:37:36.674] [METRIC] [training:2] EPOCH epoch=0 train_loss=0.01659000 val_loss=0.01673639
+[2026-04-16T17:37:54.772] [METRIC] [training:2] EPOCH epoch=0 train_loss=0.04496000 val_loss=0.01675184
+[2026-04-16T17:38:13.847] [METRIC] [training:2] EPOCH epoch=0 train_loss=0.01227000 val_loss=0.01664000
+[2026-04-16T17:38:31.302] [METRIC] [training:2] EPOCH epoch=0 train_loss=0.02057000 val_loss=0.01656790
+[2026-04-16T17:38:49.344] [METRIC] [training:2] EPOCH epoch=0 train_loss=0.02688000 val_loss=0.01654391
+[2026-04-16T17:39:07.799] [METRIC] [training:2] EPOCH epoch=0 train_loss=0.02276000 val_loss=0.01671667
+[2026-04-16T17:39:26.045] [METRIC] [training:2] EPOCH epoch=0 train_loss=0.02896000 val_loss=0.01661268
+[2026-04-16T17:39:44.486] [METRIC] [training:2] EPOCH epoch=0 train_loss=0.02871000 val_loss=0.01650366
+[2026-04-16T17:39:44.671] [EVENT] [training:2] PHASE_END success=true duration=5m 59s best_train=0.02871 best_val=0.01650366 weights_size=2.2 MB
+[2026-04-16T17:39:44.671] [EVENT] [pipeline:2] GEN_SUMMARY gen=2 train_loss=0.02871 val_loss=0.01650366 elo=0 weights_size=2.2 MB
+[2026-04-16T17:39:45.262] [EVENT] [pipeline:3] GEN_START gen=3
+[2026-04-16T17:39:45.265] [CMD] [selfplay:3] "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" --generate --games 500 --depth 3 --workers 12 --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen3.bin" --duck-chess --resign-cp 350 --resign-count 3 --draw-cp 50 --draw-count 10 --draw-min-ply 60 --draw-adj-moves 12 --draw-adj-threshold 4 --draw-adj-min-move 80 --maxplies 250 --contempt 75 --opening-plies 4 --opening-temp 1.5 --softmax-plies 8 --softmax-temp 0.5 --record-min-ply 10 --record-max-eval 2500 --openings "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt"
+[2026-04-16T17:39:45.265] [EVENT] [selfplay:3] PHASE_START games=500 depth=3 workers=12
+[2026-04-16T17:39:45.716] [INFO] [selfplay:3] [SelfPlay] Starting 500 games  depth=3  movetime=0ms  workers=12  output=C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen3.bin  openings=2000  contempt=75  openingTemp=1.5  openingPlies=4  softmaxPlies=8  softmaxTemp=0.5  recordMinPly=10  recordMaxEval=2500  resign=350cp/3ply  draw=50cp/10ply@60  drawAdj=4cp/12ply@80
+[2026-04-16T17:48:32.466] [STATS] [selfplay:3] PROGRESS pct=25% pos=7229 W/D/B=30/65/30 3.7 games/s 10.3K nps
+[2026-04-16T17:56:33.983] [STATS] [selfplay:3] PROGRESS pct=50% pos=14115 W/D/B=64/127/59 1.1 games/s 11.3K nps
+[2026-04-16T18:04:15.598] [STATS] [selfplay:3] PROGRESS pct=75% pos=20607 W/D/B=100/184/91 0.5 games/s 8.2K nps
+[2026-04-16T18:12:04.085] [STATS] [selfplay:3] PROGRESS pct=100% pos=26854 W/D/B=144/233/123 2.9 games/s 9.1K nps
+[2026-04-16T18:12:04.732] [STATS] [selfplay:3] [SelfPlay] Done. 26854 positions written to C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen3.bin
+[2026-04-16T18:12:04.804] [EVENT] [selfplay:3] PHASE_END success=true output_size=1.3 MB
+[2026-04-16T18:12:05.383] [EVENT] [training:3] PHASE_START epochs=20 lr=0.001 batch=512
+[2026-04-16T18:12:23.370] [METRIC] [training:3] EPOCH epoch=0 train_loss=0.03633000 val_loss=0.01707791
+[2026-04-16T18:12:40.884] [METRIC] [training:3] EPOCH epoch=0 train_loss=0.04024000 val_loss=0.01710281
+[2026-04-16T18:12:57.891] [METRIC] [training:3] EPOCH epoch=0 train_loss=0.03092000 val_loss=0.01723439
+[2026-04-16T18:13:15.257] [METRIC] [training:3] EPOCH epoch=0 train_loss=0.02845000 val_loss=0.01704533
+[2026-04-16T18:13:32.765] [METRIC] [training:3] EPOCH epoch=0 train_loss=0.02964000 val_loss=0.01683450
+[2026-04-16T18:13:49.845] [METRIC] [training:3] EPOCH epoch=0 train_loss=0.03527000 val_loss=0.01693623
+[2026-04-16T18:14:08.418] [METRIC] [training:3] EPOCH epoch=0 train_loss=0.03917000 val_loss=0.01683010
+[2026-04-16T18:14:27.221] [METRIC] [training:3] EPOCH epoch=0 train_loss=0.03165000 val_loss=0.01690876
+[2026-04-16T18:14:46.842] [METRIC] [training:3] EPOCH epoch=0 train_loss=0.02921000 val_loss=0.01679317
+[2026-04-16T18:15:08.584] [METRIC] [training:3] EPOCH epoch=0 train_loss=0.02442000 val_loss=0.01671530
+[2026-04-16T18:15:27.952] [METRIC] [training:3] EPOCH epoch=0 train_loss=0.02715000 val_loss=0.01659303
+[2026-04-16T18:15:47.399] [METRIC] [training:3] EPOCH epoch=0 train_loss=0.03178000 val_loss=0.01673291
+[2026-04-16T18:16:07.097] [METRIC] [training:3] EPOCH epoch=0 train_loss=0.03037000 val_loss=0.01667423
+[2026-04-16T18:16:27.629] [METRIC] [training:3] EPOCH epoch=0 train_loss=0.02837000 val_loss=0.01651854
+[2026-04-16T18:16:46.596] [METRIC] [training:3] EPOCH epoch=0 train_loss=0.02958000 val_loss=0.01654056
+[2026-04-16T18:17:07.465] [METRIC] [training:3] EPOCH epoch=0 train_loss=0.03523000 val_loss=0.01660032
+[2026-04-16T18:17:25.970] [METRIC] [training:3] EPOCH epoch=0 train_loss=0.02422000 val_loss=0.01644885
+[2026-04-16T18:17:43.814] [METRIC] [training:3] EPOCH epoch=0 train_loss=0.02705000 val_loss=0.01649678
+[2026-04-16T18:18:03.364] [METRIC] [training:3] EPOCH epoch=0 train_loss=0.03179000 val_loss=0.01650143
+[2026-04-16T18:18:21.953] [METRIC] [training:3] EPOCH epoch=0 train_loss=0.03301000 val_loss=0.01651593
+[2026-04-16T18:18:22.107] [EVENT] [training:3] PHASE_END success=true duration=6m 16s best_train=0.03301 best_val=0.01651593 weights_size=2.2 MB
+[2026-04-16T18:18:22.107] [EVENT] [pipeline:3] GEN_SUMMARY gen=3 train_loss=0.03301 val_loss=0.01651593 elo=0 weights_size=2.2 MB
+[2026-04-16T18:18:22.715] [EVENT] [pipeline:4] GEN_START gen=4
+[2026-04-16T18:18:22.716] [CMD] [selfplay:4] "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" --generate --games 500 --depth 3 --workers 12 --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen4.bin" --duck-chess --resign-cp 350 --resign-count 3 --draw-cp 50 --draw-count 10 --draw-min-ply 60 --draw-adj-moves 12 --draw-adj-threshold 4 --draw-adj-min-move 80 --maxplies 250 --contempt 75 --opening-plies 4 --opening-temp 1.5 --softmax-plies 8 --softmax-temp 0.5 --record-min-ply 10 --record-max-eval 2500 --openings "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt"
+[2026-04-16T18:18:22.716] [EVENT] [selfplay:4] PHASE_START games=500 depth=3 workers=12
+[2026-04-16T18:18:23.155] [INFO] [selfplay:4] [SelfPlay] Starting 500 games  depth=3  movetime=0ms  workers=12  output=C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\duck_selfplay_gen4.bin  openings=2000  contempt=75  openingTemp=1.5  openingPlies=4  softmaxPlies=8  softmaxTemp=0.5  recordMinPly=10  recordMaxEval=2500  resign=350cp/3ply  draw=50cp/10ply@60  drawAdj=4cp/12ply@80
+[2026-04-16T18:21:41.717] [INFO] [selfplay:4] [STOP] Pipeline stopped by user (exit code 1)
+[2026-04-16T18:21:41.718] [EVENT] [selfplay:4] PHASE_END success=false output_size=unknown
+[2026-04-16T18:21:41.718] [ERROR] [selfplay:4] Self-play stopped by user
+[2026-04-16T18:21:41.718] [EVENT] [pipeline:0] PIPELINE_END reason=user_stop completed_gens=3
+# END OF LOG 2026-04-16T18:21:41.718

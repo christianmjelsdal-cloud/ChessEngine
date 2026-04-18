@@ -1,0 +1,286 @@
+# NNUE Training Runner - Structured Log
+# Format: [TIMESTAMP] [LEVEL] [PHASE:GEN] message
+# Structured events use KEY=VALUE pairs after the tag
+# Levels: INFO, WARN, ERROR, EVENT, METRIC, CONFIG, CMD
+# Generated: 2026-03-28T20:24:36.734
+#
+# ── HOW TO READ THIS LOG ──
+# Lines starting with [EVENT] mark pipeline milestones (start/stop/phase transitions)
+# Lines starting with [METRIC] contain numeric training data points
+# Lines starting with [ERROR] or [WARN] flag issues to investigate
+# Lines starting with [CONFIG] dump the full configuration used
+# Lines starting with [CMD] show exact command lines executed
+# Lines starting with [INFO] are general informational messages
+#
+[2026-03-28T20:24:36.734] [INFO] [general:0] [LOG] Writing structured log to: C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\logs\training_run_20260328_202436.log
+[2026-03-28T20:24:36.734] [EVENT] [pipeline:0] PIPELINE_START first_gen=11 last_gen=13 total_gens=3
+[2026-03-28T20:24:36.734] [CONFIG] [pipeline:0] generations=3 startGen=10 gamesPerGen=20 epochsPerGen=3 batchSize=1024 lr=0.001 weightDecay=1e-05 dropout=0 labelSmooth=0 gradAccum=2 warmupSteps=0 drawWeight=1 mateBoost=3 splRatio=0.4 frcMix=0 replayWindow=0 replayDecay=0.7 workers=12 depth=5 mixedDepthLow=4 mixedDepthRatio=0 maxPositions=10000 earlyStop=5 cosineLr=true cosineT0=0 swa=false swaStart=3 drawPct=10 wdlAlpha=0.5 wdlDrawElo=100 eloValidate=false eloGames=10 swaGames=5 overfitDetect=false resignCp=500 contemptCp=25 maxPlies=250 drawCp=8 exeName=ChessEngine.exe pyScript=train_nnue.py dataDir=assets
+[2026-03-28T20:24:36.734] [INFO] [general:0] --- Generation 11 ---
+[2026-03-28T20:24:36.735] [EVENT] [selfplay:11] PHASE_START games=20 depth=5 workers=12
+[2026-03-28T20:24:36.736] [CMD] [selfplay:0] [CMD] "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" --generate --games 20 --depth 5 --workers 12 --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen11.bin" --weights "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_gen10.bin" --openings "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt" --game-time-limit 120 --resigncp 500 --contempt 25 --maxplies 250 --drawcp 8
+[2026-03-28T20:24:37.309] [INFO] [selfplay:0] [SelfPlay] Loaded 2000 opening positions from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt
+[2026-03-28T20:24:37.309] [INFO] [selfplay:0] [SelfPlay] Starting 20 games  depth=5  movetime=0ms  workers=12  output=C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen11.bin  openings=2000  contempt=25  openingTemp=1.5  softmaxPlies=8  softmaxTemp=0.5  recordMinPly=10
+[2026-03-28T20:24:42.768] [INFO] [selfplay:0] [SelfPlay] 1/20 (5%)  pos=8  W/D/B=0/0/1  (0%/0%/100%)  d5  0.3 games/s (avg 0.3)  50.2K nps  ETA 00:00:52             
+[2026-03-28T20:24:43.478] [INFO] [selfplay:0] [SelfPlay] 2/20 (10%)  pos=74  W/D/B=0/1/1  (0%/50%/50%)  d5  0.3 games/s (avg 0.4)  87.9K nps  ETA 00:00:48           
+[2026-03-28T20:24:44.098] [INFO] [selfplay:0] [SelfPlay] 3/20 (15%)  pos=255  W/D/B=0/2/1  (0%/66%/33%)  d5  0.5 games/s (avg 0.5)  149.5K nps  ETA 00:00:34         
+[2026-03-28T20:24:45.246] [INFO] [selfplay:0] [SelfPlay] 4/20 (20%)  pos=335  W/D/B=0/2/2  (0%/50%/50%)  d5  0.7 games/s (avg 0.6)  197.3K nps  ETA 00:00:26         
+[2026-03-28T20:24:45.381] [INFO] [selfplay:0] [SelfPlay] 5/20 (25%)  pos=439  W/D/B=1/2/2  (20%/40%/40%)  d5  0.7 games/s (avg 0.6)  229.3K nps  ETA 00:00:22        
+[2026-03-28T20:24:45.483] [INFO] [selfplay:0] [SelfPlay] 6/20 (30%)  pos=679  W/D/B=1/3/2  (16%/50%/33%)  d5  1.7 games/s (avg 0.7)  300.1K nps  ETA 00:00:18        
+[2026-03-28T20:24:46.556] [INFO] [selfplay:0] [SelfPlay] 7/20 (35%)  pos=830  W/D/B=1/3/3  (14%/42%/42%)  d5  2.9 games/s (avg 0.9)  362.2K nps  ETA 00:00:14        
+[2026-03-28T20:24:46.877] [INFO] [selfplay:0] [SelfPlay] 8/20 (40%)  pos=933  W/D/B=1/4/3  (12%/50%/37%)  d5  2.6 games/s (avg 0.9)  375.4K nps  ETA 00:00:13        
+[2026-03-28T20:24:46.912] [INFO] [selfplay:0] [SelfPlay] 9/20 (45%)  pos=982  W/D/B=1/5/3  (11%/55%/33%)  d5  2.7 games/s (avg 0.9)  384.9K nps  ETA 00:00:12        
+[2026-03-28T20:24:47.290] [INFO] [selfplay:0] [SelfPlay] 10/20 (50%)  pos=1175  W/D/B=1/6/3  (10%/60%/30%)  d5  6.6 games/s (avg 1.0)  449.4K nps  ETA 00:00:11      
+[2026-03-28T20:24:47.988] [INFO] [selfplay:0] [SelfPlay] 11/20 (55%)  pos=1301  W/D/B=1/7/3  (9%/63%/27%)  d5  6.0 games/s (avg 1.1)  495.2K nps  ETA 00:00:09       
+[2026-03-28T20:24:48.005] [INFO] [selfplay:0] [SelfPlay] 12/20 (60%)  pos=1354  W/D/B=2/7/3  (16%/58%/25%)  d5  5.3 games/s (avg 1.1)  505.6K nps  ETA 00:00:10      
+[2026-03-28T20:24:48.182] [INFO] [selfplay:0] [SelfPlay] 13/20 (65%)  pos=1479  W/D/B=2/7/4  (15%/53%/30%)  d5  13.7 games/s (avg 1.2)  565.8K nps  ETA 00:00:09     
+[2026-03-28T20:24:48.291] [INFO] [selfplay:0] [SelfPlay] 14/20 (70%)  pos=1523  W/D/B=2/8/4  (14%/57%/28%)  d5  12.5 games/s (avg 1.3)  574.9K nps  ETA 00:00:09     
+[2026-03-28T20:24:48.728] [INFO] [selfplay:0] [SelfPlay] 15/20 (75%)  pos=1632  W/D/B=2/8/5  (13%/53%/33%)  d5  12.0 games/s (avg 1.4)  626.5K nps  ETA 00:00:07     
+[2026-03-28T20:24:49.445] [INFO] [selfplay:0] [SelfPlay] 16/20 (80%)  pos=1678  W/D/B=3/8/5  (18%/50%/31%)  d5  10.5 games/s (avg 1.4)  628.1K nps  ETA 00:00:07     
+[2026-03-28T20:24:50.529] [INFO] [selfplay:0] [SelfPlay] 17/20 (85%)  pos=1721  W/D/B=3/8/6  (17%/47%/35%)  d5  9.2 games/s (avg 1.4)  615.5K nps  ETA 00:00:07      
+[2026-03-28T20:24:50.670] [INFO] [selfplay:0] [SelfPlay] 18/20 (90%)  pos=1876  W/D/B=4/8/6  (22%/44%/33%)  d5  7.9 games/s (avg 1.4)  594.7K nps  ETA 00:00:08      
+[2026-03-28T20:24:50.855] [INFO] [selfplay:0] [SelfPlay] 19/20 (95%)  pos=2116  W/D/B=4/9/6  (21%/47%/31%)  d5  7.8 games/s (avg 1.4)  625.7K nps  ETA 00:00:08      
+[2026-03-28T20:24:51.326] [INFO] [selfplay:0] [SelfPlay] 20/20 (100%)  pos=2171  W/D/B=5/9/6  (25%/45%/30%)  d5  7.4 games/s (avg 1.5)  657.3K nps  ETA 00:00:00     
+[2026-03-28T20:24:51.329] [INFO] [selfplay:0] [SelfPlay] Done. 2171 positions written to C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen11.bin
+[2026-03-28T20:24:51.395] [EVENT] [selfplay:11] PHASE_END success=true elapsed_sec=14.0
+[2026-03-28T20:24:52.575] [INFO] [selfplay:0]   Using Stockfish-labeled data: C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\training_data_sf.bin
+[2026-03-28T20:24:52.575] [INFO] [selfplay:0]   Self-play current gen (weight 0.4, base gets 0.6)
+[2026-03-28T20:24:52.575] [EVENT] [training:11] PHASE_START epochs=3 batch=1024 lr=0.001
+[2026-03-28T20:24:52.575] [CMD] [training:0] [CMD] py -3.10 -u "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\train_nnue.py" --data "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\training_data_sf.bin" --extra-data "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen11.bin" 0.4 --max-positions 10000 --epochs 3 --batch-size 1024 --lr 0.001 --lr-min 0.00001 --weight-decay 0.00001 --dropout 0.0 --grad-clip 1.0 --grad-accum 2 --warmup-steps 0 --draw-weight 1.0 --mate-boost 3.0 --early-stop 5 --wdl-alpha 0.5 --wdl-draw-elo 100.0 --enhanced --plot --cosine-lr --no-cosine-restarts --extra-data "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\training_data_draws.bin" 0.1 --load-weights "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_gen10.bin" --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights.bin"
+[2026-03-28T20:24:55.904] [INFO] [training:0] === Enhanced mode v3: warmup=0, grad_accum=2, SWA=ON, label_smooth=0.02, filter_eval=1000.0, eval_soft_cap=800.0, draw_weight=1.0x, wdl_alpha=0.5, wdl_draw_elo=100.0, cosine_decay ===
+[2026-03-28T20:24:55.904] [INFO] [training:0] Using device: CPU (optimized)
+[2026-03-28T20:24:55.963] [INFO] [training:0]   CPU threads: 16
+[2026-03-28T20:24:55.964] [INFO] [training:0]   --max-positions: distributing 10,000 budget across 3 sources by ratio
+[2026-03-28T20:24:55.964] [INFO] [training:0]     training_data_sf.bin: 29,587,256 -> 6,524 (ratio 50.0%)
+[2026-03-28T20:24:55.964] [INFO] [training:0]     training_data_draws.bin: 35,143,613 -> 1,304 (ratio 10.0%)
+[2026-03-28T20:24:55.964] [INFO] [training:0] Datasets:             3 sources (ratio-based sampling)
+[2026-03-28T20:24:55.964] [INFO] [training:0]   - training_data_sf.bin                     ratio=50.0%  pos=6,524
+[2026-03-28T20:24:55.964] [INFO] [training:0]   - selfplay_gen11.bin                       ratio=40.0%  pos=2,171
+[2026-03-28T20:24:55.964] [INFO] [training:0]   - training_data_draws.bin                  ratio=10.0%  pos=1,304
+[2026-03-28T20:24:55.964] [INFO] [training:0]   Total positions: 9,999
+[2026-03-28T20:24:55.964] [INFO] [training:0]   Mode: PRELOAD (full dataset fits in RAM)
+[2026-03-28T20:24:58.512] [INFO] [training:0]   torch.compile:     ENABLED (reduce-overhead mode)
+[2026-03-28T20:24:58.599] [INFO] [training:0] Weights loaded from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_gen10.bin
+[2026-03-28T20:24:58.606] [INFO] [training:0] Loaded existing weights from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\nnue_weights_gen10.bin
+[2026-03-28T20:24:58.606] [INFO] [training:0]   Fresh optimizer (--load-weights skips old optimizer state)
+[2026-03-28T20:24:58.606] [INFO] [training:0] ============================================================
+[2026-03-28T20:24:58.606] [INFO] [training:0] Training Configuration:
+[2026-03-28T20:24:58.606] [INFO] [training:0]   Positions:         9,999
+[2026-03-28T20:24:58.606] [INFO] [training:0]   Batch size:        1024 (effective: 2048 with grad accum x2)
+[2026-03-28T20:24:58.606] [INFO] [training:0]   Epochs:            3
+[2026-03-28T20:24:58.606] [INFO] [training:0]   Learning rate:     0.001
+[2026-03-28T20:24:58.606] [INFO] [training:0]   LR schedule:       Cosine Decay (T_max=3, warmup_epochs~0)
+[2026-03-28T20:24:58.606] [INFO] [training:0]   LR min:            1e-05
+[2026-03-28T20:24:58.606] [INFO] [training:0]   LR warmup:         OFF
+[2026-03-28T20:24:58.607] [INFO] [training:0]   Lambda (eval/res): 0.5
+[2026-03-28T20:24:58.607] [INFO] [training:0]   Eval scale:        400.0
+[2026-03-28T20:24:58.607] [INFO] [training:0]   Phase balanced:    True
+[2026-03-28T20:24:58.607] [INFO] [training:0]   Early stop:        5 epochs
+[2026-03-28T20:24:58.607] [INFO] [training:0]   Weight decay:      1e-05
+[2026-03-28T20:24:58.607] [INFO] [training:0]   Dropout:           0.0
+[2026-03-28T20:24:58.607] [INFO] [training:0]   Grad accumulation: 2x
+[2026-03-28T20:24:58.607] [INFO] [training:0]   Label smoothing:   0.02
+[2026-03-28T20:24:58.607] [INFO] [training:0]   SWA:               ON (start epoch 3)
+[2026-03-28T20:24:58.607] [INFO] [training:0]   Filter eval max:   1000.0
+[2026-03-28T20:24:58.607] [INFO] [training:0]   Eval soft-cap:     800.0
+[2026-03-28T20:24:58.607] [INFO] [training:0]   Draw weight:       OFF
+[2026-03-28T20:24:58.607] [INFO] [training:0]   Mate boost:        3.0x
+[2026-03-28T20:24:58.607] [INFO] [training:0]   Async prefetch:    N/A (preload mode)
+[2026-03-28T20:24:58.607] [INFO] [training:0]   WDL CE loss:       ON (alpha=0.5, lambda=0.5 (from --lam), draw_elo=100.0)
+[2026-03-28T20:24:58.607] [INFO] [training:0]   Activation:        SCReLU (squared clipped ReLU)
+[2026-03-28T20:24:58.607] [INFO] [training:0]   Architecture:      40960->512->128->64->WDL(3)x3heads
+[2026-03-28T20:24:58.607] [INFO] [training:0]   Grad clip norm:    1.0
+[2026-03-28T20:24:58.607] [INFO] [training:0]   Streaming:         False
+[2026-03-28T20:24:58.607] [INFO] [training:0]   Datasets:          3 sources (ratio-based sampling)
+[2026-03-28T20:24:58.607] [INFO] [training:0]     - training_data_sf.bin            ratio=50.0%  pos=6,524
+[2026-03-28T20:24:58.607] [INFO] [training:0]     - selfplay_gen11.bin              ratio=40.0%  pos=2,171
+[2026-03-28T20:24:58.607] [INFO] [training:0]     - training_data_draws.bin         ratio=10.0%  pos=1,304
+[2026-03-28T20:24:58.607] [INFO] [training:0] ============================================================
+[2026-03-28T20:24:58.607] [INFO] [training:0]   Multi-dataset preload: ratios will be applied during epoch sampling.
+[2026-03-28T20:24:58.607] [INFO] [training:0]   Loading 3 datasets sequentially...
+[2026-03-28T20:24:58.607] [INFO] [training:0] Loading positions from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\training_data_sf.bin...
+[2026-03-28T20:24:58.607] [INFO] [training:0]   Total positions: 29,587,256 � using offset-cache fast path (avoids reading 1410 MB into RAM)
+[2026-03-28T20:24:58.607] [INFO] [training:0] Scanning C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\training_data_sf.bin for position offsets...
+[2026-03-28T20:24:58.840] [INFO] [training:0]   Loaded cached index: 29,587,256 offsets (C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\training_data_sf.bin.offidx)
+[2026-03-28T20:25:01.257] [INFO] [training:0]   Sampled 6,524 from 29,587,256 positions (reservoir)
+[2026-03-28T20:25:03.788] [INFO] [training:0]   Parsed 6,524 positions in 2.5s (2,616 pos/s)
+[2026-03-28T20:25:03.788] [INFO] [training:0]   Vectorized HalfKAv2 conversion (6,524 positions)...
+[2026-03-28T20:25:03.922] [INFO] [training:0]   HalfKAv2 conversion: 0.1s (48,566 pos/s)
+[2026-03-28T20:25:03.924] [INFO] [training:0]   Converting to tensors...
+[2026-03-28T20:25:03.924] [INFO] [training:0] Phase distribution: Opening=1,901, Middlegame=2,126, Endgame=2,228
+[2026-03-28T20:25:03.924] [INFO] [training:0]   [training_data_sf.bin] loaded: 6,255 positions
+[2026-03-28T20:25:04.050] [INFO] [training:0] Loading positions from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen11.bin...
+[2026-03-28T20:25:04.051] [INFO] [training:0]   Total positions: 2,171 (header: versioned)
+[2026-03-28T20:25:04.057] [INFO] [training:0]   Parsed 2,137 positions in 0.0s (339,028 pos/s)          
+[2026-03-28T20:25:04.057] [INFO] [training:0]   Filtered: 34 extreme-eval positions removed, 2,137 kept
+[2026-03-28T20:25:04.187] [INFO] [training:0]   Vectorized HalfKAv2 conversion (2,137 positions)...
+[2026-03-28T20:25:04.313] [INFO] [training:0]   HalfKAv2 conversion: 0.1s (16,928 pos/s)
+[2026-03-28T20:25:04.313] [INFO] [training:0]   Converting to tensors...
+[2026-03-28T20:25:04.313] [INFO] [training:0] Phase distribution: Opening=260, Middlegame=730, Endgame=1,147
+[2026-03-28T20:25:04.313] [INFO] [training:0]   [selfplay_gen11.bin] loaded: 2,137 positions
+[2026-03-28T20:25:04.454] [INFO] [training:0] Loading positions from C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\training_data_draws.bin...
+[2026-03-28T20:25:04.454] [INFO] [training:0]   Total positions: 35,143,613 � using offset-cache fast path (avoids reading 1675 MB into RAM)
+[2026-03-28T20:25:04.454] [INFO] [training:0] Scanning C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\training_data_draws.bin for position offsets...
+[2026-03-28T20:25:04.706] [INFO] [training:0]   Loaded cached index: 35,143,613 offsets (C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\training_data_draws.bin.offidx)
+[2026-03-28T20:25:07.575] [INFO] [training:0]   Sampled 1,304 from 35,143,613 positions (reservoir)
+[2026-03-28T20:25:08.337] [INFO] [training:0]   Parsed 1,304 positions in 0.7s (1,784 pos/s)
+[2026-03-28T20:25:08.337] [INFO] [training:0]   Vectorized HalfKAv2 conversion (1,304 positions)...
+[2026-03-28T20:25:08.471] [INFO] [training:0]   HalfKAv2 conversion: 0.1s (9,744 pos/s)
+[2026-03-28T20:25:08.471] [INFO] [training:0]   Converting to tensors...
+[2026-03-28T20:25:08.471] [INFO] [training:0] Phase distribution: Opening=462, Middlegame=327, Endgame=515
+[2026-03-28T20:25:08.471] [INFO] [training:0]   [training_data_draws.bin] loaded: 1,304 positions
+[2026-03-28T20:25:08.601] [INFO] [training:0]   Train positions: 8,727
+[2026-03-28T20:25:08.601] [INFO] [training:0]   Val positions:   969
+[2026-03-28T20:25:08.606] [INFO] [training:0]   Phase-balanced samples: 10,446 (from 8,727 train)
+[2026-03-28T20:25:10.435] [INFO] [training:0] Microsoft (R) C/C++ Optimizing Compiler Version 19.50.35728 for x64
+[2026-03-28T20:25:10.435] [INFO] [training:0] Copyright (C) Microsoft Corporation.  All rights reserved.
+[2026-03-28T20:25:10.438] [INFO] [training:0] cl : Command line warning D9002 : ignoring unknown option '--version'
+[2026-03-28T20:25:10.438] [INFO] [training:0] cl : Command line error D8003 : missing source filename
+[2026-03-28T20:25:10.446] [INFO] [training:0] [FATAL] Unhandled exception in training loop at epoch 1:
+[2026-03-28T20:25:10.450] [INFO] [training:0] Traceback (most recent call last):
+[2026-03-28T20:25:10.450] [INFO] [training:0]   File "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\train_nnue.py", line 2600, in train
+[2026-03-28T20:25:10.450] [INFO] [training:0]     loss_val = process_batch(
+[2026-03-28T20:25:10.450] [INFO] [training:0]   File "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\train_nnue.py", line 1833, in process_batch
+[2026-03-28T20:25:10.450] [INFO] [training:0]     loss_tensor = compute_loss(net, white, black, stm, result, eval_t,
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\train_nnue.py", line 1397, in compute_loss
+[2026-03-28T20:25:10.451] [INFO] [training:0]     raw_output, wdl_logits = net(white, black, stm, phases=phases, return_wdl=True)
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\nn\modules\module.py", line 1553, in _wrapped_call_impl
+[2026-03-28T20:25:10.451] [INFO] [training:0]     return self._call_impl(*args, **kwargs)
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\nn\modules\module.py", line 1562, in _call_impl
+[2026-03-28T20:25:10.451] [INFO] [training:0]     return forward_call(*args, **kwargs)
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_dynamo\eval_frame.py", line 433, in _fn
+[2026-03-28T20:25:10.451] [INFO] [training:0]     return fn(*args, **kwargs)
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\nn\modules\module.py", line 1553, in _wrapped_call_impl
+[2026-03-28T20:25:10.451] [INFO] [training:0]     return self._call_impl(*args, **kwargs)
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\nn\modules\module.py", line 1562, in _call_impl
+[2026-03-28T20:25:10.451] [INFO] [training:0]     return forward_call(*args, **kwargs)
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_dynamo\convert_frame.py", line 1116, in __call__
+[2026-03-28T20:25:10.451] [INFO] [training:0]     return self._torchdynamo_orig_callable(
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_dynamo\convert_frame.py", line 948, in __call__
+[2026-03-28T20:25:10.451] [INFO] [training:0]     result = self._inner_convert(
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_dynamo\convert_frame.py", line 472, in __call__
+[2026-03-28T20:25:10.451] [INFO] [training:0]     return _compile(
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_utils_internal.py", line 84, in wrapper_function
+[2026-03-28T20:25:10.451] [INFO] [training:0]     return StrobelightCompileTimeProfiler.profile_compile_time(
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_strobelight\compile_time_profiler.py", line 129, in profile_compile_time
+[2026-03-28T20:25:10.451] [INFO] [training:0]     return func(*args, **kwargs)
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\contextlib.py", line 79, in inner
+[2026-03-28T20:25:10.451] [INFO] [training:0]     return func(*args, **kwds)
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_dynamo\convert_frame.py", line 817, in _compile
+[2026-03-28T20:25:10.451] [INFO] [training:0]     guarded_code = compile_inner(code, one_graph, hooks, transform)
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_dynamo\utils.py", line 231, in time_wrapper
+[2026-03-28T20:25:10.451] [INFO] [training:0]     r = func(*args, **kwargs)
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_dynamo\convert_frame.py", line 636, in compile_inner
+[2026-03-28T20:25:10.451] [INFO] [training:0]     out_code = transform_code_object(code, transform)
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_dynamo\bytecode_transformation.py", line 1185, in transform_code_object
+[2026-03-28T20:25:10.451] [INFO] [training:0]     transformations(instructions, code_options)
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_dynamo\convert_frame.py", line 178, in _fn
+[2026-03-28T20:25:10.451] [INFO] [training:0]     return fn(*args, **kwargs)
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_dynamo\convert_frame.py", line 582, in transform
+[2026-03-28T20:25:10.451] [INFO] [training:0]     tracer.run()
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_dynamo\symbolic_convert.py", line 2451, in run
+[2026-03-28T20:25:10.451] [INFO] [training:0]     super().run()
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_dynamo\symbolic_convert.py", line 893, in run
+[2026-03-28T20:25:10.451] [INFO] [training:0]     while self.step():
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_dynamo\symbolic_convert.py", line 805, in step
+[2026-03-28T20:25:10.451] [INFO] [training:0]     self.dispatch_table[inst.opcode](self, inst)
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_dynamo\symbolic_convert.py", line 2642, in RETURN_VALUE
+[2026-03-28T20:25:10.451] [INFO] [training:0]     self._return(inst)
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_dynamo\symbolic_convert.py", line 2627, in _return
+[2026-03-28T20:25:10.451] [INFO] [training:0]     self.output.compile_subgraph(
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_dynamo\output_graph.py", line 1123, in compile_subgraph
+[2026-03-28T20:25:10.451] [INFO] [training:0]     self.compile_and_call_fx_graph(tx, pass2.graph_output_vars(), root)
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\contextlib.py", line 79, in inner
+[2026-03-28T20:25:10.451] [INFO] [training:0]     return func(*args, **kwds)
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_dynamo\output_graph.py", line 1318, in compile_and_call_fx_graph
+[2026-03-28T20:25:10.451] [INFO] [training:0]     compiled_fn = self.call_user_compiler(gm)
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_dynamo\utils.py", line 231, in time_wrapper
+[2026-03-28T20:25:10.451] [INFO] [training:0]     r = func(*args, **kwargs)
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_dynamo\output_graph.py", line 1409, in call_user_compiler
+[2026-03-28T20:25:10.451] [ERROR] [training:0]     raise BackendCompilerFailed(self.compiler_fn, e).with_traceback(
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_dynamo\output_graph.py", line 1390, in call_user_compiler
+[2026-03-28T20:25:10.451] [INFO] [training:0]     compiled_fn = compiler_fn(gm, self.example_inputs())
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_dynamo\repro\after_dynamo.py", line 129, in __call__
+[2026-03-28T20:25:10.451] [INFO] [training:0]     compiled_gm = compiler_fn(gm, example_inputs)
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\__init__.py", line 1951, in __call__
+[2026-03-28T20:25:10.451] [INFO] [training:0]     return compile_fx(model_, inputs_, config_patches=self.config)
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\contextlib.py", line 79, in inner
+[2026-03-28T20:25:10.451] [INFO] [training:0]     return func(*args, **kwds)
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_inductor\compile_fx.py", line 1261, in compile_fx
+[2026-03-28T20:25:10.451] [INFO] [training:0]     return compile_fx(
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\contextlib.py", line 79, in inner
+[2026-03-28T20:25:10.451] [INFO] [training:0]     return func(*args, **kwds)
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_inductor\compile_fx.py", line 1505, in compile_fx
+[2026-03-28T20:25:10.451] [INFO] [training:0]     return aot_autograd(
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_dynamo\backends\common.py", line 69, in __call__
+[2026-03-28T20:25:10.451] [INFO] [training:0]     cg = aot_module_simplified(gm, example_inputs, **self.kwargs)
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_functorch\aot_autograd.py", line 954, in aot_module_simplified
+[2026-03-28T20:25:10.451] [INFO] [training:0]     compiled_fn, _ = create_aot_dispatcher_function(
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_dynamo\utils.py", line 231, in time_wrapper
+[2026-03-28T20:25:10.451] [INFO] [training:0]     r = func(*args, **kwargs)
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_functorch\aot_autograd.py", line 687, in create_aot_dispatcher_function
+[2026-03-28T20:25:10.451] [INFO] [training:0]     compiled_fn, fw_metadata = compiler_fn(
+[2026-03-28T20:25:10.451] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_functorch\_aot_autograd\jit_compile_runtime_wrappers.py", line 461, in aot_dispatch_autograd
+[2026-03-28T20:25:10.452] [INFO] [training:0]     compiled_fw_func = aot_config.fw_compiler(fw_module, adjusted_flat_args)
+[2026-03-28T20:25:10.452] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_dynamo\utils.py", line 231, in time_wrapper
+[2026-03-28T20:25:10.452] [INFO] [training:0]     r = func(*args, **kwargs)
+[2026-03-28T20:25:10.452] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_inductor\compile_fx.py", line 1410, in fw_compiler_base
+[2026-03-28T20:25:10.452] [INFO] [training:0]     return inner_compile(
+[2026-03-28T20:25:10.452] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\contextlib.py", line 79, in inner
+[2026-03-28T20:25:10.452] [INFO] [training:0]     return func(*args, **kwds)
+[2026-03-28T20:25:10.452] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_dynamo\repro\after_aot.py", line 84, in debug_wrapper
+[2026-03-28T20:25:10.452] [INFO] [training:0]     inner_compiled_fn = compiler_fn(gm, example_inputs)
+[2026-03-28T20:25:10.452] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_inductor\debug.py", line 304, in inner
+[2026-03-28T20:25:10.452] [INFO] [training:0]     return fn(*args, **kwargs)
+[2026-03-28T20:25:10.452] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\contextlib.py", line 79, in inner
+[2026-03-28T20:25:10.452] [INFO] [training:0]     return func(*args, **kwds)
+[2026-03-28T20:25:10.452] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\contextlib.py", line 79, in inner
+[2026-03-28T20:25:10.452] [INFO] [training:0]     return func(*args, **kwds)
+[2026-03-28T20:25:10.452] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_dynamo\utils.py", line 231, in time_wrapper
+[2026-03-28T20:25:10.452] [INFO] [training:0]     r = func(*args, **kwargs)
+[2026-03-28T20:25:10.452] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_inductor\compile_fx.py", line 527, in compile_fx_inner
+[2026-03-28T20:25:10.452] [INFO] [training:0]     compiled_graph = fx_codegen_and_compile(
+[2026-03-28T20:25:10.452] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\contextlib.py", line 79, in inner
+[2026-03-28T20:25:10.452] [INFO] [training:0]     return func(*args, **kwds)
+[2026-03-28T20:25:10.452] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_inductor\compile_fx.py", line 831, in fx_codegen_and_compile
+[2026-03-28T20:25:10.452] [INFO] [training:0]     compiled_fn = graph.compile_to_fn()
+[2026-03-28T20:25:10.452] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_inductor\graph.py", line 1751, in compile_to_fn
+[2026-03-28T20:25:10.452] [INFO] [training:0]     return self.compile_to_module().call
+[2026-03-28T20:25:10.452] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_dynamo\utils.py", line 231, in time_wrapper
+[2026-03-28T20:25:10.452] [INFO] [training:0]     r = func(*args, **kwargs)
+[2026-03-28T20:25:10.452] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_inductor\graph.py", line 1680, in compile_to_module
+[2026-03-28T20:25:10.452] [INFO] [training:0]     self.codegen_with_cpp_wrapper() if self.cpp_wrapper else self.codegen()
+[2026-03-28T20:25:10.452] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_inductor\graph.py", line 1640, in codegen
+[2026-03-28T20:25:10.452] [INFO] [training:0]     self.scheduler.codegen()
+[2026-03-28T20:25:10.452] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_dynamo\utils.py", line 231, in time_wrapper
+[2026-03-28T20:25:10.452] [INFO] [training:0]     r = func(*args, **kwargs)
+[2026-03-28T20:25:10.452] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_inductor\scheduler.py", line 2741, in codegen
+[2026-03-28T20:25:10.452] [INFO] [training:0]     self.get_backend(device).codegen_node(node)
+[2026-03-28T20:25:10.452] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_inductor\codegen\cpp.py", line 3792, in codegen_node
+[2026-03-28T20:25:10.452] [INFO] [training:0]     cpp_kernel_proxy = CppKernelProxy(kernel_group)
+[2026-03-28T20:25:10.452] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_inductor\codegen\cpp.py", line 3021, in __init__
+[2026-03-28T20:25:10.452] [INFO] [training:0]     self.picked_vec_isa: codecache.VecISA = codecache.pick_vec_isa()
+[2026-03-28T20:25:10.452] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_inductor\codecache.py", line 1511, in pick_vec_isa
+[2026-03-28T20:25:10.452] [INFO] [training:0]     _valid_vec_isa_list: List[VecISA] = valid_vec_isa_list()
+[2026-03-28T20:25:10.452] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_inductor\codecache.py", line 1501, in valid_vec_isa_list
+[2026-03-28T20:25:10.452] [INFO] [training:0]     if str(isa) in _cpu_supported_x86_isa and isa:
+[2026-03-28T20:25:10.452] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_inductor\codecache.py", line 1321, in __bool__
+[2026-03-28T20:25:10.452] [INFO] [training:0]     extra=_get_isa_dry_compile_fingerprint(self._arch_flags),
+[2026-03-28T20:25:10.452] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_inductor\codecache.py", line 1245, in _get_isa_dry_compile_fingerprint
+[2026-03-28T20:25:10.452] [INFO] [training:0]     compiler_info = get_compiler_version_info(cpp_compiler())
+[2026-03-28T20:25:10.452] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_inductor\codecache.py", line 1141, in cpp_compiler
+[2026-03-28T20:25:10.452] [INFO] [training:0]     return cpp_compiler_search(search)
+[2026-03-28T20:25:10.452] [INFO] [training:0]   File "C:\Users\chris\pyver\py3.10\lib\site-packages\torch\_inductor\codecache.py", line 1168, in cpp_compiler_search
+[2026-03-28T20:25:10.452] [INFO] [training:0]     raise exc.InvalidCxxCompiler
+[2026-03-28T20:25:10.452] [ERROR] [training:0] torch._dynamo.exc.BackendCompilerFailed: backend='inductor' raised:
+[2026-03-28T20:25:10.452] [INFO] [training:0] InvalidCxxCompiler: No working C++ compiler found in torch._inductor.config.cpp.cxx: (None, 'cl.exe')
+[2026-03-28T20:25:10.452] [INFO] [training:0] Set TORCH_LOGS="+dynamo" and TORCHDYNAMO_VERBOSE=1 for more information
+[2026-03-28T20:25:10.452] [INFO] [training:0] You can suppress this exception and fall back to eager by setting:
+[2026-03-28T20:25:10.452] [INFO] [training:0]     import torch._dynamo
+[2026-03-28T20:25:10.452] [INFO] [training:0]     torch._dynamo.config.suppress_errors = True
+[2026-03-28T20:25:10.452] [INFO] [training:0] [FATAL] Training aborted. See traceback above.
+[2026-03-28T20:25:11.377] [ERROR] [training:0] [ERR] Process exited with code 1 -- check logs for details.
+[2026-03-28T20:25:11.377] [EVENT] [training:11] PHASE_END success=false elapsed_sec=18.0
+[2026-03-28T20:25:11.377] [ERROR] [training:0] [ERR] Training failed gen 11
+[2026-03-28T20:25:11.377] [INFO] [training:0] === Pipeline complete ===
+[2026-03-28T20:25:11.378] [EVENT] [pipeline:0] PIPELINE_END stopped=false total_elapsed_sec=34.0 completed_gens=0
+# ── END OF LOG ── 2026-03-28T20:25:11.378

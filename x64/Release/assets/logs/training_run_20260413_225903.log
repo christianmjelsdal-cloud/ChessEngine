@@ -1,0 +1,15 @@
+# NNUE Training Runner - Structured Log
+# Format: [TIMESTAMP] [LEVEL] [PHASE:GEN] message
+# Generated: 2026-04-13T22:59:03.117
+#
+[2026-04-13T22:59:03.117] [EVENT] [pipeline:0] PIPELINE_START first_gen=39 last_gen=48 total_gens=10
+[2026-04-13T22:59:03.117] [CONFIG] [pipeline:0] variant=Standard Chess generations=10 startGen=38 gamesPerGen=3500 depth=9 workers=12 epochsPerGen=6 batchSize=2048 lr=5e-05 weightDecay=0.005 maxPositions=750000 splRatio=0.55 drawWeight=0.3 mateBoost=10 eloValidate=false
+[2026-04-13T22:59:03.117] [EVENT] [pipeline:39] GEN_START gen=39
+[2026-04-13T22:59:03.122] [CMD] [selfplay:39] "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\ChessEngine.exe" --generate --games 3500 --depth 9 --workers 12 --output "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen39.bin" --resign-cp 500 --resign-count 4 --draw-cp 15 --draw-count 8 --draw-min-ply 80 --draw-adj-moves 10 --draw-adj-threshold 6 --draw-adj-min-move 60 --maxplies 250 --contempt 0 --opening-plies 4 --opening-temp 2 --softmax-plies 12 --softmax-temp 0.5 --root-noise 0.03 --record-min-ply 2 --record-max-eval 2000 --mixed-depth-ratio 0.5 --mixed-depth-low 5 --depth-shuffle --depth-shuffle-bias 2 --openings "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\openings.txt"
+[2026-04-13T22:59:03.122] [EVENT] [selfplay:39] PHASE_START games=3500 depth=9 workers=12
+[2026-04-13T22:59:03.659] [INFO] [selfplay:39] [SelfPlay] Starting 3500 games  depth=9  movetime=0ms  workers=12  output=C:\Users\chris\pyproj\my_env\Projects\ChessEngine\x64\Release\assets\selfplay_gen39.bin  openings=2000  openingTemp=2  openingPlies=4  softmaxPlies=12  softmaxTemp=0.5  rootNoise=0.03  recordMinPly=2  recordMaxEval=2000  resign=500cp/4ply  draw=15cp/8ply@80  drawAdj=6cp/10ply@60  depthShuffle=[d5..d8] bias=2 (50% shuffled)
+[2026-04-13T23:01:10.133] [INFO] [selfplay:39] [ERR] Process exited with code 1
+[2026-04-13T23:01:10.133] [EVENT] [selfplay:39] PHASE_END success=false
+[2026-04-13T23:01:10.133] [ERROR] [selfplay:39] Self-play failed
+[2026-04-13T23:01:10.133] [EVENT] [pipeline:0] PIPELINE_END stopped=true completed_gens=0
+# END OF LOG 2026-04-13T23:01:10.133
