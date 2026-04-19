@@ -1754,6 +1754,28 @@ static bool Training(const Config& cfg, int gen) {
                 }
                 { std::lock_guard<std::mutex> lk(g_st.mtx);
                   g_st.curEpoch = pt.step; }
+                // Persist graph CSV immediately so a mid-gen crash doesn't lose data
+                {
+                    fs::path graphCsv = graphCsvPath(cfg.variant);
+                    std::vector<TrainPoint> pts_snap;
+                    { std::lock_guard<std::mutex> lk(g_st.mtx); pts_snap = g_st.pts; }
+                    std::ofstream out(graphCsv.string(), std::ios::trunc);
+                    out << "# gen,epoch,train,val,lr,acc,openingLoss,middlegameLoss,endgameLoss\n";
+                    for (auto& p : pts_snap) {
+                        out << p.gen << ',' << p.step << ','
+                            << std::fixed << std::setprecision(8) << p.train << ',';
+                        if (p.hasVal) out << p.val; else out << "nan";
+                        out << ',';
+                        if (p.hasLR) out << std::fixed << std::setprecision(8) << p.lr; else out << "nan";
+                        out << ',';
+                        if (p.hasAcc) out << std::fixed << std::setprecision(4) << p.accuracy; else out << "nan";
+                        out << ',';
+                        if (p.hasPhase) out << std::fixed << std::setprecision(8)
+                            << p.openingLoss << ',' << p.middlegameLoss << ',' << p.endgameLoss;
+                        else out << "nan,nan,nan";
+                        out << '\n';
+                    }
+                }
                 // Redraw graph when a new epoch point arrives
                 if (g_hGraph) InvalidateRect(g_hGraph, nullptr, FALSE);
             }
