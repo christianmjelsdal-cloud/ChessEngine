@@ -1739,18 +1739,24 @@ static bool Training(const Config& cfg, int gen) {
             }
         }
         if (parsed) {
-            g_st.pushPt(pt);
-            g_log.metric(gen, pt.step, pt.train, pt.val, pt.hasVal, pt.lr, pt.hasLR);
-            if (pt.hasPhase) {
-                g_log.write("METRIC", "training", gen,
-                    "PHASE_LOSS opening=" + dbl2s(pt.openingLoss, 6) +
-                    " middlegame=" + dbl2s(pt.middlegameLoss, 6) +
-                    " endgame=" + dbl2s(pt.endgameLoss, 6));
+            // Only push epoch-level points to the graph (step > 0 = epoch summary line).
+            // Batch-level lines (step=0) have no val_loss and would create a noisy
+            // step=0 point that merges all batches into one slot per gen.
+            bool isEpochPoint = (pt.step > 0);
+            if (isEpochPoint) {
+                g_st.pushPt(pt);
+                g_log.metric(gen, pt.step, pt.train, pt.val, pt.hasVal, pt.lr, pt.hasLR);
+                if (pt.hasPhase) {
+                    g_log.write("METRIC", "training", gen,
+                        "PHASE_LOSS opening=" + dbl2s(pt.openingLoss, 6) +
+                        " middlegame=" + dbl2s(pt.middlegameLoss, 6) +
+                        " endgame=" + dbl2s(pt.endgameLoss, 6));
+                }
+                { std::lock_guard<std::mutex> lk(g_st.mtx);
+                  g_st.curEpoch = pt.step; }
+                // Redraw graph when a new epoch point arrives
+                if (g_hGraph) InvalidateRect(g_hGraph, nullptr, FALSE);
             }
-            { std::lock_guard<std::mutex> lk(g_st.mtx);
-              if (pt.step > 0) g_st.curEpoch = pt.step; }
-            // Immediately redraw graph when a new epoch point arrives
-            if (g_hGraph) InvalidateRect(g_hGraph, nullptr, FALSE);
         }
     }, g_st.stopFlag);
     if (ok) {
@@ -1982,7 +1988,7 @@ static void DrawGraph(HWND hw) {
     std::vector<TrainPoint> pts;
     { std::lock_guard<std::mutex> lk(g_st.mtx); pts = g_st.pts; }
 
-    if (pts.size() < 2) {
+    if (pts.size() < 1) {
         Font fnt(L"Segoe UI", 10.0f);
         SolidBrush tb(Color(255,80,80,100));
         g.DrawString(L"No data yet", -1, &fnt, PointF((float)W2/2-40,(float)H2/2-8), &tb);
@@ -2016,6 +2022,7 @@ static void DrawGraph(HWND hw) {
     float gw = (float)W2 - ml - mr;
 
     auto xf = [&](int i) -> float {
+        if (pts.size() <= 1) return ml + gw * 0.5f;  // single point: center
         return ml + (float)i / (float)(pts.size()-1) * gw;
     };
 
