@@ -212,6 +212,8 @@ robocopy "C:\Users\chris\pyproj\my_env\Projects\ChessEngine\stockfish" "$(OutDir
 if %ERRORLEVEL% GTR 7 exit %ERRORLEVEL%
 robocopy "C:\Users\chris\pyproj\my_env\Projects\ChessEngine" "$(OutDir)." train_nnue.py /XO /NJH /NFL
 if %ERRORLEVEL% GTR 7 exit %ERRORLEVEL%
+robocopy "C:\vcpkg\installed\x64-windows\bin" "$(OutDir)." *.dll /XO /NJH /NFL
+if %ERRORLEVEL% GTR 7 exit %ERRORLEVEL%
 exit 0</Command>
       <Message>
       </Message>
