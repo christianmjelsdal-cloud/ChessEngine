@@ -1613,6 +1613,14 @@ static bool Training(const Config& cfg, int gen) {
         // Log the cleaned line (ETA fields removed)
         g_st.pushLog(cleaned);
 
+        // After an epoch summary line, push a blank batch placeholder so the next
+        // epoch's \r batch lines overwrite the placeholder instead of the epoch summary.
+        // Without this, the first batch line of each epoch overwrites the epoch summary.
+        if (cleaned.find("Epoch ") != std::string::npos &&
+            cleaned.find("loss=")  != std::string::npos) {
+            g_st.pushLog("\r  batch -/-");
+        }
+
         // Parse batch progress from --train-duck: "\r  batch N/TOTAL  loss=X  Y b/s  ETA Zm Ws"
         // Update curEpoch with batch progress so the banner shows real-time progress.
         // Also parse epoch_time= and eta= from epoch summary lines.

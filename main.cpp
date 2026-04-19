@@ -599,6 +599,11 @@ int main(int argc, char* argv[]) {
             },
             nullptr,  // cancelFlag passed separately below
             [&](int batch, int totalBatches, float batchLoss) {
+                // Only print every ~2% of batches (or the last batch) to avoid flooding
+                // the pipe — if all batches arrive before RunProc reads them, rfind('\r')
+                // keeps only the last one and the counter appears stuck at N/N.
+                int printInterval = std::max(1, totalBatches / 50);
+                if (batch % printInterval != 0 && batch != totalBatches) return;
                 double elapsed = std::chrono::duration<double>(Clock::now() - epochStart).count();
                 double batchesPerSec = (elapsed > 0.0) ? batch / elapsed : 0.0;
                 double etaBatch = (batchesPerSec > 0.0) ? (totalBatches - batch) / batchesPerSec : 0.0;
