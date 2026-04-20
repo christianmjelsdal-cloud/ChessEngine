@@ -1157,7 +1157,7 @@ static bool SelfPlay(const Config& cfg, int gen) {
         // Adjudication — for duck chess use higher draw threshold (evals near 0 with random weights)
         " --resign-cp " + std::to_string(cfg.resignCp) +
         " --resign-count " + std::to_string(cfg.resignCount) +
-        " --draw-cp " + std::to_string(cfg.variant == ChessVariant::DuckChess ? std::max(cfg.drawCp, 50) : cfg.drawCp) +
+        " --draw-cp " + std::to_string(cfg.drawCp) +
         " --draw-count " + std::to_string(cfg.drawCount) +
         " --draw-min-ply " + std::to_string(cfg.drawMinPly) +
         " --draw-adj-moves " + std::to_string(cfg.drawAdjMoves) +
